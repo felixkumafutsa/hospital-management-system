@@ -1,0 +1,38 @@
+{
+    "name": "betterlife-hms-web",
+    "private": true,
+    "version": "1.0.0",
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "tsc && vite build",
+        "preview": "vite preview",
+        "lint": "eslint src/**/*.{ts,tsx} --fix",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@emotion/react": "^11.11.3",
+        "@emotion/styled": "^11.11.0",
+        "@mui/icons-material": "^6.0.0",
+        "@mui/material": "^6.0.0",
+        "@tanstack/react-query": "^5.24.1",
+        "axios": "^1.16.1",
+        "date-fns": "^3.3.1",
+        "jspdf": "^2.5.1",
+        "react": "^19.0.0",
+        "react-dom": "^19.0.0",
+        "react-hook-form": "^7.50.1",
+        "react-router-dom": "^7.0.0",
+        "recharts": "^2.12.0",
+        "xlsx": "^0.18.5",
+        "zod": "^3.22.4",
+        "zustand": "^4.5.2"
+    },
+    "devDependencies": {
+        "@types/react": "^18.2.55",
+        "@types/react-dom": "^18.2.19",
+        "@vitejs/plugin-react": "^4.2.1",
+        "typescript": "^5.3.3",
+        "vite": "^5.1.3"
+    }
+}

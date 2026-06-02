@@ -1,0 +1,35 @@
+import { createClient } from 'redis';
+import logger from './logger';
+
+const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+let redisClient: ReturnType<typeof createClient>;
+
+const connectRedis = async (): Promise<void> => {
+  try {
+    redisClient = createClient({
+      url: redisUrl,
+    });
+
+    redisClient.on('error', (err) => {
+      logger.error('Redis Client Error', err);
+    });
+
+    redisClient.on('connect', () => {
+      logger.info('Redis client connected');
+    });
+
+    await redisClient.connect();
+  } catch (error) {
+    logger.error('Failed to connect to Redis:', error);
+    process.exit(1);
+  }
+};
+
+const getRedisClient = () => {
+  if (!redisClient) {
+    throw new Error('Redis client not initialized. Call connectRedis first.');
+  }
+  return redisClient;
+};
+
+export { connectRedis, getRedisClient };

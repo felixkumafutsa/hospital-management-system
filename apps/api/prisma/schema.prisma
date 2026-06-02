@@ -1,0 +1,609 @@
+// This is your Prisma schema file,
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Auth & Users
+model User {
+  id            String         @id @default(uuid())
+  staffId       String         @unique // e.g., BL-STF-001
+  email         String         @unique
+  passwordHash  String
+  firstName     String
+  lastName      String
+  phone         String?
+  role          Role           @relation(fields: [roleId], references: [id])
+  roleId        String
+  isActive      Boolean        @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  consultations Consultation[]
+  auditLogs     AuditLog[]
+  appointments  Appointment[]
+
+  @@index([email])
+}
+
+model Role {
+  id          String       @id @default(uuid())
+  name        String       @unique // ADMINISTRATOR | RECEPTIONIST | NURSE | DOCTOR | LAB_TECH | PHARMACIST | CASHIER | MD
+  displayName String
+  permissions Permission[]
+  users       User[]
+}
+
+model Permission {
+  id       String @id @default(uuid())
+  action   String // CREATE_PATIENT | VIEW_LAB_RESULTS | DISPENSE_DRUG etc.
+  resource String
+  roles    Role[]
+
+  @@unique([action, resource])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revoked   Boolean  @default(false)
+
+  @@index([token])
+}
+
+// Patients
+model Patient {
+  id                String   @id @default(uuid())
+  patientNumber     String   @unique // BL-2025-000001
+  nationalId        String?  @unique
+  firstName         String
+  lastName          String
+  dateOfBirth       DateTime
+  gender            Gender
+  phone             String
+  email             String?
+  address           String?
+  nextOfKinName     String?
+  nextOfKinPhone    String?
+  nextOfKinRelation String?
+  bloodGroup        String?
+  allergies         String[]
+  insuranceProvider String?
+  insuranceNumber   String?
+  photoUrl          String?
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  visits           Visit[]
+  appointments     Appointment[]
+  ancRecords       AncRecord[]
+  deliveryRecords  DeliveryRecord[]
+  postnatalRecords PostnatalRecord[]
+  invoices         Invoice[]
+
+  @@index([patientNumber])
+  @@index([nationalId])
+  @@index([lastName, firstName])
+}
+
+enum Gender {
+  FEMALE
+  MALE
+  OTHER
+}
+
+// Visits & Clinical Records
+model Visit {
+  id           String      @id @default(uuid())
+  patient      Patient     @relation(fields: [patientId], references: [id])
+  patientId    String
+  visitDate    DateTime    @default(now())
+  visitType    VisitType   @default(OUTPATIENT)
+  status       VisitStatus @default(REGISTERED)
+  referralNote String?
+  createdBy    String // userId
+
+  vitals        Vital[]
+  consultation  Consultation?
+  labRequests   LabRequest[]
+  prescriptions Prescription[]
+  invoice       Invoice?
+
+  @@index([patientId])
+  @@index([visitDate])
+}
+
+enum VisitType {
+  OUTPATIENT
+  INPATIENT
+  ANC
+  POSTNATAL
+  EMERGENCY
+}
+
+enum VisitStatus {
+  REGISTERED
+  TRIAGED
+  CONSULTING
+  LAB_PENDING
+  PHARMACY
+  BILLING
+  COMPLETED
+  CANCELLED
+}
+
+model Vital {
+  id               String   @id @default(uuid())
+  visit            Visit    @relation(fields: [visitId], references: [id])
+  visitId          String
+  recordedBy       String // userId (Nurse)
+  recordedAt       DateTime @default(now())
+  weightKg         Decimal? @db.Decimal(5, 2)
+  heightCm         Decimal? @db.Decimal(5, 2)
+  bmi              Decimal? @db.Decimal(4, 2)
+  bpSystolic       Int?
+  bpDiastolic      Int?
+  pulseRate        Int?
+  respiratoryRate  Int?
+  temperatureC     Decimal? @db.Decimal(4, 2)
+  oxygenSaturation Int?
+  bloodSugarMmol   Decimal? @db.Decimal(5, 2)
+  notes            String?
+
+  @@index([visitId])
+}
+
+model Consultation {
+  id             String    @id @default(uuid())
+  visit          Visit     @relation(fields: [visitId], references: [id])
+  visitId        String    @unique
+  doctor         User      @relation(fields: [doctorId], references: [id])
+  doctorId       String
+  chiefComplaint String
+  historyOfPC    String?
+  examination    String?
+  clinicalNotes  String?
+  plan           String?
+  followUpDate   DateTime?
+  followUpNotes  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  diagnoses Diagnosis[]
+
+  @@index([visitId])
+}
+
+model Diagnosis {
+  id             String        @id @default(uuid())
+  consultation   Consultation  @relation(fields: [consultationId], references: [id])
+  consultationId String
+  icd10Code      String
+  icd10Desc      String
+  diagnosisType  DiagnosisType @default(PRIMARY)
+  notes          String?
+
+  @@index([consultationId])
+}
+
+enum DiagnosisType {
+  PRIMARY
+  SECONDARY
+  DIFFERENTIAL
+}
+
+// Laboratory
+model LabRequest {
+  id          String    @id @default(uuid())
+  visit       Visit     @relation(fields: [visitId], references: [id])
+  visitId     String
+  requestedBy String // doctorId
+  requestedAt DateTime  @default(now())
+  priority    Priority  @default(ROUTINE)
+  status      LabStatus @default(PENDING)
+  notes       String?
+
+  items   LabRequestItem[]
+  results LabResult[]
+
+  @@index([visitId])
+  @@index([status])
+}
+
+model LabRequestItem {
+  id        String     @id @default(uuid())
+  request   LabRequest @relation(fields: [requestId], references: [id])
+  requestId String
+  test      LabTest    @relation(fields: [testId], references: [id])
+  testId    String
+}
+
+model LabTest {
+  id          String      @id @default(uuid())
+  name        String
+  code        String      @unique
+  category    LabCategory
+  unit        String?
+  normalRange String?
+  price       Decimal     @db.Decimal(10, 2)
+  isActive    Boolean     @default(true)
+
+  requestItems LabRequestItem[]
+  results      LabResult[]
+}
+
+model LabResult {
+  id             String     @id @default(uuid())
+  request        LabRequest @relation(fields: [requestId], references: [id])
+  requestId      String
+  test           LabTest    @relation(fields: [testId], references: [id])
+  testId         String
+  processedBy    String // labTechId
+  processedAt    DateTime   @default(now())
+  value          String
+  unit           String?
+  interpretation String?
+  isCritical     Boolean    @default(false)
+  reviewedBy     String? // doctorId
+  reviewedAt     DateTime?
+  notes          String?
+
+  @@index([requestId])
+}
+
+enum LabCategory {
+  HEMATOLOGY
+  BIOCHEMISTRY
+  MICROBIOLOGY
+  SEROLOGY
+  URINALYSIS
+  PREGNANCY_TEST
+  HIV_TEST
+  STI_TEST
+  IMAGING
+  OTHER
+}
+
+enum LabStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  REVIEWED
+  CANCELLED
+}
+
+enum Priority {
+  ROUTINE
+  URGENT
+  STAT
+}
+
+// Pharmacy & Inventory
+model Medicine {
+  id           String   @id @default(uuid())
+  name         String
+  genericName  String?
+  category     String
+  form         DrugForm
+  strength     String?
+  unit         String // Tablet, ml, vial...
+  reorderLevel Int      @default(50)
+  isActive     Boolean  @default(true)
+
+  batches           MedicineBatch[]
+  prescriptionItems PrescriptionItem[]
+}
+
+model MedicineBatch {
+  id             String    @id @default(uuid())
+  medicine       Medicine  @relation(fields: [medicineId], references: [id])
+  medicineId     String
+  supplier       Supplier  @relation(fields: [supplierId], references: [id])
+  supplierId     String
+  batchNumber    String
+  quantity       Int
+  quantityLeft   Int
+  costPrice      Decimal   @db.Decimal(10, 2)
+  sellingPrice   Decimal   @db.Decimal(10, 2)
+  manufacturedAt DateTime?
+  expiresAt      DateTime
+  receivedAt     DateTime  @default(now())
+
+  transactions      InventoryTransaction[]
+  prescriptionItems PrescriptionItem[]
+
+  @@unique([medicineId, batchNumber])
+  @@index([expiresAt])
+}
+
+model Supplier {
+  id        String   @id @default(uuid())
+  name      String
+  contact   String?
+  phone     String?
+  email     String?
+  address   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  batches MedicineBatch[]
+}
+
+model Prescription {
+  id           String             @id @default(uuid())
+  visit        Visit              @relation(fields: [visitId], references: [id])
+  visitId      String
+  prescribedBy String // doctorId
+  dispensedBy  String? // pharmacistId
+  status       PrescriptionStatus @default(PENDING)
+  createdAt    DateTime           @default(now())
+  dispensedAt  DateTime?
+  notes        String?
+
+  items PrescriptionItem[]
+
+  @@index([visitId])
+  @@index([status])
+}
+
+model PrescriptionItem {
+  id                String         @id @default(uuid())
+  prescription      Prescription   @relation(fields: [prescriptionId], references: [id])
+  prescriptionId    String
+  medicine          Medicine       @relation(fields: [medicineId], references: [id])
+  medicineId        String
+  batch             MedicineBatch? @relation(fields: [batchId], references: [id])
+  batchId           String?
+  dosage            String
+  frequency         String
+  duration          String
+  quantity          Int
+  quantityDispensed Int            @default(0)
+  notes             String?
+}
+
+model InventoryTransaction {
+  id          String          @id @default(uuid())
+  batch       MedicineBatch   @relation(fields: [batchId], references: [id])
+  batchId     String
+  type        TransactionType
+  quantity    Int
+  reason      String?
+  reference   String? // prescription ID or adjustment reference
+  performedBy String // userId
+  performedAt DateTime        @default(now())
+}
+
+enum DrugForm {
+  TABLET
+  CAPSULE
+  SYRUP
+  INJECTION
+  CREAM
+  OINTMENT
+  DROPS
+  INHALER
+  SUPPOSITORY
+  OTHER
+}
+
+enum PrescriptionStatus {
+  PENDING
+  PARTIAL
+  DISPENSED
+  CANCELLED
+}
+
+enum TransactionType {
+  STOCK_IN
+  DISPENSED
+  ADJUSTMENT
+  EXPIRED
+  RETURNED
+}
+
+// Billing
+model Invoice {
+  id         String        @id @default(uuid())
+  invoiceNo  String        @unique // BL-INV-2025-000001
+  patient    Patient       @relation(fields: [patientId], references: [id])
+  patientId  String
+  visit      Visit         @relation(fields: [visitId], references: [id])
+  visitId    String        @unique
+  status     InvoiceStatus @default(UNPAID)
+  subtotal   Decimal       @db.Decimal(10, 2)
+  discount   Decimal       @default(0) @db.Decimal(10, 2)
+  total      Decimal       @db.Decimal(10, 2)
+  paidAmount Decimal       @default(0) @db.Decimal(10, 2)
+  balance    Decimal       @db.Decimal(10, 2)
+  notes      String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  items    InvoiceItem[]
+  payments Payment[]
+
+  @@index([patientId])
+  @@index([status])
+}
+
+model InvoiceItem {
+  id          String          @id @default(uuid())
+  invoice     Invoice         @relation(fields: [invoiceId], references: [id])
+  invoiceId   String
+  description String
+  category    BillingCategory
+  quantity    Int             @default(1)
+  unitPrice   Decimal         @db.Decimal(10, 2)
+  subtotal    Decimal         @db.Decimal(10, 2)
+  reference   String? // lab_request_id, prescription_item_id etc.
+}
+
+model Payment {
+  id         String        @id @default(uuid())
+  invoice    Invoice       @relation(fields: [invoiceId], references: [id])
+  invoiceId  String
+  amount     Decimal       @db.Decimal(10, 2)
+  method     PaymentMethod
+  reference  String? // Mobile money ref, bank ref
+  receivedBy String // cashierId
+  receivedAt DateTime      @default(now())
+  notes      String?
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  UNPAID
+  PAID
+  PARTIAL
+  OVERDUE
+  CANCELLED
+  WAIVED
+}
+
+enum BillingCategory {
+  CONSULTATION
+  PROCEDURE
+  LAB_TEST
+  MEDICATION
+  OTHER
+}
+
+enum PaymentMethod {
+  CASH
+  AIRTEL_MONEY
+  TNM_MPAMBA
+  BANK_TRANSFER
+  INSURANCE
+  WAIVER
+}
+
+// OB/GYN
+model AncRecord {
+  id              String    @id @default(uuid())
+  patient         Patient   @relation(fields: [patientId], references: [id])
+  patientId       String
+  gestationWeeks  Int
+  visitDate       DateTime  @default(now())
+  recordedBy      String // doctorId / nurseId
+  weightKg        Decimal?  @db.Decimal(5, 2)
+  bpSystolic      Int?
+  bpDiastolic     Int?
+  fetalHeartRate  Int?
+  fundusHeight    Decimal?  @db.Decimal(4, 1)
+  presentation    String?
+  ultrasoundNotes String?
+  riskFactors     String[]
+  notes           String?
+  nextVisitDate   DateTime?
+
+  @@index([patientId])
+}
+
+model DeliveryRecord {
+  id               String            @id @default(uuid())
+  patient          Patient           @relation(fields: [patientId], references: [id])
+  patientId        String
+  deliveryDate     DateTime
+  deliveryMethod   DeliveryMethod
+  attendedBy       String // doctorId
+  gestationWeeks   Int?
+  babyWeightKg     Decimal?          @db.Decimal(4, 3)
+  babyGender       Gender?
+  apgarScore1Min   Int?
+  apgarScore5Min   Int?
+  complications    String?
+  notes            String?
+  createdAt        DateTime          @default(now())
+  postnatalRecords PostnatalRecord[]
+
+  @@index([patientId])
+}
+
+model PostnatalRecord {
+  id                String         @id @default(uuid())
+  patient           Patient        @relation(fields: [patientId], references: [id])
+  patientId         String
+  delivery          DeliveryRecord @relation(fields: [deliveryId], references: [id])
+  deliveryId        String
+  visitDate         DateTime       @default(now())
+  recordedBy        String
+  motherStatus      String?
+  babyStatus        String?
+  breastfeeding     Boolean?
+  immunizationGiven String[]
+  nextVisitDate     DateTime?
+  notes             String?
+
+  @@index([patientId])
+}
+
+enum DeliveryMethod {
+  VAGINAL
+  CAESAREAN
+  VACUUM
+  FORCEPS
+  OTHER
+}
+
+// Appointments
+model Appointment {
+  id              String            @id @default(uuid())
+  patient         Patient           @relation(fields: [patientId], references: [id])
+  patientId       String
+  doctor          User?             @relation(fields: [doctorId], references: [id])
+  doctorId        String?
+  appointmentDate DateTime
+  startTime       String
+  endTime         String
+  status          AppointmentStatus @default(SCHEDULED)
+  type            String
+  notes           String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([patientId])
+  @@index([appointmentDate])
+  @@index([doctorId])
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  CHECKED_IN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  RESCHEDULED
+}
+
+// Audit Log
+model AuditLog {
+  id         String   @id @default(uuid())
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String
+  action     String // CREATE_PATIENT, DISPENSE_DRUG, LOGIN, etc.
+  resource   String
+  resourceId String?
+  ipAddress  String?
+  userAgent  String?
+  before     Json?
+  after      Json?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([resource, resourceId])
+  @@index([createdAt])
+}
