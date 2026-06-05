@@ -1,4 +1,3 @@
-import React from "react";
 import {
   Box,
   Grid,
@@ -14,9 +13,8 @@ import {
   Button,
   Card,
   CardContent,
-  TextField,
 } from "@mui/material";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
   MonitorHeart,
@@ -30,6 +28,7 @@ import api from "../../services/api";
 interface TriageQueueItem {
   id: string;
   patient: {
+    id: string;
     firstName: string;
     lastName: string;
     patientNumber: string;
@@ -40,7 +39,6 @@ interface TriageQueueItem {
 
 const NurseDashboardPage = () => {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
 
   const { data: triageQueue, isLoading: queueLoading } = useQuery({
     queryKey: ["nurseTriageQueue"],
@@ -58,21 +56,6 @@ const NurseDashboardPage = () => {
         params: { fromDate: today, toDate: today },
       });
       return response.data.total as number;
-    },
-  });
-
-  const updateVitalsMutation = useMutation({
-    mutationFn: async ({
-      visitId,
-      vitals,
-    }: {
-      visitId: string;
-      vitals: any;
-    }) => {
-      await api.post(`/visits/${visitId}/triage`, vitals);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["nurseTriageQueue"] });
     },
   });
 
@@ -236,7 +219,7 @@ const NurseDashboardPage = () => {
                       <Button
                         size="small"
                         startIcon={<Edit />}
-                        onClick={() => navigate(`/patients/${item.patientId}`)}
+                        onClick={() => navigate(`/patients/${item.patient.id}`)}
                       >
                         Record Vitals
                       </Button>

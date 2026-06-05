@@ -36,9 +36,9 @@ import {
   MeetingRoom,
   SupervisorAccount,
 } from "@mui/icons-material";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import MainLayout from "../../components/layout/MainLayout";
-import { api } from "../../config/api";
+import api from "../../services/api";
 
 interface StaffMember {
   id: string;
@@ -73,7 +73,6 @@ const roleColors: any = {
 };
 
 const StaffManagementPage = () => {
-  const queryClient = useQueryClient();
   const [open, setOpen] = React.useState(false);
   const [selectedStaff, setSelectedStaff] = React.useState<StaffMember | null>(
     null,

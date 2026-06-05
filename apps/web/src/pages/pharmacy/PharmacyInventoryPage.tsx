@@ -18,27 +18,27 @@ import {
   Dialog,
   DialogActions,
   DialogContent,
+  DialogContentText,
   DialogTitle,
   TextField,
   Avatar,
   Alert,
+  MenuItem,
 } from "@mui/material";
 import {
   Add,
   Edit,
-  Delete,
   Inventory,
   Warning,
   CheckCircle,
   Event,
   LocalPharmacy,
-  BarcodeScanner,
   Visibility,
   Refresh,
 } from "@mui/icons-material";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import MainLayout from "../../components/layout/MainLayout";
-import { api } from "../../config/api";
+import api from "../../services/api";
 
 interface MedicationInventory {
   id: string;
@@ -456,7 +456,7 @@ const PharmacyInventoryPage = () => {
                           </Tooltip>
                           <Tooltip title="Barcode Scan">
                             <IconButton size="small">
-                              <BarcodeScanner />
+                              <Refresh />
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Edit Stock">

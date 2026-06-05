@@ -1,4 +1,3 @@
-import React from "react";
 import {
   Box,
   Grid,
@@ -123,10 +122,6 @@ const LabDashboardPage = () => {
       </CardContent>
     </Card>
   );
-
-  const handleCompleteTest = (id: string) => {
-    completeTestMutation.mutate(id);
-  };
 
   return (
     <Box sx={{ width: "100%", mt: 4 }}>

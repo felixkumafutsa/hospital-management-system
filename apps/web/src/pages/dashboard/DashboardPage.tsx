@@ -1,4 +1,4 @@
-import React, { Suspense } from "react";
+import React from "react";
 import {
   Box,
   Grid,
@@ -44,7 +44,6 @@ import {
 // Healthcare color palette
 const PRIMARY_COLOR = "#0EA5A4";
 const SECONDARY_COLOR = "#14B8A6";
-const BG_COLOR = "#F8FAFC";
 const TEXT_PRIMARY = "#0F172A";
 const TEXT_MUTED = "#64748B";
 const CHART_COLORS = ["#0EA5A4", "#14B8A6", "#3B82F6", "#F59E0B", "#EF4444"];
@@ -143,23 +142,9 @@ const MetricCard = ({
   </Card>
 );
 
-// Chart loading skeleton
-const ChartSkeleton = () => (
-  <Box sx={{ p: 3 }}>
-    <Skeleton variant="text" width="30%" height={32} sx={{ mb: 2 }} />
-    <Skeleton
-      variant="rectangular"
-      width="100%"
-      height={300}
-      sx={{ borderRadius: "8px" }}
-    />
-  </Box>
-);
-
 const DashboardPage = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-  const isTablet = useMediaQuery(theme.breakpoints.down("lg"));
 
   // Fetch dashboard stats
   const { data: stats, isLoading } = useQuery({
@@ -274,7 +259,7 @@ const DashboardPage = () => {
 
       {/* Metric Cards Grid */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        {metrics.map((metric, index) => (
+        {metrics.map((metric, _index) => (
           <Grid
             item
             key={metric.title}
@@ -482,7 +467,7 @@ const DashboardPage = () => {
                     paddingAngle={5}
                     dataKey="value"
                   >
-                    {departmentData.map((entry, index) => (
+                    {departmentData.map((_entry, index) => (
                       <Cell
                         key={`cell-${index}`}
                         fill={CHART_COLORS[index % CHART_COLORS.length]}

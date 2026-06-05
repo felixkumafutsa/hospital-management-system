@@ -1,4 +1,3 @@
-import React from "react";
 import {
   Box,
   Grid,
@@ -29,6 +28,7 @@ import api from "../../services/api";
 interface ConsultationQueueItem {
   id: string;
   patient: {
+    id: string;
     firstName: string;
     lastName: string;
     patientNumber: string;

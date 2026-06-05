@@ -267,7 +267,7 @@ const PatientDetailPage = () => {
 
         <Tabs
           value={tabValue}
-          onChange={(e, newValue) => setTabValue(newValue)}
+          onChange={(_, newValue) => setTabValue(newValue)}
           sx={{ mb: 4 }}
         >
           <Tab label="Patient Information" />

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   Box,
   Stepper,
@@ -14,13 +14,17 @@ import {
   InputLabel,
   Select,
   Chip,
-  IconButton
-} from '@mui/material';
-import { ArrowBack, ArrowForward } from '@mui/icons-material';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import api from '../../services/api';
+} from "@mui/material";
+import { ArrowBack, ArrowForward } from "@mui/icons-material";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import api from "../../services/api";
 
-const steps = ['Personal Information', 'Contact Details', 'Medical Information', 'Review & Submit'];
+const steps = [
+  "Personal Information",
+  "Contact Details",
+  "Medical Information",
+  "Review & Submit",
+];
 
 interface PatientFormData {
   nationalId: string;
@@ -41,41 +45,41 @@ interface PatientFormData {
 }
 
 const initialFormData: PatientFormData = {
-  nationalId: '',
-  firstName: '',
-  lastName: '',
-  dateOfBirth: '',
-  gender: '',
-  phone: '',
-  email: '',
-  address: '',
-  nextOfKinName: '',
-  nextOfKinPhone: '',
-  nextOfKinRelation: '',
-  bloodGroup: '',
+  nationalId: "",
+  firstName: "",
+  lastName: "",
+  dateOfBirth: "",
+  gender: "",
+  phone: "",
+  email: "",
+  address: "",
+  nextOfKinName: "",
+  nextOfKinPhone: "",
+  nextOfKinRelation: "",
+  bloodGroup: "",
   allergies: [],
-  insuranceProvider: '',
-  insuranceNumber: ''
+  insuranceProvider: "",
+  insuranceNumber: "",
 };
 
-const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
-const genderOptions = ['FEMALE', 'MALE', 'OTHER'];
-const commonAllergies = ['Penicillin', 'Peanuts', 'Latex', 'Pollen', 'Dust'];
+const bloodGroups = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+const genderOptions = ["FEMALE", "MALE", "OTHER"];
+const commonAllergies = ["Penicillin", "Peanuts", "Latex", "Pollen", "Dust"];
 
 const PatientRegistrationPage = () => {
   const [activeStep, setActiveStep] = useState(0);
   const [formData, setFormData] = useState<PatientFormData>(initialFormData);
-  const [newAllergy, setNewAllergy] = useState('');
+  const [newAllergy, setNewAllergy] = useState("");
   const queryClient = useQueryClient();
 
   const createPatientMutation = useMutation({
     mutationFn: async (data: Partial<PatientFormData>) => {
-      const response = await api.post('/patients', data);
+      const response = await api.post("/patients", data);
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['patients'] });
-    }
+      queryClient.invalidateQueries({ queryKey: ["patients"] });
+    },
   });
 
   const handleNext = () => {
@@ -86,7 +90,13 @@ const PatientRegistrationPage = () => {
     setActiveStep((prev) => prev - 1);
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleInputChange = (
+    e:
+      | React.ChangeEvent<
+          HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+        >
+      | any,
+  ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
@@ -95,16 +105,16 @@ const PatientRegistrationPage = () => {
     if (newAllergy && !formData.allergies.includes(newAllergy)) {
       setFormData((prev) => ({
         ...prev,
-        allergies: [...prev.allergies, newAllergy]
+        allergies: [...prev.allergies, newAllergy],
       }));
-      setNewAllergy('');
+      setNewAllergy("");
     }
   };
 
   const handleRemoveAllergy = (allergyToRemove: string) => {
     setFormData((prev) => ({
       ...prev,
-      allergies: prev.allergies.filter((a) => a !== allergyToRemove)
+      allergies: prev.allergies.filter((a) => a !== allergyToRemove),
     }));
   };
 
@@ -113,10 +123,10 @@ const PatientRegistrationPage = () => {
       await createPatientMutation.mutateAsync(formData);
       setActiveStep(0);
       setFormData(initialFormData);
-      alert('Patient registered successfully!');
+      alert("Patient registered successfully!");
     } catch (error) {
-      console.error('Error registering patient:', error);
-      alert('Failed to register patient. Please try again.');
+      console.error("Error registering patient:", error);
+      alert("Failed to register patient. Please try again.");
     }
   };
 
@@ -274,7 +284,7 @@ const PatientRegistrationPage = () => {
               <Typography variant="subtitle1" gutterBottom>
                 Allergies
               </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mb: 2 }}>
                 {formData.allergies.map((allergy) => (
                   <Chip
                     key={allergy}
@@ -283,13 +293,12 @@ const PatientRegistrationPage = () => {
                   />
                 ))}
               </Box>
-              <Box sx={{ display: 'flex', gap: 1 }}>
+              <Box sx={{ display: "flex", gap: 1 }}>
                 <TextField
                   size="small"
                   label="Add allergy"
                   value={newAllergy}
                   onChange={(e) => setNewAllergy(e.target.value)}
-                  list="common-allergies"
                 />
                 <datalist id="common-allergies">
                   {commonAllergies.map((a) => (
@@ -331,7 +340,9 @@ const PatientRegistrationPage = () => {
             <Grid container spacing={2}>
               <Grid item xs={12} sm={6}>
                 <Typography variant="subtitle2">Full Name</Typography>
-                <Typography>{formData.firstName} {formData.lastName}</Typography>
+                <Typography>
+                  {formData.firstName} {formData.lastName}
+                </Typography>
               </Grid>
               <Grid item xs={12} sm={6}>
                 <Typography variant="subtitle2">Date of Birth</Typography>
@@ -352,7 +363,9 @@ const PatientRegistrationPage = () => {
               {formData.allergies.length > 0 && (
                 <Grid item xs={12}>
                   <Typography variant="subtitle2">Allergies</Typography>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
+                  <Box
+                    sx={{ display: "flex", flexWrap: "wrap", gap: 1, mt: 1 }}
+                  >
                     {formData.allergies.map((allergy) => (
                       <Chip key={allergy} label={allergy} color="error" />
                     ))}
@@ -369,7 +382,7 @@ const PatientRegistrationPage = () => {
   };
 
   return (
-    <Box sx={{ width: '100%', mt: 4 }}>
+    <Box sx={{ width: "100%", mt: 4 }}>
       <Paper sx={{ p: 4 }}>
         <Typography variant="h4" gutterBottom>
           Register New Patient
@@ -382,7 +395,7 @@ const PatientRegistrationPage = () => {
           ))}
         </Stepper>
         {renderStepContent()}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
+        <Box sx={{ display: "flex", justifyContent: "space-between", mt: 4 }}>
           <Button
             disabled={activeStep === 0}
             onClick={handleBack}
@@ -394,7 +407,7 @@ const PatientRegistrationPage = () => {
             <Button
               variant="contained"
               onClick={handleSubmit}
-              disabled={createPatientMutation.isLoading}
+              disabled={(createPatientMutation as any).isLoading}
               endIcon={<ArrowForward />}
             >
               Submit

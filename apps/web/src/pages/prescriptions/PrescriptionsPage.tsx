@@ -31,9 +31,9 @@ import {
   Schedule,
   Warning,
 } from "@mui/icons-material";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import MainLayout from "../../components/layout/MainLayout";
-import { api } from "../../config/api";
+import api from "../../services/api";
 
 interface Prescription {
   id: string;
@@ -55,7 +55,6 @@ interface PrescriptionItem {
 }
 
 const PrescriptionsPage = () => {
-  const queryClient = useQueryClient();
   const [open, setOpen] = React.useState(false);
   const [selectedPrescription, setSelectedPrescription] =
     React.useState<Prescription | null>(null);

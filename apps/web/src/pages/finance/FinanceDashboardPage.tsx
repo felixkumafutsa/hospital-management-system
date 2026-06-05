@@ -1,4 +1,3 @@
-import React from "react";
 import {
   Box,
   Grid,
@@ -37,7 +36,7 @@ import {
 } from "recharts";
 import { useQuery } from "@tanstack/react-query";
 import MainLayout from "../../components/layout/MainLayout";
-import { api } from "../../config/api";
+import api from "../../services/api";
 
 interface RevenueData {
   month: string;

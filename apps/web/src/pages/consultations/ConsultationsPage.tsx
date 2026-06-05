@@ -25,7 +25,7 @@ import {
 import { Visibility, Edit, Add as AddIcon, Close } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
 import MainLayout from "../../components/layout/MainLayout";
-import { api } from "../../config/api";
+import api from "../../services/api";
 
 interface Consultation {
   id: string;
@@ -60,9 +60,11 @@ const ConsultationsPage = () => {
   });
 
   const handleInputChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >,
+    e:
+      | React.ChangeEvent<
+          HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+        >
+      | any,
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));

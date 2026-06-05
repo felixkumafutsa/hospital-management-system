@@ -92,7 +92,7 @@ const themeOptions: ThemeOptions = {
   shadows: [
     'none',
     '0 1px 3px rgba(0,0,0,0.08), 0 8px 24px rgba(27,167,132,0.06)',
-    ...Array.from({ length: 23 }, () => ''),
+    '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '',
   ],
   components: {
     MuiCard: {

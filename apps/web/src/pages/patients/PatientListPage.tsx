@@ -119,9 +119,11 @@ const PatientListPage = () => {
   };
 
   const handleInputChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >,
+    e:
+      | React.ChangeEvent<
+          HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+        >
+      | any,
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -331,7 +333,6 @@ const PatientListPage = () => {
                   label="Add allergy"
                   value={newAllergy}
                   onChange={(e) => setNewAllergy(e.target.value)}
-                  list="common-allergies"
                 />
                 <datalist id="common-allergies">
                   {commonAllergies.map((a) => (
@@ -464,7 +465,7 @@ const PatientListPage = () => {
         patient.patientNumber.includes(searchTerm),
     ) || [];
 
-  const handleChangePage = (event: unknown, newPage: number) => {
+  const handleChangePage = (_event: unknown, newPage: number) => {
     setPage(newPage);
   };
 
@@ -504,7 +505,7 @@ const PatientListPage = () => {
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           InputProps={{
-            startIcon: <Search sx={{ mr: 1, color: "text.secondary" }} />,
+            startAdornment: <Search sx={{ mr: 1, color: "text.secondary" }} />,
           }}
         />
       </Paper>

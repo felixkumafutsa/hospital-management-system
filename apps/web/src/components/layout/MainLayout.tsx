@@ -23,11 +23,9 @@ import {
 } from "@mui/material";
 import {
   Menu as MenuIcon,
-  Dashboard,
   Person,
   CalendarToday,
   MedicalServices,
-  Description,
   Receipt,
   Inventory,
   Science,
@@ -53,7 +51,6 @@ interface MenuItemType {
 
 // Healthcare color palette as requested
 const PRIMARY_COLOR = "#0EA5A4";
-const SECONDARY_COLOR = "#14B8A6";
 const BG_COLOR = "#F8FAFC";
 const TEXT_PRIMARY = "#0F172A";
 const TEXT_MUTED = "#64748B";

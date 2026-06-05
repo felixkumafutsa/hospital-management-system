@@ -13,7 +13,6 @@ import {
   Link,
 } from "@mui/material";
 import { useAuth } from "../../contexts/AuthContext";
-import betterLifeLogo from "../../assets/betterlife-logo.svg"; // We'll need to add this logo
 
 const LoginPage: React.FC = () => {
   const { login, isAuthenticated, loading } = useAuth();

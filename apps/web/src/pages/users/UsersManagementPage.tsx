@@ -24,21 +24,10 @@ import {
   TextField,
   MenuItem,
 } from "@mui/material";
-import {
-  Add,
-  Edit,
-  Delete,
-  Person,
-  Lock,
-  Visibility,
-  AdminPanelSettings,
-  MedicalServices,
-  Science,
-  LocalPharmacy,
-} from "@mui/icons-material";
+import { Add, Edit, Delete, Lock, Visibility } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
 import MainLayout from "../../components/layout/MainLayout";
-import { api } from "../../services/api";
+import api from "../../services/api";
 
 interface SystemUser {
   id: string;
@@ -73,7 +62,6 @@ const roleLabels: any = {
 };
 
 const UsersManagementPage = () => {
-  const queryClient = useQueryClient();
   const [open, setOpen] = React.useState(false);
   const [selectedUser, setSelectedUser] = React.useState<SystemUser | null>(
     null,

@@ -128,7 +128,7 @@ const AppointmentsPage = () => {
         apt.reason?.toLowerCase().includes(searchTerm.toLowerCase()),
     ) || [];
 
-  const handleChangePage = (event: unknown, newPage: number) => {
+  const handleChangePage = (_event: unknown, newPage: number) => {
     setPage(newPage);
   };
 
@@ -202,7 +202,7 @@ const AppointmentsPage = () => {
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           InputProps={{
-            startcon: <Search sx={{ mr: 1, color: "text.secondary" }} />,
+            startAdornment: <Search sx={{ mr: 1, color: "text.secondary" }} />,
           }}
         />
       </Paper>
