@@ -8,6 +8,14 @@ const connectRedis = async (): Promise<void> => {
   try {
     redisClient = createClient({
       url: redisUrl,
+      socket: {
+        reconnectStrategy: (retries) => {
+          // Exponential backoff: wait 1s, 2s, 4s, 8s, up to 10s
+          const delay = Math.min(Math.pow(2, retries) * 1000, 10000);
+          logger.warn(`Redis reconnecting... attempt ${retries}, next retry in ${delay}ms`);
+          return delay;
+        }
+      }
     });
 
     redisClient.on('error', (err) => {
@@ -15,19 +23,34 @@ const connectRedis = async (): Promise<void> => {
     });
 
     redisClient.on('connect', () => {
-      logger.info('Redis client connected');
+      logger.info('✅ Redis client connected');
+    });
+
+    redisClient.on('end', () => {
+      logger.warn('Redis client disconnected');
     });
 
     await redisClient.connect();
   } catch (error) {
-    logger.error('Failed to connect to Redis:', error);
-    process.exit(1);
+    logger.warn('⚠️  Failed to connect to Redis. Continuing without Redis - some caching features will be disabled:', error);
+    // Don't exit the process - allow server to start without Redis
+    redisClient = null as any;
   }
 };
 
 const getRedisClient = () => {
   if (!redisClient) {
-    throw new Error('Redis client not initialized. Call connectRedis first.');
+    // Return a mock client that logs warnings instead of crashing
+    logger.warn('⚠️  Redis is not available - caching is disabled');
+    return {
+      get: async () => null,
+      set: async () => {},
+      del: async () => {},
+      exists: async () => false,
+      incr: async () => 1,
+      expire: async () => {},
+      setEx: async () => {},
+    } as any;
   }
   return redisClient;
 };

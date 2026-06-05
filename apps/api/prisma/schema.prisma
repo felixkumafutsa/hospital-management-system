@@ -112,6 +112,12 @@ model Visit {
   status       VisitStatus @default(REGISTERED)
   referralNote String?
   createdBy    String // userId
+  // For inpatient stays (admit/discharge functionality)
+  admissionDate DateTime?  // Date/time patient was admitted
+  dischargeDate DateTime?  // Date/time patient was discharged
+  stayDuration   Int?      // Calculated stay duration in days
+  roomNumber     String?   // Room number if admitted
+  dailyRate      Decimal?  @db.Decimal(10, 2) // Daily rate for inpatient stay
 
   vitals        Vital[]
   consultation  Consultation?

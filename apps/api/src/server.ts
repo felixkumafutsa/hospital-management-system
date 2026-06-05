@@ -7,7 +7,6 @@ import cookieParser from 'cookie-parser';
 import { rateLimit } from 'express-rate-limit';
 import { PrismaClient } from '@prisma/client';
 import logger from './config/logger';
-import { connectRedis } from './config/redis';
 import connectDB from './config/database';
 import authRoutes from './modules/auth/auth.routes';
 import patientRoutes from './modules/patients/patient.routes';
@@ -78,10 +77,6 @@ const startServer = async () => {
     // Connect to database
     await connectDB();
     logger.info('✅ Connected to PostgreSQL database');
-
-    // Connect to Redis
-    await connectRedis();
-    logger.info('✅ Connected to Redis');
 
     // Start server
     app.listen(PORT, () => {

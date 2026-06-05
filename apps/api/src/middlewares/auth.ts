@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import { ApiError } from './errorHandler';
 import { prisma } from '../config/database';
 
-const JWT_PUBLIC_KEY = process.env.JWT_PUBLIC_KEY || 'your_public_key';
+const JWT_PRIVATE_KEY = process.env.JWT_PRIVATE_KEY || 'your_private_key';
 
 // Extend Express Request type to include user
 declare global {
@@ -34,8 +34,8 @@ export const authenticate = async (
     const token = authHeader.split(' ')[1];
 
     // Verify token
-    const decoded = jwt.verify(token, JWT_PUBLIC_KEY, {
-      algorithms: ['RS256'],
+    const decoded = jwt.verify(token, JWT_PRIVATE_KEY, {
+      algorithms: ['HS256'],
     }) as {
       userId: string;
       roleId: string;

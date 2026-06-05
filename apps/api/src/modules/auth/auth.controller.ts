@@ -1,9 +1,9 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import * as authService from './auth.service';
 import logger from '../../config/logger';
 
 // Login controller
-export const login = async (req: Request, res: Response) => {
+export const login = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { email, password } = req.body;
     const result = await authService.login(email, password);
@@ -27,7 +27,7 @@ export const login = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     logger.error(`Login failed for ${req.body.email}: ${error.message}`);
-    throw error;
+    next(error); // Pass error to Express error handler
   }
 };
 

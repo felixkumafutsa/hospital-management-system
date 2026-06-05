@@ -4,7 +4,9 @@ import {
   getPatientVisits,
   getAllVisits,
   updateVisitStatus,
-  getActiveVisitsQueue
+  getActiveVisitsQueue,
+  admitPatient,
+  dischargePatient
 } from './visit.repository';
 import { findPatientById } from '../patients/patient.repository';
 import { ApiError } from '../../middlewares/errorHandler';
@@ -84,4 +86,42 @@ export const updateVisitStatusService = async (
 export const getVisitQueue = async () => {
   const visits = await getActiveVisitsQueue();
   return { success: true, queue: visits };
+};
+
+// Admit patient (inpatient stay) service
+export const admitExistingPatient = async (id: string, roomNumber: string, dailyRate: number) => {
+  const visit = await findVisitById(id);
+  if (!visit) {
+    throw new ApiError(404, 'VISIT_NOT_FOUND', 'Visit not found');
+  }
+
+  if (visit.visitType !== 'INPATIENT') {
+    throw new ApiError(400, 'INVALID_VISIT_TYPE', 'Cannot admit patient with non-inpatient visit type');
+  }
+
+  const updatedVisit = await admitPatient(id, roomNumber, dailyRate);
+  return { 
+    success: true, 
+    message: 'Patient admitted successfully', 
+    visit: updatedVisit 
+  };
+};
+
+// Discharge patient service
+export const dischargeExistingPatient = async (id: string) => {
+  const visit = await findVisitById(id);
+  if (!visit) {
+    throw new ApiError(404, 'VISIT_NOT_FOUND', 'Visit not found');
+  }
+
+  if (!visit.admissionDate) {
+    throw new ApiError(400, 'PATIENT_NOT_ADMITTED', 'Cannot discharge patient who was not admitted');
+  }
+
+  const updatedVisit = await dischargePatient(id);
+  return { 
+    success: true, 
+    message: `Patient discharged successfully after ${updatedVisit.stayDuration} days`, 
+    visit: updatedVisit 
+  };
 };

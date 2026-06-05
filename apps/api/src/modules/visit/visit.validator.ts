@@ -38,5 +38,25 @@ export const getVisitsSchema = z.object({
   })
 });
 
+// Admit patient schema
+export const admitPatientSchema = z.object({
+  body: z.object({
+    roomNumber: z.string().min(1, 'Room number is required'),
+    dailyRate: z.number().positive('Daily rate must be a positive number')
+  }),
+  params: z.object({
+    id: z.string().uuid('Invalid visit ID format')
+  })
+});
+
+// Discharge patient schema
+export const dischargePatientSchema = z.object({
+  params: z.object({
+    id: z.string().uuid('Invalid visit ID format')
+  })
+});
+
 export type CreateVisitInput = z.infer<typeof createVisitSchema>['body'];
 export type UpdateVisitStatusInput = z.infer<typeof updateVisitStatusSchema>['body'];
+export type AdmitPatientInput = z.infer<typeof admitPatientSchema>['body'];
+export type DischargePatientInput = z.infer<typeof dischargePatientSchema>['params'];

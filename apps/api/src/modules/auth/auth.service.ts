@@ -7,7 +7,6 @@ import { User } from '@prisma/client';
 
 // JWT configuration
 const JWT_PRIVATE_KEY = process.env.JWT_PRIVATE_KEY || 'your_private_key';
-const JWT_PUBLIC_KEY = process.env.JWT_PUBLIC_KEY || 'your_public_key';
 const ACCESS_TOKEN_EXPIRY = process.env.JWT_ACCESS_TOKEN_EXPIRY || '15m';
 const REFRESH_TOKEN_EXPIRY = process.env.JWT_REFRESH_TOKEN_EXPIRY || '7d';
 
@@ -22,7 +21,7 @@ const generateAccessToken = (user: User): string => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (jwt as any).sign(payload, JWT_PRIVATE_KEY, {
     expiresIn: ACCESS_TOKEN_EXPIRY,
-    algorithm: 'RS256',
+    algorithm: 'HS256',
   });
 };
 
@@ -36,7 +35,7 @@ const generateRefreshToken = (user: User): string => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (jwt as any).sign(payload, JWT_PRIVATE_KEY, {
     expiresIn: REFRESH_TOKEN_EXPIRY,
-    algorithm: 'RS256',
+    algorithm: 'HS256',
   });
 };
 
@@ -114,7 +113,7 @@ export const refreshToken = async (token: string) => {
 
   // Verify JWT
   try {
-    jwt.verify(token, JWT_PUBLIC_KEY, { algorithms: ['RS256'] });
+    jwt.verify(token, JWT_PRIVATE_KEY, { algorithms: ['HS256'] });
   } catch (error) {
     throw new ApiError(401, 'INVALID_TOKEN', 'Invalid refresh token');
   }

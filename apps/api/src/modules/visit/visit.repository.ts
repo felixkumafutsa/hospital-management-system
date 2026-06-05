@@ -123,6 +123,46 @@ export const updateVisitStatus = async (
   });
 };
 
+// Admit patient (for inpatient stays)
+export const admitPatient = async (
+  id: string,
+  roomNumber: string,
+  dailyRate: number
+): Promise<Visit> => {
+  return prisma.visit.update({
+    where: { id },
+    data: {
+      admissionDate: new Date(),
+      roomNumber,
+      dailyRate,
+      status: VisitStatus.CONSULTING // Update status to indicate active stay
+    }
+  });
+};
+
+// Discharge patient (calculate stay duration and finalize)
+export const dischargePatient = async (id: string): Promise<Visit> => {
+  const visit = await prisma.visit.findUnique({ where: { id } });
+  
+  if (!visit || !visit.admissionDate) {
+    throw new Error('Cannot discharge patient who was not admitted');
+  }
+
+  // Calculate stay duration in days
+  const admission = new Date(visit.admissionDate);
+  const discharge = new Date();
+  const stayDuration = Math.ceil((discharge.getTime() - admission.getTime()) / (1000 * 60 * 60 * 24));
+
+  return prisma.visit.update({
+    where: { id },
+    data: {
+      dischargeDate: discharge,
+      stayDuration: stayDuration,
+      status: VisitStatus.COMPLETED
+    }
+  });
+};
+
 // Get active visits queue
 export const getActiveVisitsQueue = async (): Promise<Visit[]> => {
   return prisma.visit.findMany({
