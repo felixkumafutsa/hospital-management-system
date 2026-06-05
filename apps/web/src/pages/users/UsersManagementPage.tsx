@@ -35,12 +35,10 @@ import {
   MedicalServices,
   Science,
   LocalPharmacy,
-  MeetingRoom,
-  SupervisorAccount,
 } from "@mui/icons-material";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import MainLayout from "../../components/layout/MainLayout";
-import { api } from "../../config/api";
+import { api } from "../../services/api";
 
 interface SystemUser {
   id: string;
