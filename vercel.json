@@ -2,18 +2,26 @@
     "version": 2,
     "builds": [
         {
-            "src": "apps/api/vercel.json",
-            "use": "@vercel/node"
+            "src": "apps/api/src/server.ts",
+            "use": "@vercel/node",
+            "config": {
+                "includeFiles": [
+                    "apps/api/prisma/**"
+                ]
+            }
         },
         {
-            "src": "apps/web/vercel.json",
-            "use": "@vercel/static-build"
+            "src": "apps/web/package.json",
+            "use": "@vercel/static-build",
+            "config": {
+                "distDir": "apps/web/dist"
+            }
         }
     ],
     "routes": [
         {
             "src": "/api/(.*)",
-            "dest": "/apps/api/$1"
+            "dest": "/apps/api/src/server.js"
         },
         {
             "src": "/(.*)",
