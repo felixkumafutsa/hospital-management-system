@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Better Life Private Clinic HMS Backend API",
   "main": "dist/server.js",
+  "engines": {
+    "node": ">=20.0.0 <26.0.0"
+  },
   "scripts": {
     "dev": "nodemon src/server.ts",
     "build": "tsc",
@@ -48,6 +51,6 @@
     "nodemon": "^3.0.3",
     "prisma": "^5.10.0",
     "ts-node": "^10.9.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.8.2"
   }
 }
