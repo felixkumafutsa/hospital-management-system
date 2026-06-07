@@ -1,10 +1,11 @@
 {
     "version": 2,
+    "outputDirectory": "apps/web/dist",
+    "buildCommand": "npm install && cd apps/api && npm run build && cd ../web && npm run build",
     "rewrites": [
         {
             "source": "/api/(.*)",
-            "destination": "/apps/api/$1"
+            "destination": "/apps/api/dist/server.js"
         }
-    ],
-    "installCommand": "npm install"
+    ]
 }
