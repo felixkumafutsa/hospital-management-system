@@ -21,7 +21,7 @@
     "routes": [
         {
             "src": "/api/(.*)",
-            "dest": "/apps/api/src/server.js"
+            "dest": "/apps/api/dist/server.js"
         },
         {
             "src": "^/assets/(.*)",
