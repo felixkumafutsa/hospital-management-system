@@ -1,3 +1,6 @@
+git add vercel.json
+git commit -m "Final vercel.json fix - valid JSON syntax"
+git push origin main
 {
     "version": 2,
     "builds": [
@@ -11,23 +14,21 @@
             }
         },
         {
-            "src": "apps/web/package.json",
+            "src": "apps/web/vite.config.ts",
             "use": "@vercel/static-build",
             "config": {
                 "distDir": "apps/web/dist"
             }
         }
     ],
-}
-},
-"routes": [
-{
-    "src": "/api/(.*)",
-    "dest": "/apps/api/src/server.js"
-},
-{
-    "src": "/(.*)",
-    "dest": "/apps/web/$1"
-}
-]
+    "routes": [
+        {
+            "src": "/api/(.*)",
+            "dest": "/apps/api/src/server.js"
+        },
+        {
+            "src": "/(.*)",
+            "dest": "/apps/web/index.html"
+        }
+    ]
 }
