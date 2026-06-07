@@ -18,15 +18,16 @@
             }
         }
     ],
+}
 },
 "routes": [
-    {
-        "src": "/api/(.*)",
-        "dest": "/apps/api/src/server.js"
-    },
-    {
-        "src": "/(.*)",
-        "dest": "/apps/web/$1"
-    }
+{
+    "src": "/api/(.*)",
+    "dest": "/apps/api/src/server.js"
+},
+{
+    "src": "/(.*)",
+    "dest": "/apps/web/$1"
+}
 ]
 }
