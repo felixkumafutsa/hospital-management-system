@@ -24,6 +24,10 @@
             "dest": "/apps/api/src/server.js"
         },
         {
+            "src": "^/assets/(.*)",
+            "dest": "/apps/web/assets/$1"
+        },
+        {
             "src": "/(.*)",
             "dest": "/apps/web/index.html"
         }
