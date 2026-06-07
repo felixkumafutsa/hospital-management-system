@@ -39,31 +39,30 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Temporarily disabled role and permission checks to fix routing issues
-  // All authenticated users can access all pages for development purposes
-  // const userRole =
-  //   typeof user?.role === "object" ? user?.role?.name : user?.role;
-  // if (allowedRoles.length > 0 && !allowedRoles.includes(userRole || "")) {
-  //   // Redirect to dashboard if user doesn't have the required role
-  //   return <Navigate to="/dashboard" replace />;
-  // }
+  // Check if user has required role if roles are specified
+  const userRole =
+    typeof user?.role === "object" ? user?.role?.name : user?.role;
+  if (allowedRoles.length > 0 && !allowedRoles.includes(userRole || "")) {
+    // Redirect to dashboard if user doesn't have the required role
+    return <Navigate to="/dashboard" replace />;
+  }
 
-  // // Check if user has all required permissions
-  // if (requiredPermissions.length > 0 && user?.role?.permissions) {
-  //   const userPermissions = user.role.permissions;
+  // Check if user has all required permissions
+  if (requiredPermissions.length > 0 && user?.role?.permissions) {
+    const userPermissions = user.role.permissions;
 
-  //   const hasAllPermissions = requiredPermissions.every((required) =>
-  //     userPermissions.some(
-  //       (userPerm: any) =>
-  //         userPerm.action === required.action &&
-  //         userPerm.resource === required.resource,
-  //     ),
-  //   );
+    const hasAllPermissions = requiredPermissions.every((required) =>
+      userPermissions.some(
+        (userPerm: any) =>
+          userPerm.action === required.action &&
+          userPerm.resource === required.resource,
+      ),
+    );
 
-  //   if (!hasAllPermissions) {
-  //     return <Navigate to="/dashboard" replace />;
-  //   }
-  // }
+    if (!hasAllPermissions) {
+      return <Navigate to="/dashboard" replace />;
+    }
+  }
 
   // If all checks pass, render the children wrapped in MainLayout
   return <MainLayout>{children}</MainLayout>;
