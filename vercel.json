@@ -1,34 +1,10 @@
 {
     "version": 2,
-    "builds": [
+    "rewrites": [
         {
-            "src": "apps/api/package.json",
-            "use": "@vercel/node",
-            "config": {
-                "includeFiles": [
-                    "apps/api/prisma/**"
-                ]
-            }
-        },
-        {
-            "src": "apps/web/package.json",
-            "use": "@vercel/static-build",
-            "config": {
-                "distDir": "dist"
-            }
+            "source": "/api/(.*)",
+            "destination": "/apps/api/$1"
         }
     ],
-    "routes": [
-        {
-            "src": "/api/(.*)",
-            "dest": "/apps/api/dist/server.js"
-        },
-        {
-            "handle": "filesystem"
-        },
-        {
-            "src": "/(.*)",
-            "dest": "/index.html"
-        }
-    ]
+    "installCommand": "npm install"
 }
