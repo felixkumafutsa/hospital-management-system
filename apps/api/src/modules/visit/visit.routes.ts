@@ -23,7 +23,7 @@ router.use(authenticate);
 // Create visit
 router.post(
   '/',
-  authorize(['reception', 'admin', 'nurse', 'doctor']),
+  authorize(['RECEPTIONIST', 'ADMINISTRATOR', 'NURSE', 'DOCTOR']),
   validate(createVisitSchema),
   createVisitController
 );
@@ -55,7 +55,7 @@ router.get(
 
 router.put(
   '/:id/status',
-  authorize(['nurse', 'doctor', 'admin', 'reception']),
+  authorize(['NURSE', 'DOCTOR', 'ADMINISTRATOR', 'RECEPTIONIST']),
   validate(updateVisitStatusSchema),
   updateVisitStatusController
 );

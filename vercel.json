@@ -18,17 +18,15 @@
             }
         }
     ],
-    "engines": {
-        "node": "22.x"
+},
+"routes": [
+    {
+        "src": "/api/(.*)",
+        "dest": "/apps/api/src/server.js"
     },
-    "routes": [
-        {
-            "src": "/api/(.*)",
-            "dest": "/apps/api/src/server.js"
-        },
-        {
-            "src": "/(.*)",
-            "dest": "/apps/web/$1"
-        }
-    ]
+    {
+        "src": "/(.*)",
+        "dest": "/apps/web/$1"
+    }
+]
 }
