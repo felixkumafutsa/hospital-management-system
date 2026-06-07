@@ -18,18 +18,14 @@
             }
         }
     ],
-    "routes": [
+    "rewrites": [
         {
-            "src": "/api/(.*)",
-            "dest": "/apps/api/dist/server.js"
+            "source": "/api/(.*)",
+            "destination": "/apps/api/dist/server.js"
         },
         {
-            "src": "^/assets/(.*)",
-            "dest": "/apps/web/dist/assets/$1"
-        },
-        {
-            "src": "/(.*)",
-            "dest": "/apps/web/dist/index.html"
+            "source": "/(.*)",
+            "destination": "/apps/web/dist/index.html"
         }
     ]
 }
