@@ -12,22 +12,25 @@ datasource db {
 
 // Auth & Users
 model User {
-  id            String         @id @default(uuid())
-  staffId       String         @unique // e.g., BL-STF-001
-  email         String         @unique
-  passwordHash  String
-  firstName     String
-  lastName      String
-  phone         String?
-  role          Role           @relation(fields: [roleId], references: [id])
-  roleId        String
-  isActive      Boolean        @default(true)
-  lastLoginAt   DateTime?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  consultations Consultation[]
-  auditLogs     AuditLog[]
-  appointments  Appointment[]
+  id              String           @id @default(uuid())
+  staffId         String           @unique // e.g., BL-STF-001
+  email           String           @unique
+  passwordHash    String
+  firstName       String
+  lastName        String
+  phone           String?
+  role            Role             @relation(fields: [roleId], references: [id])
+  roleId          String
+  isActive        Boolean          @default(true)
+  lastLoginAt     DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  consultations   Consultation[]
+  auditLogs       AuditLog[]
+  appointments    Appointment[]
+  staffSchedules          StaffSchedule[]
+  timeOffRequests         TimeOffRequest[] @relation("StaffTimeOffRequests")
+  approvedTimeOffRequests TimeOffRequest[] @relation("ApprovedTimeOffRequests")
 
   @@index([email])
 }
@@ -104,20 +107,20 @@ enum Gender {
 
 // Visits & Clinical Records
 model Visit {
-  id           String      @id @default(uuid())
-  patient      Patient     @relation(fields: [patientId], references: [id])
-  patientId    String
-  visitDate    DateTime    @default(now())
-  visitType    VisitType   @default(OUTPATIENT)
-  status       VisitStatus @default(REGISTERED)
-  referralNote String?
-  createdBy    String // userId
+  id            String      @id @default(uuid())
+  patient       Patient     @relation(fields: [patientId], references: [id])
+  patientId     String
+  visitDate     DateTime    @default(now())
+  visitType     VisitType   @default(OUTPATIENT)
+  status        VisitStatus @default(REGISTERED)
+  referralNote  String?
+  createdBy     String // userId
   // For inpatient stays (admit/discharge functionality)
-  admissionDate DateTime?  // Date/time patient was admitted
-  dischargeDate DateTime?  // Date/time patient was discharged
-  stayDuration   Int?      // Calculated stay duration in days
-  roomNumber     String?   // Room number if admitted
-  dailyRate      Decimal?  @db.Decimal(10, 2) // Daily rate for inpatient stay
+  admissionDate DateTime? // Date/time patient was admitted
+  dischargeDate DateTime? // Date/time patient was discharged
+  stayDuration  Int? // Calculated stay duration in days
+  roomNumber    String? // Room number if admitted
+  dailyRate     Decimal?    @db.Decimal(10, 2) // Daily rate for inpatient stay
 
   vitals        Vital[]
   consultation  Consultation?
@@ -593,6 +596,52 @@ enum AppointmentStatus {
   CANCELLED
   NO_SHOW
   RESCHEDULED
+}
+
+// Staff Scheduling
+model StaffSchedule {
+  id         String    @id @default(uuid())
+  staff      User      @relation(fields: [userId], references: [id])
+  userId     String
+  shiftDate  DateTime
+  shiftType  ShiftType // MORNING, AFTERNOON, NIGHT
+  department String // Emergency, Pediatrics, Maternity, etc.
+  notes      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([userId, shiftDate])
+  @@index([department, shiftDate])
+}
+
+model TimeOffRequest {
+  id         String        @id @default(uuid())
+  staff      User          @relation("StaffTimeOffRequests", fields: [userId], references: [id])
+  userId     String
+  startDate  DateTime
+  endDate    DateTime
+  reason     String
+  status     TimeOffStatus @default(PENDING)
+  approvedBy User?         @relation("ApprovedTimeOffRequests", fields: [approverId], references: [id])
+  approverId String?
+  approvedAt DateTime?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+enum ShiftType {
+  MORNING // 7AM - 3PM
+  AFTERNOON // 1PM - 9PM
+  NIGHT // 8PM - 8AM
+}
+
+enum TimeOffStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 // Audit Log

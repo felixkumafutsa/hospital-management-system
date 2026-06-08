@@ -1,7 +1,8 @@
 import { PrismaClient } from '@prisma/client';
 import logger from './logger';
 
-const prisma = new PrismaClient({
+// Prisma client singleton that works for both local development and Vercel serverless
+const prisma = (global as any).prisma || new PrismaClient({
   log: [
     {
       emit: 'event',
@@ -21,6 +22,9 @@ const prisma = new PrismaClient({
     },
   ],
 });
+
+// Prevent multiple instances in development (hot reloading) and Vercel serverless
+if (process.env.NODE_ENV !== 'production') (global as any).prisma = prisma;
 
 // Log database queries in development
 if (process.env.NODE_ENV === 'development') {

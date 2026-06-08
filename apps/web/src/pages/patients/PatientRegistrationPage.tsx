@@ -18,6 +18,7 @@ import {
 import { ArrowBack, ArrowForward } from "@mui/icons-material";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "../../services/api";
+import Swal from "sweetalert2";
 
 const steps = [
   "Personal Information",
@@ -123,10 +124,20 @@ const PatientRegistrationPage = () => {
       await createPatientMutation.mutateAsync(formData);
       setActiveStep(0);
       setFormData(initialFormData);
-      alert("Patient registered successfully!");
+      await Swal.fire({
+        icon: "success",
+        title: "Success!",
+        text: "Patient registered successfully!",
+        confirmButtonColor: "#0EA5A4",
+      });
     } catch (error) {
       console.error("Error registering patient:", error);
-      alert("Failed to register patient. Please try again.");
+      await Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Failed to register patient. Please try again.",
+        confirmButtonColor: "#0EA5A4",
+      });
     }
   };
 

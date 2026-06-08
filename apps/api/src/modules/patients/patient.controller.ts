@@ -17,9 +17,11 @@ export const createPatientController = async (
   next: NextFunction
 ) => {
   try {
+    console.log('📝 Creating patient with data:', JSON.stringify(req.body, null, 2));
     const result = await createNewPatient(req.body);
     res.status(201).json(result);
   } catch (error) {
+    console.error('❌ Error creating patient:', error);
     next(error);
   }
 };

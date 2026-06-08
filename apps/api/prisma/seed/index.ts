@@ -1,5 +1,8 @@
 import { PrismaClient } from '@prisma/client';
 import { seedUsers } from './users';
+import { seedPatients } from './patients';
+import { seedLabTests } from './labTests';
+import { seedSuppliersAndMedicines } from './medicines';
 
 const prisma = new PrismaClient();
 
@@ -10,12 +13,14 @@ async function main() {
     // Seed users, roles, and permissions
     await seedUsers();
     
-    // Add more seeders here as we create them
-    // await seedICD10();
-    // await seedLabTests();
-    // await seedMedicines();
-    // await seedSuppliers();
-    // await seedPatients();
+    // Seed patients
+    await seedPatients();
+    
+    // Seed lab tests
+    await seedLabTests();
+    
+    // Seed suppliers and medicines
+    await seedSuppliersAndMedicines();
     
     console.log('✅ All seeding completed successfully!');
   } catch (error) {

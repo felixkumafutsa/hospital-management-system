@@ -13,31 +13,42 @@ import { CreatePatientInput, UpdatePatientInput } from './patient.validator';
 
 // Create new patient service
 export const createNewPatient = async (data: CreatePatientInput) => {
-  // Check if national ID already exists if provided
-  if (data.nationalId) {
-    const existingPatient = await findPatientByNationalId(data.nationalId);
-    if (existingPatient) {
-      throw new ApiError(409, 'PATIENT_EXISTS', 'Patient with this national ID already exists');
+  try {
+    console.log('🏥 Processing patient creation in service:', JSON.stringify(data, null, 2));
+    
+    // Check if national ID already exists if provided
+    if (data.nationalId && data.nationalId.trim() !== '') {
+      const existingPatient = await findPatientByNationalId(data.nationalId);
+      if (existingPatient) {
+        throw new ApiError(409, 'PATIENT_EXISTS', 'Patient with this national ID already exists');
+      }
     }
-  }
 
-  // Convert undefined optional fields to null for Prisma compatibility
-  const patientData = {
-    ...data,
-    isActive: true,
-    nationalId: data.nationalId ?? null,
-    email: data.email ?? null,
-    address: data.address ?? null,
-    nextOfKinName: data.nextOfKinName ?? null,
-    nextOfKinPhone: data.nextOfKinPhone ?? null,
-    nextOfKinRelation: data.nextOfKinRelation ?? null,
-    bloodGroup: data.bloodGroup ?? null,
-    insuranceProvider: data.insuranceProvider ?? null,
-    insuranceNumber: data.insuranceNumber ?? null,
-    photoUrl: data.photoUrl ?? null
-  };
-  const patient = await createPatient(patientData);
-  return { success: true, patient };
+    // Convert undefined or empty string optional fields to null for Prisma compatibility
+    const patientData = {
+      ...data,
+      isActive: true,
+      nationalId: data.nationalId && data.nationalId.trim() !== '' ? data.nationalId : null,
+      email: data.email && data.email.trim() !== '' ? data.email : null,
+      address: data.address && data.address.trim() !== '' ? data.address : null,
+      nextOfKinName: data.nextOfKinName && data.nextOfKinName.trim() !== '' ? data.nextOfKinName : null,
+      nextOfKinPhone: data.nextOfKinPhone && data.nextOfKinPhone.trim() !== '' ? data.nextOfKinPhone : null,
+      nextOfKinRelation: data.nextOfKinRelation && data.nextOfKinRelation.trim() !== '' ? data.nextOfKinRelation : null,
+      bloodGroup: data.bloodGroup && data.bloodGroup.trim() !== '' ? data.bloodGroup : null,
+      insuranceProvider: data.insuranceProvider && data.insuranceProvider.trim() !== '' ? data.insuranceProvider : null,
+      insuranceNumber: data.insuranceNumber && data.insuranceNumber.trim() !== '' ? data.insuranceNumber : null,
+      photoUrl: data.photoUrl && data.photoUrl.trim() !== '' ? data.photoUrl : null
+    };
+    
+    console.log('📦 Cleaned patient data for Prisma:', JSON.stringify(patientData, null, 2));
+    
+    const patient = await createPatient(patientData);
+    console.log('✅ Patient created successfully:', patient.id);
+    return { success: true, patient };
+  } catch (error) {
+    console.error('❌ Error in createNewPatient service:', error);
+    throw error;
+  }
 };
 
 // Get patient by ID service

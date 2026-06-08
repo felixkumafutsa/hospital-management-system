@@ -1,615 +1,731 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Box,
   Grid,
   Paper,
   Typography,
   Button,
+  Chip,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
+  TablePagination,
   IconButton,
   Tooltip,
-  Chip,
   CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
+  Drawer,
+  Stepper,
+  Step,
+  StepLabel,
   TextField,
-  Avatar,
-  Alert,
   MenuItem,
 } from "@mui/material";
 import {
   Add,
   Edit,
-  Inventory,
-  Warning,
-  CheckCircle,
-  Event,
-  LocalPharmacy,
+  Delete,
   Visibility,
-  Refresh,
+  Search,
+  LocalPharmacy,
 } from "@mui/icons-material";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import MainLayout from "../../components/layout/MainLayout";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
 
-interface MedicationInventory {
+interface InventoryItem {
   id: string;
-  name: string;
-  genericName: string;
-  category: string;
   sku: string;
-  manufacturer: string;
-  batchNumber: string;
+  name: string;
+  category: string;
   quantity: number;
-  unit: string; // "tablets", "ml", "capsules", "injections"
-  minStockLevel: number;
-  purchasePrice: number;
-  sellingPrice: number;
+  minStock: number;
+  unitPrice: number;
+  supplier: string;
   expiryDate: string;
-  location: string; // storage location in pharmacy
-  lastRestocked: string;
+  status: string;
+  location: string;
+  createdAt: string;
 }
 
 const PharmacyInventoryPage = () => {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [activeStep, setActiveStep] = useState(0);
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [open, setOpen] = React.useState(false);
-  const [selectedItem, setSelectedItem] =
-    React.useState<MedicationInventory | null>(null);
-  const [filter, setFilter] = React.useState<string>("all");
 
-  const { data: inventory, isLoading } = useQuery({
-    queryKey: ["pharmacy-inventory"],
-    queryFn: async () => {
-      const res = await api.get("/pharmacy/inventory");
-      return res.data.medications as MedicationInventory[];
+  // New inventory item form state
+  const steps = [
+    "Basic Information",
+    "Inventory Details",
+    "Supplier & Location",
+    "Review & Submit",
+  ];
+
+  const categoryOptions = [
+    "Pharmaceuticals",
+    "Medical Supplies",
+    "Equipment",
+    "Disposables",
+    "Vaccines",
+    "Other",
+  ];
+
+  interface InventoryFormData {
+    name: string;
+    sku: string;
+    category: string;
+    quantity: number;
+    minStock: number;
+    unitPrice: number;
+    supplier: string;
+    expiryDate: string;
+    location: string;
+    notes: string;
+    status: string;
+  }
+
+  const initialFormData: InventoryFormData = {
+    name: "",
+    sku: "",
+    category: "",
+    quantity: 0,
+    minStock: 10,
+    unitPrice: 0,
+    supplier: "",
+    expiryDate: "",
+    location: "",
+    notes: "",
+    status: "IN_STOCK",
+  };
+
+  const [formData, setFormData] = useState<InventoryFormData>(initialFormData);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleNext = () => {
+    setActiveStep((prev) => prev + 1);
+  };
+
+  const handleBack = () => {
+    setActiveStep((prev) => prev - 1);
+  };
+
+  const handleCloseDrawer = () => {
+    setDrawerOpen(false);
+    setActiveStep(0);
+    setFormData(initialFormData);
+  };
+
+  const handleOpenAdd = () => {
+    setDrawerOpen(true);
+  };
+
+  const handleChangePage = (_event: unknown, newPage: number) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  // Mutation for adding new inventory item
+  const addItemMutation = useMutation({
+    mutationFn: async (data: InventoryFormData) => {
+      const res = await api.post("/inventory", data);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      handleCloseDrawer();
     },
   });
 
-  const handleOpenAdd = () => {
-    setSelectedItem(null);
-    setOpen(true);
+  const handleSubmit = () => {
+    addItemMutation.mutate(formData);
   };
 
-  const handleOpenEdit = (item: MedicationInventory) => {
-    setSelectedItem(item);
-    setOpen(true);
-  };
+  // Fetch inventory items from API
+  const { data: inventoryItems, isLoading } = useQuery({
+    queryKey: ["inventory"],
+    queryFn: async () => {
+      const res = await api.get("/pharmacy/medicines");
+      return res.data.items as InventoryItem[];
+    },
+  });
 
-  const handleClose = () => {
-    setOpen(false);
-    setSelectedItem(null);
-  };
+  // Filter inventory items based on search term
+  const filteredItems =
+    inventoryItems?.filter(
+      (item) =>
+        item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.supplier.toLowerCase().includes(searchTerm.toLowerCase()),
+    ) || [];
 
-  // Calculate inventory statistics
-  const totalItems = inventory?.length || 0;
-  const totalStockValue =
-    inventory?.reduce(
-      (sum, item) => sum + item.quantity * item.purchasePrice,
-      0,
-    ) || 0;
-
-  const expiringWithin30Days =
-    inventory?.filter((item) => {
-      const expiry = new Date(item.expiryDate);
-      const thirtyDaysFromNow = new Date();
-      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-      return (
-        expiry <= thirtyDaysFromNow && new Date(item.expiryDate) > new Date()
-      );
-    }).length || 0;
-
-  const lowStockItems =
-    inventory?.filter((item) => item.quantity <= item.minStockLevel).length ||
-    0;
-  const outOfStock =
-    inventory?.filter((item) => item.quantity === 0).length || 0;
-  const alreadyExpired =
-    inventory?.filter((item) => new Date(item.expiryDate) < new Date())
-      .length || 0;
-
-  // Filter inventory based on status
-  const filteredInventory = React.useMemo(() => {
-    if (!inventory) return [];
-    switch (filter) {
-      case "low-stock":
-        return inventory.filter((item) => item.quantity <= item.minStockLevel);
-      case "expiring-soon":
-        return inventory.filter((item) => {
-          const expiry = new Date(item.expiryDate);
-          const thirtyDaysFromNow = new Date();
-          thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-          return (
-            expiry <= thirtyDaysFromNow &&
-            new Date(item.expiryDate) > new Date()
-          );
-        });
-      case "expired":
-        return inventory.filter(
-          (item) => new Date(item.expiryDate) < new Date(),
-        );
-      default:
-        return inventory;
-    }
-  }, [inventory, filter]);
-
-  const getStockStatusColor = (item: MedicationInventory) => {
-    if (item.quantity === 0) return "error";
-    if (item.quantity <= item.minStockLevel) return "warning";
+  const getStatusColor = (item: InventoryItem) => {
+    if (item.quantity <= 0) return "error";
+    if (item.quantity < item.minStock) return "warning";
     return "success";
   };
 
-  const getStockStatusLabel = (item: MedicationInventory) => {
-    if (item.quantity === 0) return "Out of Stock";
-    if (item.quantity <= item.minStockLevel) return "Low Stock";
+  const getStatusLabel = (item: InventoryItem) => {
+    if (item.quantity <= 0) return "Out of Stock";
+    if (item.quantity < item.minStock) return "Low Stock";
     return "In Stock";
   };
 
-  const getExpiryStatus = (expiryDate: string) => {
-    const expiry = new Date(expiryDate);
-    const today = new Date();
-    const diffTime = expiry.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  // Render form steps
+  const renderStepContent = () => {
+    switch (activeStep) {
+      case 0: // Basic Information
+        return (
+          <Grid container spacing={2} sx={{ mt: 2 }}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Item Name"
+                name="name"
+                value={formData.name}
+                onChange={handleInputChange}
+                required
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="SKU"
+                name="sku"
+                value={formData.sku}
+                onChange={handleInputChange}
+                required
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                select
+                label="Category"
+                name="category"
+                value={formData.category}
+                onChange={handleInputChange}
+                required
+              >
+                {categoryOptions.map((category) => (
+                  <MenuItem key={category} value={category}>
+                    {category}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                multiline
+                rows={2}
+                label="Notes"
+                name="notes"
+                value={formData.notes}
+                onChange={handleInputChange}
+                placeholder="Additional notes about this medication"
+              />
+            </Grid>
+          </Grid>
+        );
 
-    if (diffDays < 0) return { label: "Expired", color: "error" };
-    if (diffDays <= 30) return { label: `${diffDays}d left`, color: "warning" };
-    if (diffDays <= 90) return { label: `${diffDays}d left`, color: "info" };
-    return { label: `${diffDays}d left`, color: "success" };
+      case 1: // Inventory Details
+        return (
+          <Grid container spacing={2} sx={{ mt: 2 }}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Quantity in Stock"
+                name="quantity"
+                type="number"
+                value={formData.quantity}
+                onChange={handleInputChange}
+                required
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Minimum Stock Level"
+                name="minStock"
+                type="number"
+                value={formData.minStock}
+                onChange={handleInputChange}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Unit Price ($)"
+                name="unitPrice"
+                type="number"
+                value={formData.unitPrice}
+                onChange={handleInputChange}
+                required
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Expiry Date"
+                name="expiryDate"
+                type="date"
+                value={formData.expiryDate}
+                onChange={handleInputChange}
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+          </Grid>
+        );
+
+      case 2: // Supplier & Location
+        return (
+          <Grid container spacing={2} sx={{ mt: 2 }}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Supplier"
+                name="supplier"
+                value={formData.supplier}
+                onChange={handleInputChange}
+                required
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Storage Location"
+                name="location"
+                value={formData.location}
+                onChange={handleInputChange}
+                placeholder="e.g., Shelf A3, Refrigerator 2"
+              />
+            </Grid>
+          </Grid>
+        );
+
+      case 3: // Review & Submit
+        return (
+          <Grid container spacing={2} sx={{ mt: 2 }}>
+            <Grid item xs={12}>
+              <Paper variant="outlined" sx={{ p: 2 }}>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  Inventory Item Summary
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={6}>
+                    <Typography>
+                      <strong>Item Name:</strong> {formData.name}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography>
+                      <strong>SKU:</strong> {formData.sku}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography>
+                      <strong>Category:</strong> {formData.category}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography>
+                      <strong>Quantity:</strong> {formData.quantity} units
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography>
+                      <strong>Unit Price:</strong> $
+                      {formData.unitPrice.toFixed(2)}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography>
+                      <strong>Total Value:</strong> $
+                      {(formData.quantity * formData.unitPrice).toFixed(2)}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Typography>
+                      <strong>Supplier:</strong> {formData.supplier}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Typography>
+                      <strong>Storage:</strong>{" "}
+                      {formData.location || "Not specified"}
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </Paper>
+            </Grid>
+            <Box sx={{ mt: 3, display: "flex", gap: 2 }}>
+              <Button
+                variant="contained"
+                onClick={handleSubmit}
+                disabled={addItemMutation.isPending}
+                sx={{ bgcolor: "#0EA5A4", "&:hover": { bgcolor: "#0c8c8b" } }}
+              >
+                {addItemMutation.isPending ? (
+                  <CircularProgress size={24} color="inherit" />
+                ) : (
+                  "Add to Inventory"
+                )}
+              </Button>
+            </Box>
+          </Grid>
+        );
+
+      default:
+        return null;
+    }
   };
 
   return (
-    <MainLayout>
+    <Box
+      sx={{
+        p: { xs: 2, sm: 3, md: 4 },
+        width: "100%",
+        boxSizing: "border-box",
+      }}
+    >
       <Box
         sx={{
-          p: { xs: 2, sm: 3, md: 4 },
-          width: "100%",
-          boxSizing: "border-box",
+          mb: 4,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 2,
         }}
       >
-        <Box
-          sx={{
-            mb: 4,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: 2,
-          }}
-        >
-          <Box>
-            <Typography variant="h4" sx={{ mb: 1, fontWeight: 600 }}>
-              Pharmacy Inventory Management
-            </Typography>
-            <Typography color="text.secondary">
-              Track medication stock levels, expiry dates, and inventory value
-            </Typography>
-          </Box>
-          <Box sx={{ display: "flex", gap: 2 }}>
-            <Button
-              variant="outlined"
-              startIcon={<Refresh />}
-              onClick={() =>
-                queryClient.invalidateQueries({
-                  queryKey: ["pharmacy-inventory"],
-                })
-              }
-            >
-              Refresh
-            </Button>
-            <Button
-              variant="contained"
-              startIcon={<Add />}
-              onClick={handleOpenAdd}
-            >
-              Add Medication
-            </Button>
-          </Box>
+        <Box>
+          <Typography variant="h4" sx={{ mb: 1, fontWeight: 600 }}>
+            Pharmacy Inventory
+          </Typography>
+          <Typography color="text.secondary">
+            Manage medications, supplies, and stock levels
+          </Typography>
         </Box>
+        <Button variant="contained" startIcon={<Add />} onClick={handleOpenAdd}>
+          Add Inventory Item
+        </Button>
+      </Box>
 
-        {/* Alerts Banner */}
-        {(lowStockItems > 0 ||
-          expiringWithin30Days > 0 ||
-          alreadyExpired > 0) && (
-          <Box sx={{ mb: 3 }}>
-            {lowStockItems > 0 && (
-              <Alert severity="warning" sx={{ mb: 1 }}>
-                ⚠️ {lowStockItems} items are below minimum stock levels and need
-                restocking.
-              </Alert>
-            )}
-            {expiringWithin30Days > 0 && (
-              <Alert severity="info" sx={{ mb: 1 }}>
-                ℹ️ {expiringWithin30Days} medications will expire within the
-                next 30 days.
-              </Alert>
-            )}
-            {alreadyExpired > 0 && (
-              <Alert severity="error" sx={{ mb: 1 }}>
-                ❌ {alreadyExpired} medications have expired and should be
-                removed from inventory.
-              </Alert>
-            )}
-          </Box>
-        )}
-
-        {/* Statistics Cards */}
-        <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid item xs={12} sm={6} md={3}>
-            <Paper elevation={2} sx={{ p: 3 }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                <Avatar sx={{ bgcolor: "#1976d2", width: 50, height: 50 }}>
-                  <Inventory />
-                </Avatar>
-                <Box>
-                  <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                    {totalItems}
-                  </Typography>
-                  <Typography color="text.secondary">Total SKUs</Typography>
-                </Box>
+      {/* Statistics Cards */}
+      <Grid container spacing={3} sx={{ mb: 3 }}>
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper elevation={2} sx={{ p: 3 }}>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <Box>
+                <Typography color="text.secondary" variant="body2">
+                  Total Items
+                </Typography>
+                <Typography variant="h5" fontWeight={600}>
+                  {inventoryItems?.length || 0}
+                </Typography>
               </Box>
-            </Paper>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Paper elevation={2} sx={{ p: 3 }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                <Avatar sx={{ bgcolor: "#2e7d32", width: 50, height: 50 }}>
-                  <CheckCircle />
-                </Avatar>
-                <Box>
-                  <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                    ${totalStockValue.toLocaleString()}
-                  </Typography>
-                  <Typography color="text.secondary">Stock Value</Typography>
-                </Box>
-              </Box>
-            </Paper>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Paper elevation={2} sx={{ p: 3 }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                <Avatar sx={{ bgcolor: "#ed6c02", width: 50, height: 50 }}>
-                  <Warning />
-                </Avatar>
-                <Box>
-                  <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                    {lowStockItems}
-                  </Typography>
-                  <Typography color="text.secondary">Low Stock</Typography>
-                </Box>
-              </Box>
-            </Paper>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Paper elevation={2} sx={{ p: 3 }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                <Avatar sx={{ bgcolor: "#9c27b0", width: 50, height: 50 }}>
-                  <Event />
-                </Avatar>
-                <Box>
-                  <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                    {expiringWithin30Days}
-                  </Typography>
-                  <Typography color="text.secondary">Expiring Soon</Typography>
-                </Box>
-              </Box>
-            </Paper>
-          </Grid>
-        </Grid>
-
-        {/* Filter Buttons */}
-        <Box sx={{ mb: 3, display: "flex", gap: 1, flexWrap: "wrap" }}>
-          <Chip
-            label={`All Items (${totalItems})`}
-            onClick={() => setFilter("all")}
-            color={filter === "all" ? "primary" : "default"}
-            variant={filter === "all" ? "filled" : "outlined"}
-          />
-          <Chip
-            label={`Low Stock (${lowStockItems})`}
-            onClick={() => setFilter("low-stock")}
-            color={filter === "low-stock" ? "warning" : "default"}
-            variant={filter === "low-stock" ? "filled" : "outlined"}
-          />
-          <Chip
-            label={`Expiring Soon (${expiringWithin30Days})`}
-            onClick={() => setFilter("expiring-soon")}
-            color={filter === "expiring-soon" ? "info" : "default"}
-            variant={filter === "expiring-soon" ? "filled" : "outlined"}
-          />
-          <Chip
-            label={`Expired (${alreadyExpired})`}
-            onClick={() => setFilter("expired")}
-            color={filter === "expired" ? "error" : "default"}
-            variant={filter === "expired" ? "filled" : "outlined"}
-          />
-          <Chip
-            label={`Out of Stock (${outOfStock})`}
-            onClick={() => {}}
-            variant="outlined"
-          />
-        </Box>
-
-        {/* Inventory Table */}
-        <Paper elevation={2} sx={{ width: "100%", overflow: "hidden" }}>
-          {isLoading ? (
-            <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
-              <CircularProgress />
+              <LocalPharmacy
+                sx={{ fontSize: 40, color: "#0EA5A4", opacity: 0.5 }}
+              />
             </Box>
-          ) : (
+          </Paper>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper elevation={2} sx={{ p: 3 }}>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <Box>
+                <Typography color="text.secondary" variant="body2">
+                  Low Stock
+                </Typography>
+                <Typography variant="h5" fontWeight={600}>
+                  {inventoryItems?.filter(
+                    (item) =>
+                      item.quantity < item.minStock && item.quantity > 0,
+                  ).length || 0}
+                </Typography>
+              </Box>
+              <Chip label="Warning" color="warning" size="small" />
+            </Box>
+          </Paper>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper elevation={2} sx={{ p: 3 }}>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <Box>
+                <Typography color="text.secondary" variant="body2">
+                  Out of Stock
+                </Typography>
+                <Typography variant="h5" fontWeight={600}>
+                  {inventoryItems?.filter((item) => item.quantity <= 0)
+                    .length || 0}
+                </Typography>
+              </Box>
+              <Chip label="Critical" color="error" size="small" />
+            </Box>
+          </Paper>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper elevation={2} sx={{ p: 3 }}>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <Box>
+                <Typography color="text.secondary" variant="body2">
+                  Total Value
+                </Typography>
+                <Typography variant="h5" fontWeight={600}>
+                  $
+                  {inventoryItems
+                    ?.reduce(
+                      (acc, item) => acc + item.quantity * item.unitPrice,
+                      0,
+                    )
+                    .toLocaleString() || "0"}
+                </Typography>
+              </Box>
+              <Box sx={{ fontSize: 40, color: "#0EA5A4", opacity: 0.5 }}>$</Box>
+            </Box>
+          </Paper>
+        </Grid>
+      </Grid>
+
+      {/* Search Bar */}
+      <Paper elevation={2} sx={{ p: 2, mb: 3 }}>
+        <TextField
+          fullWidth
+          placeholder="Search inventory by name, SKU, category, or supplier..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          variant="standard"
+          InputProps={{
+            disableUnderline: true,
+            startAdornment: <Search sx={{ mr: 1, color: "text.secondary" }} />,
+          }}
+        />
+      </Paper>
+
+      {/* Inventory Table */}
+      <Paper elevation={2} sx={{ width: "100%", overflow: "hidden" }}>
+        {isLoading ? (
+          <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <>
             <TableContainer>
               <Table>
                 <TableHead sx={{ backgroundColor: "#f5f5f5" }}>
                   <TableRow>
+                    <TableCell sx={{ fontWeight: "bold" }}>SKU</TableCell>
+                    <TableCell sx={{ fontWeight: "bold" }}>Item Name</TableCell>
+                    <TableCell sx={{ fontWeight: "bold" }}>Category</TableCell>
+                    <TableCell sx={{ fontWeight: "bold" }}>In Stock</TableCell>
                     <TableCell sx={{ fontWeight: "bold" }}>
-                      Medication
+                      Unit Price
                     </TableCell>
-                    <TableCell sx={{ fontWeight: "bold" }}>SKU/Batch</TableCell>
-                    <TableCell sx={{ fontWeight: "bold" }}>
-                      Stock Level
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: "bold" }}>Price</TableCell>
-                    <TableCell sx={{ fontWeight: "bold" }}>
-                      Expiry Date
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: "bold" }}>Location</TableCell>
                     <TableCell sx={{ fontWeight: "bold" }}>Status</TableCell>
                     <TableCell sx={{ fontWeight: "bold" }}>Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {filteredInventory?.map((item) => {
-                    const expiryStatus = getExpiryStatus(item.expiryDate);
-                    return (
+                  {filteredItems
+                    .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                    .map((item) => (
                       <TableRow key={item.id} hover>
-                        <TableCell>
-                          <Box
-                            sx={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 2,
-                            }}
-                          >
-                            <Avatar
-                              sx={{ bgcolor: "#4caf50", width: 40, height: 40 }}
-                            >
-                              <LocalPharmacy fontSize="small" />
-                            </Avatar>
-                            <Box>
-                              <Typography sx={{ fontWeight: 500 }}>
-                                {item.name}
-                              </Typography>
-                              <Typography
-                                variant="body2"
-                                color="text.secondary"
-                              >
-                                {item.genericName} • {item.category}
-                              </Typography>
-                            </Box>
-                          </Box>
+                        <TableCell sx={{ fontFamily: "monospace" }}>
+                          {item.sku}
                         </TableCell>
                         <TableCell>
-                          <Typography
-                            variant="body2"
-                            sx={{ fontFamily: "monospace" }}
-                          >
-                            {item.sku}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            Batch: {item.batchNumber}
+                          <Typography fontWeight={500}>{item.name}</Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {item.supplier}
                           </Typography>
                         </TableCell>
                         <TableCell>
-                          <Typography>
-                            <strong>{item.quantity}</strong> {item.unit}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            Min: {item.minStockLevel} {item.unit}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography>
-                            ${item.sellingPrice.toFixed(2)}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            Buy: ${item.purchasePrice.toFixed(2)}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography>
-                            {new Date(item.expiryDate).toLocaleDateString()}
-                          </Typography>
                           <Chip
-                            label={expiryStatus.label}
+                            label={item.category}
                             size="small"
-                            color={expiryStatus.color as any}
-                            sx={{ mt: 0.5 }}
+                            variant="outlined"
                           />
                         </TableCell>
                         <TableCell>
-                          <Typography variant="body2">
-                            {item.location}
+                          <Typography fontWeight={500}>
+                            {item.quantity}
                           </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            Restocked:{" "}
-                            {new Date(item.lastRestocked).toLocaleDateString()}
+                          <Typography variant="body2" color="text.secondary">
+                            Min: {item.minStock}
                           </Typography>
                         </TableCell>
+                        <TableCell>${item.unitPrice.toFixed(2)}</TableCell>
                         <TableCell>
                           <Chip
-                            label={getStockStatusLabel(item)}
-                            color={getStockStatusColor(item) as any}
+                            label={getStatusLabel(item)}
+                            color={getStatusColor(item) as any}
                             size="small"
                           />
                         </TableCell>
                         <TableCell>
                           <Tooltip title="View Details">
-                            <IconButton size="small">
+                            <IconButton
+                              size="small"
+                              onClick={() => navigate(`/inventory/${item.id}`)}
+                            >
                               <Visibility />
                             </IconButton>
                           </Tooltip>
-                          <Tooltip title="Barcode Scan">
+                          <Tooltip title="Edit">
                             <IconButton size="small">
-                              <Refresh />
+                              <Edit />
                             </IconButton>
                           </Tooltip>
-                          <Tooltip title="Edit Stock">
-                            <IconButton
-                              size="small"
-                              onClick={() => handleOpenEdit(item)}
-                            >
-                              <Edit />
+                          <Tooltip title="Delete">
+                            <IconButton size="small" color="error">
+                              <Delete />
                             </IconButton>
                           </Tooltip>
                         </TableCell>
                       </TableRow>
-                    );
-                  })}
+                    ))}
+                  {filteredItems.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
+                        <Typography color="text.secondary">
+                          No inventory items found matching your search
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </TableContainer>
-          )}
-        </Paper>
+            <TablePagination
+              rowsPerPageOptions={[5, 10, 25]}
+              component="div"
+              count={filteredItems.length}
+              rowsPerPage={rowsPerPage}
+              page={page}
+              onPageChange={handleChangePage}
+              onRowsPerPageChange={handleChangeRowsPerPage}
+            />
+          </>
+        )}
+      </Paper>
 
-        {/* Add/Edit Medication Dialog */}
-        <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
-          <DialogTitle>
-            {selectedItem
-              ? "Edit Medication Inventory"
-              : "Add New Medication to Inventory"}
-          </DialogTitle>
-          <DialogContent>
-            <DialogContentText sx={{ mb: 3 }}>
-              {selectedItem
-                ? "Update stock levels, pricing, or storage information for this medication."
-                : "Add a new medication to your pharmacy inventory system with complete details."}
-            </DialogContentText>
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  label="Medication Name"
-                  fullWidth
-                  defaultValue={selectedItem?.name || ""}
-                  required
-                />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  label="Generic Name"
-                  fullWidth
-                  defaultValue={selectedItem?.genericName || ""}
-                />
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <TextField
-                  label="SKU Code"
-                  fullWidth
-                  defaultValue={selectedItem?.sku || ""}
-                />
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <TextField
-                  label="Batch Number"
-                  fullWidth
-                  defaultValue={selectedItem?.batchNumber || ""}
-                />
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <TextField
-                  label="Manufacturer"
-                  fullWidth
-                  defaultValue={selectedItem?.manufacturer || ""}
-                />
-              </Grid>
-              <Grid item xs={12} md={3}>
-                <TextField
-                  label="Current Stock"
-                  type="number"
-                  fullWidth
-                  defaultValue={selectedItem?.quantity || ""}
-                />
-              </Grid>
-              <Grid item xs={12} md={3}>
-                <TextField
-                  label="Min Stock Level"
-                  type="number"
-                  fullWidth
-                  defaultValue={selectedItem?.minStockLevel || ""}
-                />
-              </Grid>
-              <Grid item xs={12} md={3}>
-                <TextField
-                  label="Unit"
-                  select
-                  fullWidth
-                  defaultValue={selectedItem?.unit || "tablets"}
-                >
-                  <MenuItem value="tablets">Tablets</MenuItem>
-                  <MenuItem value="capsules">Capsules</MenuItem>
-                  <MenuItem value="ml">Milliliters (ml)</MenuItem>
-                  <MenuItem value="injections">Injections (vials)</MenuItem>
-                  <MenuItem value="cream">Cream/Ointment</MenuItem>
-                </TextField>
-              </Grid>
-              <Grid item xs={12} md={3}>
-                <TextField
-                  label="Category"
-                  fullWidth
-                  defaultValue={selectedItem?.category || ""}
-                />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  label="Purchase Price ($)"
-                  type="number"
-                  fullWidth
-                  defaultValue={selectedItem?.purchasePrice || ""}
-                  inputProps={{ step: "0.01" }}
-                />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  label="Selling Price ($)"
-                  type="number"
-                  fullWidth
-                  defaultValue={selectedItem?.sellingPrice || ""}
-                  inputProps={{ step: "0.01" }}
-                />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  label="Expiry Date"
-                  type="date"
-                  fullWidth
-                  defaultValue={selectedItem?.expiryDate?.split("T")[0] || ""}
-                  InputLabelProps={{ shrink: true }}
-                />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  label="Storage Location"
-                  fullWidth
-                  defaultValue={selectedItem?.location || "Shelf A-1"}
-                  placeholder="e.g., Shelf A-1, Refrigerator B-3"
-                />
-              </Grid>
-            </Grid>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={handleClose}>Cancel</Button>
-            <Button variant="contained" onClick={handleClose}>
-              {selectedItem ? "Update Inventory" : "Add to Inventory"}
+      {/* Add Item Drawer */}
+      <Drawer
+        anchor="right"
+        open={drawerOpen}
+        onClose={handleCloseDrawer}
+        PaperProps={{
+          sx: { width: { xs: "100%", md: "600px" }, p: 4 },
+        }}
+      >
+        <Box sx={{ mb: 4 }}>
+          <Typography variant="h5" sx={{ mb: 1, fontWeight: 600 }}>
+            Add Inventory Item
+          </Typography>
+          <Typography color="text.secondary">
+            Add a new medication or supply to the pharmacy inventory
+          </Typography>
+        </Box>
+        <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
+          {steps.map((label) => (
+            <Step key={label}>
+              <StepLabel>{label}</StepLabel>
+            </Step>
+          ))}
+        </Stepper>
+        {renderStepContent()}
+        {activeStep > 0 && activeStep < steps.length - 1 && (
+          <Box
+            sx={{
+              mt: 2,
+              display: "flex",
+              gap: 2,
+              justifyContent: "flex-end",
+            }}
+          >
+            <Button onClick={handleBack}>Back</Button>
+            <Button variant="contained" onClick={handleNext}>
+              Next
             </Button>
-          </DialogActions>
-        </Dialog>
-      </Box>
-    </MainLayout>
+          </Box>
+        )}
+        {activeStep === steps.length - 2 && (
+          <Box
+            sx={{
+              mt: 2,
+              display: "flex",
+              gap: 2,
+              justifyContent: "flex-end",
+            }}
+          >
+            <Button onClick={handleBack}>Back</Button>
+            <Button variant="contained" onClick={handleNext}>
+              Review
+            </Button>
+          </Box>
+        )}
+        {activeStep === 0 && (
+          <Box
+            sx={{
+              mt: 2,
+              display: "flex",
+              gap: 2,
+              justifyContent: "flex-end",
+            }}
+          >
+            <Button onClick={handleCloseDrawer}>Cancel</Button>
+            <Button
+              variant="contained"
+              onClick={handleNext}
+              disabled={!formData.name || !formData.sku || !formData.category}
+            >
+              Next
+            </Button>
+          </Box>
+        )}
+      </Drawer>
+    </Box>
   );
 };
 

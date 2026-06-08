@@ -7,7 +7,9 @@ export const createPatientSchema = z.object({
     nationalId: z.string().optional(),
     firstName: z.string().min(1, 'First name is required'),
     lastName: z.string().min(1, 'Last name is required'),
-    dateOfBirth: z.coerce.date(),
+    dateOfBirth: z.string().refine((val) => !isNaN(Date.parse(val)), {
+      message: "Invalid date format for dateOfBirth"
+    }).transform((val) => new Date(val)),
     gender: z.enum([Gender.FEMALE, Gender.MALE, Gender.OTHER]),
     phone: z.string().min(10, 'Phone number must be at least 10 characters'),
     email: z.string().email('Invalid email format').optional(),
@@ -29,7 +31,9 @@ export const updatePatientSchema = z.object({
     nationalId: z.string().optional(),
     firstName: z.string().min(1, 'First name is required').optional(),
     lastName: z.string().min(1, 'Last name is required').optional(),
-    dateOfBirth: z.coerce.date().optional(),
+    dateOfBirth: z.string().refine((val) => !isNaN(Date.parse(val)), {
+      message: "Invalid date format for dateOfBirth"
+    }).transform((val) => new Date(val)).optional(),
     gender: z.enum([Gender.FEMALE, Gender.MALE, Gender.OTHER]).optional(),
     phone: z.string().min(10, 'Phone number must be at least 10 characters').optional(),
     email: z.string().email('Invalid email format').optional(),

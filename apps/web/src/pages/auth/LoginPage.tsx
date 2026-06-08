@@ -69,12 +69,12 @@ const LoginPage: React.FC = () => {
             <Typography
               variant="h4"
               component="h1"
-              sx={{ color: "#2E7D32", fontWeight: 700, mb: 1 }}
+              sx={{ color: "#0EA5A4", fontWeight: 700, mb: 1 }}
             >
               BetterLife Clinic
             </Typography>
             <Typography variant="h6" sx={{ color: "#616161", mb: 1 }}>
-              Obstetrics & Gynecology
+              Hospital Management System
             </Typography>
             <Typography variant="body2" color="text.secondary">
               Hospital Management System
@@ -128,9 +128,9 @@ const LoginPage: React.FC = () => {
               disabled={isSubmitting}
               sx={{
                 py: 1.5,
-                backgroundColor: "#2E7D32",
+                backgroundColor: "#0EA5A4",
                 "&:hover": {
-                  backgroundColor: "#1B5E20",
+                  backgroundColor: "#0c8c8b",
                 },
               }}
             >

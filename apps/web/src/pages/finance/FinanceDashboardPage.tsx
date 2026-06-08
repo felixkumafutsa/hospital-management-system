@@ -35,7 +35,6 @@ import {
   Bar,
 } from "recharts";
 import { useQuery } from "@tanstack/react-query";
-import MainLayout from "../../components/layout/MainLayout";
 import api from "../../services/api";
 
 interface RevenueData {
@@ -78,6 +77,60 @@ const FinanceDashboardPage = () => {
     },
   });
 
+  // Fetch department revenue breakdown
+  const { data: departmentRevenueData = [] } = useQuery({
+    queryKey: ["department-revenue"],
+    queryFn: async () => {
+      try {
+        const invoicesRes = await api.get("/finance/invoices");
+
+        const invoices = invoicesRes.data.invoices || [];
+
+        // Group invoices by category to get department revenue
+        const deptMap = new Map<string, number>();
+
+        invoices.forEach((invoice: any) => {
+          invoice.items?.forEach((item: any) => {
+            const category = item.category || "Other Services";
+            deptMap.set(
+              category,
+              (deptMap.get(category) || 0) + item.unitPrice * item.quantity,
+            );
+          });
+        });
+
+        // Default departments
+        const defaultDepts = [
+          { name: "Consultation", value: 0 },
+          { name: "Pharmacy", value: 0 },
+          { name: "Lab", value: 0 },
+          { name: "Inpatient", value: 0 },
+        ];
+
+        // Populate with actual data
+        deptMap.forEach((value, key) => {
+          const dept = defaultDepts.find((d) =>
+            d.name.toLowerCase().includes(key.toLowerCase()),
+          );
+          if (dept) {
+            dept.value = Math.round(value);
+          }
+        });
+
+        return defaultDepts.filter((d) => d.value > 0).length > 0
+          ? defaultDepts.filter((d) => d.value > 0)
+          : defaultDepts;
+      } catch {
+        return [
+          { name: "Consultation", value: 0 },
+          { name: "Pharmacy", value: 0 },
+          { name: "Lab", value: 0 },
+          { name: "Inpatient", value: 0 },
+        ];
+      }
+    },
+  });
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "PAID":
@@ -99,39 +152,60 @@ const FinanceDashboardPage = () => {
     trendValue,
     color,
   }: any) => (
-    <Card elevation={2}>
-      <CardContent>
+    <Card elevation={2} sx={{ minWidth: 200, flex: 1, position: "relative" }}>
+      <CardContent sx={{ padding: "20px 24px !important" }}>
         <Box
           sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
+            position: "absolute",
+            top: 20,
+            right: 24,
+            p: 1.5,
+            borderRadius: 2,
+            backgroundColor: color + "20",
           }}
         >
-          <Box>
-            <Typography color="text.secondary" variant="body2" sx={{ mb: 1 }}>
-              {title}
+          <Icon sx={{ fontSize: 28, color }} />
+        </Box>
+        <Box>
+          <Typography
+            color="text.secondary"
+            variant="body2"
+            sx={{ mb: 1, pr: 10 }}
+          >
+            {title}
+          </Typography>
+          <Typography variant="h4" sx={{ fontWeight: 600, mb: 1 }}>
+            {value}
+          </Typography>
+          <Box
+            sx={{ display: "flex", alignItems: "center", whiteSpace: "nowrap" }}
+          >
+            {trend === "up" ? (
+              <TrendingUp
+                sx={{
+                  color: "success.main",
+                  fontSize: 16,
+                  mr: 0.5,
+                  flexShrink: 0,
+                }}
+              />
+            ) : (
+              <TrendingDown
+                sx={{
+                  color: "error.main",
+                  fontSize: 16,
+                  mr: 0.5,
+                  flexShrink: 0,
+                }}
+              />
+            )}
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{ whiteSpace: "nowrap" }}
+            >
+              {trendValue} from last month
             </Typography>
-            <Typography variant="h4" sx={{ fontWeight: 600, mb: 1 }}>
-              {value}
-            </Typography>
-            <Box sx={{ display: "flex", alignItems: "center" }}>
-              {trend === "up" ? (
-                <TrendingUp
-                  sx={{ color: "success.main", fontSize: 16, mr: 0.5 }}
-                />
-              ) : (
-                <TrendingDown
-                  sx={{ color: "error.main", fontSize: 16, mr: 0.5 }}
-                />
-              )}
-              <Typography variant="body2" color="text.secondary">
-                {trendValue} from last month
-              </Typography>
-            </Box>
-          </Box>
-          <Box sx={{ p: 1.5, borderRadius: 2, backgroundColor: color + "20" }}>
-            <Icon sx={{ fontSize: 28, color }} />
           </Box>
         </Box>
       </CardContent>
@@ -139,42 +213,53 @@ const FinanceDashboardPage = () => {
   );
 
   return (
-    <MainLayout>
+    <Box
+      sx={{
+        p: { xs: 2, sm: 3, md: 4 },
+        width: "100%",
+        boxSizing: "border-box",
+      }}
+    >
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" sx={{ mb: 1, fontWeight: 600 }}>
+          Finance Dashboard
+        </Typography>
+        <Typography color="text.secondary">
+          Track revenue, expenses, and manage clinic finances
+        </Typography>
+      </Box>
+
+      {/* Statistics Cards */}
       <Box
         sx={{
-          p: { xs: 2, sm: 3, md: 4 },
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "16px",
+          mb: 4,
           width: "100%",
-          boxSizing: "border-box",
         }}
       >
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="h4" sx={{ mb: 1, fontWeight: 600 }}>
-            Finance Dashboard
-          </Typography>
-          <Typography color="text.secondary">
-            Track revenue, expenses, and manage clinic finances
-          </Typography>
-        </Box>
-
-        {/* Statistics Cards */}
-        <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid item xs={12} sm={6} lg={3}>
-            {statsLoading ? (
-              <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
-                <CircularProgress />
-              </Box>
-            ) : (
-              <StatCard
-                title="Total Revenue"
-                value={`$${stats?.totalRevenue?.toLocaleString() || "0"}`}
-                icon={AttachMoney}
-                trend="up"
-                trendValue="+12.5%"
-                color="#1976d2"
-              />
-            )}
-          </Grid>
-          <Grid item xs={12} sm={6} lg={3}>
+        {statsLoading ? (
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "center",
+              p: 4,
+              width: "100%",
+            }}
+          >
+            <CircularProgress />
+          </Box>
+        ) : (
+          <>
+            <StatCard
+              title="Total Revenue"
+              value={`$${stats?.totalRevenue?.toLocaleString() || "0"}`}
+              icon={AttachMoney}
+              trend="up"
+              trendValue="+12.5%"
+              color="#1976d2"
+            />
             <StatCard
               title="Consultations"
               value={stats?.totalConsultations || 0}
@@ -183,8 +268,6 @@ const FinanceDashboardPage = () => {
               trendValue="+8.2%"
               color="#2e7d32"
             />
-          </Grid>
-          <Grid item xs={12} sm={6} lg={3}>
             <StatCard
               title="Pharmacy Sales"
               value={`$${stats?.pharmacyRevenue?.toLocaleString() || "0"}`}
@@ -193,8 +276,6 @@ const FinanceDashboardPage = () => {
               trendValue="+15.3%"
               color="#ed6c02"
             />
-          </Grid>
-          <Grid item xs={12} sm={6} lg={3}>
             <StatCard
               title="Lab Tests"
               value={stats?.labTestsCompleted || 0}
@@ -203,137 +284,128 @@ const FinanceDashboardPage = () => {
               trendValue="+10.1%"
               color="#9c27b0"
             />
-          </Grid>
-        </Grid>
+          </>
+        )}
+      </Box>
 
-        {/* Charts */}
-        <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid item xs={12} lg={8}>
-            <Paper elevation={2} sx={{ p: 3 }}>
-              <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-                Revenue Overview
-              </Typography>
-              {revenueLoading ? (
-                <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
-                  <CircularProgress />
-                </Box>
-              ) : (
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={revenueData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" />
-                    <YAxis />
-                    <RechartsTooltip />
-                    <Line
-                      type="monotone"
-                      dataKey="revenue"
-                      stroke="#1976d2"
-                      strokeWidth={2}
-                      name="Revenue"
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="expenses"
-                      stroke="#f44336"
-                      strokeWidth={2}
-                      name="Expenses"
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
-            </Paper>
-          </Grid>
-          <Grid item xs={12} lg={4}>
-            <Paper elevation={2} sx={{ p: 3, height: "100%" }}>
-              <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-                Revenue by Department
-              </Typography>
+      {/* Charts */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} lg={8}>
+          <Paper elevation={2} sx={{ p: 3 }}>
+            <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
+              Revenue Overview
+            </Typography>
+            {revenueLoading ? (
+              <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
+                <CircularProgress />
+              </Box>
+            ) : (
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart
-                  data={[
-                    { name: "Consultation", value: 4500 },
-                    { name: "Pharmacy", value: 3200 },
-                    { name: "Lab", value: 2100 },
-                    { name: "Inpatient", value: 1800 },
-                  ]}
-                >
+                <LineChart data={revenueData}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
+                  <XAxis dataKey="month" />
                   <YAxis />
                   <RechartsTooltip />
-                  <Bar dataKey="value" fill="#1976d2" radius={[4, 4, 0, 0]} />
-                </BarChart>
+                  <Line
+                    type="monotone"
+                    dataKey="revenue"
+                    stroke="#1976d2"
+                    strokeWidth={2}
+                    name="Revenue"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="expenses"
+                    stroke="#f44336"
+                    strokeWidth={2}
+                    name="Expenses"
+                  />
+                </LineChart>
               </ResponsiveContainer>
-            </Paper>
-          </Grid>
+            )}
+          </Paper>
         </Grid>
-
-        {/* Recent Invoices Table */}
-        <Paper elevation={2} sx={{ width: "100%", overflow: "hidden" }}>
-          <Box
-            sx={{
-              p: 3,
-              borderBottom: 1,
-              borderColor: "divider",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              Recent Invoices
+        <Grid item xs={12} lg={4}>
+          <Paper elevation={2} sx={{ p: 3, height: "100%" }}>
+            <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
+              Revenue by Department
             </Typography>
-            <Button variant="contained">View All Invoices</Button>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={departmentRevenueData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <RechartsTooltip />
+                <Bar dataKey="value" fill="#1976d2" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </Paper>
+        </Grid>
+      </Grid>
+
+      {/* Recent Invoices Table */}
+      <Paper elevation={2} sx={{ width: "100%", overflow: "hidden" }}>
+        <Box
+          sx={{
+            p: 3,
+            borderBottom: 1,
+            borderColor: "divider",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>
+            Recent Invoices
+          </Typography>
+          <Button variant="contained">View All Invoices</Button>
+        </Box>
+        {invoicesLoading ? (
+          <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
+            <CircularProgress />
           </Box>
-          {invoicesLoading ? (
-            <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
-              <CircularProgress />
-            </Box>
-          ) : (
-            <TableContainer>
-              <Table>
-                <TableHead sx={{ backgroundColor: "#f5f5f5" }}>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: "bold" }}>
-                      Invoice ID
+        ) : (
+          <TableContainer>
+            <Table>
+              <TableHead sx={{ backgroundColor: "#f5f5f5" }}>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: "bold" }}>Invoice ID</TableCell>
+                  <TableCell sx={{ fontWeight: "bold" }}>Patient</TableCell>
+                  <TableCell sx={{ fontWeight: "bold" }}>Date</TableCell>
+                  <TableCell sx={{ fontWeight: "bold" }}>Type</TableCell>
+                  <TableCell sx={{ fontWeight: "bold" }}>Amount</TableCell>
+                  <TableCell sx={{ fontWeight: "bold" }}>Status</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {recentInvoices?.map((invoice) => (
+                  <TableRow key={invoice.id} hover>
+                    <TableCell sx={{ fontFamily: "monospace" }}>
+                      {invoice.id.slice(0, 8)}
                     </TableCell>
-                    <TableCell sx={{ fontWeight: "bold" }}>Patient</TableCell>
-                    <TableCell sx={{ fontWeight: "bold" }}>Date</TableCell>
-                    <TableCell sx={{ fontWeight: "bold" }}>Type</TableCell>
-                    <TableCell sx={{ fontWeight: "bold" }}>Amount</TableCell>
-                    <TableCell sx={{ fontWeight: "bold" }}>Status</TableCell>
+                    <TableCell>{invoice.patientName}</TableCell>
+                    <TableCell>
+                      {new Date(invoice.date).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>{invoice.type}</TableCell>
+                    <TableCell sx={{ fontWeight: 500 }}>
+                      ${invoice.amount.toFixed(2)}
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={invoice.status}
+                        color={getStatusColor(invoice.status) as any}
+                        size="small"
+                      />
+                    </TableCell>
                   </TableRow>
-                </TableHead>
-                <TableBody>
-                  {recentInvoices?.map((invoice) => (
-                    <TableRow key={invoice.id} hover>
-                      <TableCell sx={{ fontFamily: "monospace" }}>
-                        {invoice.id.slice(0, 8)}
-                      </TableCell>
-                      <TableCell>{invoice.patientName}</TableCell>
-                      <TableCell>
-                        {new Date(invoice.date).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell>{invoice.type}</TableCell>
-                      <TableCell sx={{ fontWeight: 500 }}>
-                        ${invoice.amount.toFixed(2)}
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={invoice.status}
-                          color={getStatusColor(invoice.status) as any}
-                          size="small"
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-        </Paper>
-      </Box>
-    </MainLayout>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+      </Paper>
+    </Box>
   );
 };
 

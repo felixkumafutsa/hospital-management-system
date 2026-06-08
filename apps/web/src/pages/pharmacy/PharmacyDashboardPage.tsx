@@ -128,144 +128,147 @@ const PharmacyDashboardPage = () => {
   };
 
   return (
-    <Box sx={{ width: "100%", mt: 4 }}>
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          mb: 4,
-        }}
-      >
-        <Typography variant="h4">Pharmacy Dashboard</Typography>
-        <Box sx={{ display: "flex", gap: 2 }}>
-          <Button
-            variant="outlined"
-            startIcon={<Inventory />}
-            onClick={() => navigate("/pharmacy/inventory")}
-          >
-            View Inventory
-          </Button>
+      <Box sx={{ width: "100%", mt: 4 }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 4,
+          }}
+        >
+          <Typography variant="h4">Pharmacy Dashboard</Typography>
+          <Box sx={{ display: "flex", gap: 2 }}>
+            <Button
+              variant="outlined"
+              startIcon={<Inventory />}
+              onClick={() => navigate("/pharmacy/inventory")}
+            >
+              View Inventory
+            </Button>
+          </Box>
         </Box>
-      </Box>
 
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Pending Prescriptions"
-            value={
-              prescriptionQueue?.filter((p) => p.status === "PENDING").length ||
-              0
-            }
-            icon={LocalPharmacy}
-            color="#ed6c02"
-          />
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          <Grid item xs={12} sm={6} md={3}>
+            <StatCard
+              title="Pending Prescriptions"
+              value={
+                prescriptionQueue?.filter((p) => p.status === "PENDING")
+                  .length || 0
+              }
+              icon={LocalPharmacy}
+              color="#ed6c02"
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <StatCard
+              title="Dispensed Today"
+              value={todayDispensed || 0}
+              icon={CheckCircle}
+              color="#2e7d32"
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <StatCard
+              title="Total Medications"
+              value={
+                prescriptionQueue?.reduce((acc, p) => acc + p.medications, 0) ||
+                0
+              }
+              icon={Inventory}
+              color="#1976d2"
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <StatCard
+              title="Processing Rate"
+              icon={TrendingUp}
+              color="#9c27b0"
+              value="100%"
+            />
+          </Grid>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Dispensed Today"
-            value={todayDispensed || 0}
-            icon={CheckCircle}
-            color="#2e7d32"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Total Medications"
-            value={
-              prescriptionQueue?.reduce((acc, p) => acc + p.medications, 0) || 0
-            }
-            icon={Inventory}
-            color="#1976d2"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Processing Rate"
-            icon={TrendingUp}
-            color="#9c27b0"
-            value="100%"
-          />
-        </Grid>
-      </Grid>
 
-      <Paper sx={{ p: 4 }}>
-        <Typography variant="h6" gutterBottom>
-          Pending Prescriptions to Dispense
-        </Typography>
-        <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Patient</TableCell>
-                <TableCell>Patient Number</TableCell>
-                <TableCell>Prescribing Doctor</TableCell>
-                <TableCell>Medications</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {queueLoading ? (
+        <Paper sx={{ p: 4 }}>
+          <Typography variant="h6" gutterBottom>
+            Pending Prescriptions to Dispense
+          </Typography>
+          <TableContainer>
+            <Table>
+              <TableHead>
                 <TableRow>
-                  <TableCell colSpan={6} align="center">
-                    Loading prescriptions...
-                  </TableCell>
+                  <TableCell>Patient</TableCell>
+                  <TableCell>Patient Number</TableCell>
+                  <TableCell>Prescribing Doctor</TableCell>
+                  <TableCell>Medications</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Actions</TableCell>
                 </TableRow>
-              ) : !prescriptionQueue || prescriptionQueue.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} align="center">
-                    No pending prescriptions
-                  </TableCell>
-                </TableRow>
-              ) : (
-                prescriptionQueue.map((prescription) => (
-                  <TableRow key={prescription.id}>
-                    <TableCell>
-                      {prescription.patient.firstName}{" "}
-                      {prescription.patient.lastName}
-                    </TableCell>
-                    <TableCell>{prescription.patient.patientNumber}</TableCell>
-                    <TableCell>
-                      Dr. {prescription.doctor.firstName}{" "}
-                      {prescription.doctor.lastName}
-                    </TableCell>
-                    <TableCell>{prescription.medications} items</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={prescription.status}
-                        color={getStatusColor(prescription.status) as any}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        size="small"
-                        startIcon={<Visibility />}
-                        onClick={() =>
-                          navigate(`/prescriptions/${prescription.id}`)
-                        }
-                        sx={{ mr: 1 }}
-                      >
-                        View
-                      </Button>
-                      <Button
-                        size="small"
-                        variant="contained"
-                        onClick={() => handleDispense(prescription.id)}
-                        disabled={dispenseMutation.isPending}
-                      >
-                        Dispense
-                      </Button>
+              </TableHead>
+              <TableBody>
+                {queueLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={6} align="center">
+                      Loading prescriptions...
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Paper>
-    </Box>
+                ) : !prescriptionQueue || prescriptionQueue.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} align="center">
+                      No pending prescriptions
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  prescriptionQueue.map((prescription) => (
+                    <TableRow key={prescription.id}>
+                      <TableCell>
+                        {prescription.patient.firstName}{" "}
+                        {prescription.patient.lastName}
+                      </TableCell>
+                      <TableCell>
+                        {prescription.patient.patientNumber}
+                      </TableCell>
+                      <TableCell>
+                        Dr. {prescription.doctor.firstName}{" "}
+                        {prescription.doctor.lastName}
+                      </TableCell>
+                      <TableCell>{prescription.medications} items</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={prescription.status}
+                          color={getStatusColor(prescription.status) as any}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          size="small"
+                          startIcon={<Visibility />}
+                          onClick={() =>
+                            navigate(`/prescriptions/${prescription.id}`)
+                          }
+                          sx={{ mr: 1 }}
+                        >
+                          View
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          onClick={() => handleDispense(prescription.id)}
+                          disabled={dispenseMutation.isPending}
+                        >
+                          Dispense
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
+      </Box>
   );
 };
 

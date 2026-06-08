@@ -48,8 +48,12 @@ const LabDashboardPage = () => {
   const { data: labRequests, isLoading: requestsLoading } = useQuery({
     queryKey: ["labRequests"],
     queryFn: async () => {
-      const response = await api.get("/laboratory/requests/pending");
-      return response.data.requests as LabRequestItem[];
+      const response = await api.get("/lab/requests");
+      // Filter pending requests
+      const allRequests = response.data.requests || [];
+      return allRequests.filter(
+        (req: any) => req.status === "REQUESTED" || req.status === "COLLECTED",
+      ) as LabRequestItem[];
     },
   });
 
@@ -57,16 +61,18 @@ const LabDashboardPage = () => {
     queryKey: ["todayLabCompleted"],
     queryFn: async () => {
       const today = new Date().toISOString().split("T")[0];
-      const response = await api.get("/laboratory/results", {
-        params: { fromDate: today, toDate: today },
+      const response = await api.get("/lab/requests", {
+        params: { fromDate: today, toDate: today, status: "COMPLETED" },
       });
-      return response.data.total as number;
+      return response.data.requests?.length || 0;
     },
   });
 
   const completeTestMutation = useMutation({
     mutationFn: async (requestId: string) => {
-      await api.post(`/laboratory/requests/${requestId}/complete`);
+      await api.put(`/lab/requests/${requestId}/status`, {
+        status: "COMPLETED",
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["labRequests"] });

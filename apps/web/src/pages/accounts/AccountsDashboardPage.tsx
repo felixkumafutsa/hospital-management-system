@@ -149,155 +149,156 @@ const AccountsDashboardPage = () => {
   };
 
   return (
-    <Box sx={{ width: "100%", mt: 4 }}>
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          mb: 4,
-        }}
-      >
-        <Typography variant="h4">Accounts & Finance Dashboard</Typography>
-        <Box sx={{ display: "flex", gap: 2 }}>
-          <Button
-            variant="contained"
-            startIcon={<Receipt />}
-            onClick={() => navigate("/invoices/create")}
-          >
-            Create Invoice
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<AttachMoney />}
-            onClick={() => navigate("/invoices")}
-          >
-            View All Invoices
-          </Button>
+      <Box sx={{ width: "100%", mt: 4 }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 4,
+          }}
+        >
+          <Typography variant="h4">Accounts & Finance Dashboard</Typography>
+          <Box sx={{ display: "flex", gap: 2 }}>
+            <Button
+              variant="contained"
+              startIcon={<Receipt />}
+              onClick={() => navigate("/invoices/create")}
+            >
+              Create Invoice
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<AttachMoney />}
+              onClick={() => navigate("/invoices")}
+            >
+              View All Invoices
+            </Button>
+          </Box>
         </Box>
-      </Box>
 
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Today's Revenue"
-            value={todayRevenue || 0}
-            icon={AttachMoney}
-            color="#2e7d32"
-            isCurrency
-          />
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          <Grid item xs={12} sm={6} md={3}>
+            <StatCard
+              title="Today's Revenue"
+              value={todayRevenue || 0}
+              icon={AttachMoney}
+              color="#2e7d32"
+              isCurrency
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <StatCard
+              title="Monthly Revenue"
+              value={monthlyRevenue || 0}
+              icon={TrendingUp}
+              color="#1976d2"
+              isCurrency
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <StatCard
+              title="Pending Invoices"
+              value={
+                pendingInvoices?.filter((i) => i.status === "PENDING").length ||
+                0
+              }
+              icon={Receipt}
+              color="#ed6c02"
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <StatCard
+              title="Paid Today"
+              value={
+                pendingInvoices?.filter((i) => i.status === "PAID").length || 0
+              }
+              icon={CheckCircle}
+              color="#9c27b0"
+            />
+          </Grid>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Monthly Revenue"
-            value={monthlyRevenue || 0}
-            icon={TrendingUp}
-            color="#1976d2"
-            isCurrency
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Pending Invoices"
-            value={
-              pendingInvoices?.filter((i) => i.status === "PENDING").length || 0
-            }
-            icon={Receipt}
-            color="#ed6c02"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Paid Today"
-            value={
-              pendingInvoices?.filter((i) => i.status === "PAID").length || 0
-            }
-            icon={CheckCircle}
-            color="#9c27b0"
-          />
-        </Grid>
-      </Grid>
 
-      <Paper sx={{ p: 4 }}>
-        <Typography variant="h6" gutterBottom>
-          Pending Invoices
-        </Typography>
-        <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Invoice #</TableCell>
-                <TableCell>Patient</TableCell>
-                <TableCell>Patient Number</TableCell>
-                <TableCell>Amount (MWK)</TableCell>
-                <TableCell>Due Date</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {invoicesLoading ? (
+        <Paper sx={{ p: 4 }}>
+          <Typography variant="h6" gutterBottom>
+            Pending Invoices
+          </Typography>
+          <TableContainer>
+            <Table>
+              <TableHead>
                 <TableRow>
-                  <TableCell colSpan={7} align="center">
-                    Loading invoices...
-                  </TableCell>
+                  <TableCell>Invoice #</TableCell>
+                  <TableCell>Patient</TableCell>
+                  <TableCell>Patient Number</TableCell>
+                  <TableCell>Amount (MWK)</TableCell>
+                  <TableCell>Due Date</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Actions</TableCell>
                 </TableRow>
-              ) : !pendingInvoices || pendingInvoices.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} align="center">
-                    No pending invoices
-                  </TableCell>
-                </TableRow>
-              ) : (
-                pendingInvoices.map((invoice) => (
-                  <TableRow key={invoice.id}>
-                    <TableCell>{invoice.invoiceNumber}</TableCell>
-                    <TableCell>
-                      {invoice.patient.firstName} {invoice.patient.lastName}
-                    </TableCell>
-                    <TableCell>{invoice.patient.patientNumber}</TableCell>
-                    <TableCell>
-                      {invoice.totalAmount.toLocaleString()}
-                    </TableCell>
-                    <TableCell>
-                      {new Date(invoice.dueDate).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={invoice.status}
-                        color={getStatusColor(invoice.status) as any}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        size="small"
-                        startIcon={<Visibility />}
-                        onClick={() => navigate(`/invoices/${invoice.id}`)}
-                        sx={{ mr: 1 }}
-                      >
-                        View
-                      </Button>
-                      {invoice.status !== "PAID" && (
-                        <Button
-                          size="small"
-                          variant="contained"
-                          color="success"
-                          onClick={() => handleMarkAsPaid(invoice.id)}
-                          disabled={markAsPaidMutation.isPending}
-                        >
-                          Mark Paid
-                        </Button>
-                      )}
+              </TableHead>
+              <TableBody>
+                {invoicesLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={7} align="center">
+                      Loading invoices...
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Paper>
-    </Box>
+                ) : !pendingInvoices || pendingInvoices.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} align="center">
+                      No pending invoices
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  pendingInvoices.map((invoice) => (
+                    <TableRow key={invoice.id}>
+                      <TableCell>{invoice.invoiceNumber}</TableCell>
+                      <TableCell>
+                        {invoice.patient.firstName} {invoice.patient.lastName}
+                      </TableCell>
+                      <TableCell>{invoice.patient.patientNumber}</TableCell>
+                      <TableCell>
+                        {invoice.totalAmount.toLocaleString()}
+                      </TableCell>
+                      <TableCell>
+                        {new Date(invoice.dueDate).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={invoice.status}
+                          color={getStatusColor(invoice.status) as any}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          size="small"
+                          startIcon={<Visibility />}
+                          onClick={() => navigate(`/invoices/${invoice.id}`)}
+                          sx={{ mr: 1 }}
+                        >
+                          View
+                        </Button>
+                        {invoice.status !== "PAID" && (
+                          <Button
+                            size="small"
+                            variant="contained"
+                            color="success"
+                            onClick={() => handleMarkAsPaid(invoice.id)}
+                            disabled={markAsPaidMutation.isPending}
+                          >
+                            Mark Paid
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
+      </Box>
   );
 };
 

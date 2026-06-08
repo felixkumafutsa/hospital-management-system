@@ -92,10 +92,10 @@ const additionalDoctors = [
 export async function seedUsers() {
   console.log('🌱 Seeding users, roles and permissions...');
 
-  // Clear existing data
+  // Clear existing data - correct order to respect foreign key constraints
+  await prisma.user.deleteMany({});
   await prisma.permission.deleteMany({});
   await prisma.role.deleteMany({});
-  await prisma.user.deleteMany({});
 
   // Create roles
   const createdRoles = await Promise.all(

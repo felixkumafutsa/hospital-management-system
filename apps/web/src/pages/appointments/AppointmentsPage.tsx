@@ -86,6 +86,27 @@ const AppointmentsPage = () => {
   });
   const queryClient = useQueryClient();
 
+  // Fetch all patients from the system
+  const { data: patients } = useQuery({
+    queryKey: ["patients"],
+    queryFn: async () => {
+      const response = await api.get("/patients");
+      return response.data.patients;
+    },
+  });
+
+  // Fetch all staff and filter to only doctors (uses the existing /staff endpoint which returns all system users)
+  const { data: doctors } = useQuery({
+    queryKey: ["doctors"],
+    queryFn: async () => {
+      // The /staff endpoint returns all system users from the database
+      const response = await api.get("/staff");
+      // Filter to only include users who are doctors (role.name === "DOCTOR")
+      const allStaff = response.data.data || [];
+      return allStaff.filter((staff: any) => staff.role?.name === "DOCTOR");
+    },
+  });
+
   const handleCloseDrawer = () => {
     setDrawerOpen(false);
     setNewAppointment({
@@ -104,13 +125,17 @@ const AppointmentsPage = () => {
   const { data: appointments, isLoading } = useQuery({
     queryKey: ["appointments"],
     queryFn: async () => {
-      const response = await api.get("/appointments");
-      // Transform dates for both table and calendar
-      return response.data.appointments.map((apt: any) => ({
-        ...apt,
-        title: `${apt.patient.firstName} ${apt.patient.lastName} - ${apt.reason}`,
-        start: new Date(apt.startTime),
-        end: new Date(apt.endTime),
+      const response = await api.get("/visits");
+      // Transform visits to appointments format for both table and calendar
+      return response.data.visits.map((visit: any) => ({
+        id: visit.id,
+        title: `${visit.patient.firstName} ${visit.patient.lastName} - Patient visit`,
+        start: new Date(visit.visitDate),
+        end: new Date(visit.visitDate),
+        patient: visit.patient,
+        doctor: { firstName: "Doctor", lastName: "Assigned" },
+        reason: "Patient consultation",
+        status: visit.status,
       })) as Appointment[];
     },
   });
@@ -141,7 +166,7 @@ const AppointmentsPage = () => {
 
   const createAppointmentMutation = useMutation({
     mutationFn: async (data: any) => {
-      await api.post("/appointments", data);
+      await api.post("/scheduling", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
@@ -356,34 +381,61 @@ const AppointmentsPage = () => {
 
         <Grid container spacing={3}>
           <Grid item xs={12}>
-            <TextField
-              required
-              fullWidth
-              label="Patient Name"
-              name="patientName"
-              value={newAppointment.patientName}
-              onChange={(e) =>
-                setNewAppointment({
-                  ...newAppointment,
-                  patientName: e.target.value,
-                })
-              }
-            />
+            <FormControl fullWidth required>
+              <InputLabel>Select Patient</InputLabel>
+              <Select
+                name="patientId"
+                value={newAppointment.patientId}
+                label="Select Patient"
+                onChange={(e) => {
+                  const selectedPatient = patients?.find(
+                    (p: any) => p.id === e.target.value,
+                  );
+                  setNewAppointment({
+                    ...newAppointment,
+                    patientId: e.target.value,
+                    patientName: selectedPatient
+                      ? `${selectedPatient.firstName} ${selectedPatient.lastName}`
+                      : "",
+                  });
+                }}
+              >
+                {patients?.map((patient: any) => (
+                  <MenuItem key={patient.id} value={patient.id}>
+                    {patient.firstName} {patient.lastName} -{" "}
+                    {patient.patientNumber}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           </Grid>
           <Grid item xs={12}>
-            <TextField
-              required
-              fullWidth
-              label="Doctor Name"
-              name="doctorName"
-              value={newAppointment.doctorName}
-              onChange={(e) =>
-                setNewAppointment({
-                  ...newAppointment,
-                  doctorName: e.target.value,
-                })
-              }
-            />
+            <FormControl fullWidth required>
+              <InputLabel>Select Doctor</InputLabel>
+              <Select
+                name="doctorId"
+                value={newAppointment.doctorId}
+                label="Select Doctor"
+                onChange={(e) => {
+                  const selectedDoctor = doctors?.find(
+                    (d: any) => d.id === e.target.value,
+                  );
+                  setNewAppointment({
+                    ...newAppointment,
+                    doctorId: e.target.value,
+                    doctorName: selectedDoctor
+                      ? `${selectedDoctor.firstName} ${selectedDoctor.lastName}`
+                      : "",
+                  });
+                }}
+              >
+                {doctors?.map((doctor: any) => (
+                  <MenuItem key={doctor.id} value={doctor.id}>
+                    Dr. {doctor.firstName} {doctor.lastName}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           </Grid>
           <Grid item xs={6}>
             <TextField

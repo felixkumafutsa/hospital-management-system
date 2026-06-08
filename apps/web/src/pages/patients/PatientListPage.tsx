@@ -3,8 +3,9 @@ import {
   Box,
   Paper,
   Typography,
-  Button,
+  Grid,
   TextField,
+  Button,
   Table,
   TableBody,
   TableCell,
@@ -19,12 +20,12 @@ import {
   Stepper,
   Step,
   StepLabel,
-  Grid,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
 } from "@mui/material";
+import Swal from "sweetalert2";
 import {
   Add as AddIcon,
   Visibility,
@@ -57,7 +58,10 @@ const PatientListPage = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editDrawerOpen, setEditDrawerOpen] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
+  const [editActiveStep, setEditActiveStep] = useState(0);
+  const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
   const navigate = useNavigate();
 
   // Patient registration form state
@@ -110,6 +114,81 @@ const PatientListPage = () => {
   const [formData, setFormData] = useState<PatientFormData>(initialFormData);
   const [newAllergy, setNewAllergy] = useState("");
 
+  // Edit patient form state
+  const [editFormData, setEditFormData] =
+    useState<PatientFormData>(initialFormData);
+  const [editNewAllergy, setEditNewAllergy] = useState("");
+
+  const handleOpenEditDrawer = (patient: Patient) => {
+    const p = patient as any; // Fix TypeScript errors by asserting type to any
+    setEditingPatient(patient);
+    // Format date for input field (YYYY-MM-DD)
+    const formattedDate = patient.dateOfBirth
+      ? new Date(patient.dateOfBirth).toISOString().split("T")[0]
+      : "";
+    setEditFormData({
+      nationalId: p.nationalId || "",
+      firstName: patient.firstName,
+      lastName: patient.lastName,
+      dateOfBirth: formattedDate,
+      gender: patient.gender,
+      phone: patient.phone,
+      email: patient.email,
+      address: p.address || "",
+      nextOfKinName: p.nextOfKinName || "",
+      nextOfKinPhone: p.nextOfKinPhone || "",
+      nextOfKinRelation: p.nextOfKinRelation || "",
+      bloodGroup: p.bloodGroup || "",
+      allergies: p.allergies || [],
+      insuranceProvider: p.insuranceProvider || "",
+      insuranceNumber: p.insuranceNumber || "",
+    });
+    setEditActiveStep(0);
+    setEditDrawerOpen(true);
+  };
+
+  const handleCloseEditDrawer = () => {
+    setEditDrawerOpen(false);
+    setEditingPatient(null);
+    setEditFormData(initialFormData);
+  };
+
+  const handleEditNext = () => {
+    setEditActiveStep((prev) => prev + 1);
+  };
+
+  const handleEditBack = () => {
+    setEditActiveStep((prev) => prev - 1);
+  };
+
+  const handleEditInputChange = (
+    e:
+      | React.ChangeEvent<
+          HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+        >
+      | any,
+  ) => {
+    const { name, value } = e.target;
+    setEditFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleAddEditAllergy = () => {
+    if (editNewAllergy && !editFormData.allergies.includes(editNewAllergy)) {
+      setEditFormData((prev) => ({
+        ...prev,
+        allergies: [...prev.allergies, editNewAllergy],
+      }));
+      setEditNewAllergy("");
+    }
+  };
+
+  const handleRemoveEditAllergy = (allergyToRemove: string) => {
+    setEditFormData((prev) => ({
+      ...prev,
+      allergies: prev.allergies.filter((a) => a !== allergyToRemove),
+    }));
+  };
+
   const handleNext = () => {
     setActiveStep((prev) => prev + 1);
   };
@@ -154,13 +233,60 @@ const PatientListPage = () => {
 
   const handleSubmit = async () => {
     try {
-      await api.post("/patients", formData);
-      alert("Patient registered successfully!");
+      // Ensure dateOfBirth is properly sent as a date string
+      const patientData = {
+        ...formData,
+        dateOfBirth: formData.dateOfBirth
+          ? new Date(formData.dateOfBirth).toISOString()
+          : undefined,
+      };
+      await api.post("/patients", patientData);
+      await Swal.fire({
+        icon: "success",
+        title: "Success!",
+        text: "Patient registered successfully!",
+        confirmButtonColor: "#0EA5A4",
+      });
       handleCloseDrawer();
       window.location.reload(); // Refresh to show new patient
     } catch (error) {
       console.error("Error registering patient:", error);
-      alert("Failed to register patient. Please try again.");
+      await Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Failed to register patient. Please try again.",
+        confirmButtonColor: "#0EA5A4",
+      });
+    }
+  };
+
+  const handleEditSubmit = async () => {
+    try {
+      if (!editingPatient) return;
+      // Ensure dateOfBirth is properly sent as a date string
+      const patientData = {
+        ...editFormData,
+        dateOfBirth: editFormData.dateOfBirth
+          ? new Date(editFormData.dateOfBirth).toISOString()
+          : undefined,
+      };
+      await api.put(`/patients/${editingPatient.id}`, patientData);
+      await Swal.fire({
+        icon: "success",
+        title: "Success!",
+        text: "Patient updated successfully!",
+        confirmButtonColor: "#0EA5A4",
+      });
+      handleCloseEditDrawer();
+      window.location.reload(); // Refresh to show updated patient
+    } catch (error) {
+      console.error("Error updating patient:", error);
+      await Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Failed to update patient. Please try again.",
+        confirmButtonColor: "#0EA5A4",
+      });
     }
   };
 
@@ -586,7 +712,10 @@ const PatientListPage = () => {
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Edit">
-                        <IconButton size="small">
+                        <IconButton
+                          size="small"
+                          onClick={() => handleOpenEditDrawer(patient)}
+                        >
                           <Edit />
                         </IconButton>
                       </Tooltip>
@@ -658,6 +787,268 @@ const PatientListPage = () => {
               sx={{ bgcolor: "#0EA5A4", "&:hover": { bgcolor: "#0c8c8b" } }}
             >
               Next
+            </Button>
+          </Box>
+        )}
+      </Drawer>
+
+      {/* Slide-in drawer for editing patient */}
+      <Drawer
+        anchor="right"
+        open={editDrawerOpen}
+        onClose={handleCloseEditDrawer}
+        PaperProps={{
+          sx: { width: { xs: "100%", md: "600px" }, p: 4 },
+        }}
+      >
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 4,
+          }}
+        >
+          <Typography variant="h5" sx={{ fontWeight: 600 }}>
+            Edit Patient
+          </Typography>
+          <IconButton onClick={handleCloseEditDrawer}>
+            <Close />
+          </IconButton>
+        </Box>
+
+        <Stepper activeStep={editActiveStep} sx={{ mb: 4 }}>
+          {steps.map((label) => (
+            <Step key={label}>
+              <StepLabel>{label}</StepLabel>
+            </Step>
+          ))}
+        </Stepper>
+
+        {/* Render edit step content */}
+        {editActiveStep === 0 && (
+          <Grid container spacing={3}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="First Name"
+                name="firstName"
+                value={editFormData.firstName}
+                onChange={handleEditInputChange}
+                required
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Last Name"
+                name="lastName"
+                value={editFormData.lastName}
+                onChange={handleEditInputChange}
+                required
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="National ID"
+                name="nationalId"
+                value={editFormData.nationalId}
+                onChange={handleEditInputChange}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Date of Birth"
+                name="dateOfBirth"
+                type="date"
+                value={editFormData.dateOfBirth}
+                onChange={handleEditInputChange}
+                required
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth required>
+                <InputLabel>Gender</InputLabel>
+                <Select
+                  name="gender"
+                  value={editFormData.gender}
+                  label="Gender"
+                  onChange={handleEditInputChange}
+                >
+                  <MenuItem value="MALE">Male</MenuItem>
+                  <MenuItem value="FEMALE">Female</MenuItem>
+                  <MenuItem value="OTHER">Other</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Phone Number"
+                name="phone"
+                value={editFormData.phone}
+                onChange={handleEditInputChange}
+                required
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Email"
+                name="email"
+                type="email"
+                value={editFormData.email}
+                onChange={handleEditInputChange}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Address"
+                name="address"
+                value={editFormData.address}
+                onChange={handleEditInputChange}
+                multiline
+                rows={3}
+              />
+            </Grid>
+          </Grid>
+        )}
+
+        {editActiveStep === 1 && (
+          <Grid container spacing={3}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Next of Kin Name"
+                name="nextOfKinName"
+                value={editFormData.nextOfKinName}
+                onChange={handleEditInputChange}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Next of Kin Phone"
+                name="nextOfKinPhone"
+                value={editFormData.nextOfKinPhone}
+                onChange={handleEditInputChange}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Next of Kin Relation"
+                name="nextOfKinRelation"
+                value={editFormData.nextOfKinRelation}
+                onChange={handleEditInputChange}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel>Blood Group</InputLabel>
+                <Select
+                  name="bloodGroup"
+                  value={editFormData.bloodGroup}
+                  label="Blood Group"
+                  onChange={handleEditInputChange}
+                >
+                  <MenuItem value="A+">A+</MenuItem>
+                  <MenuItem value="A-">A-</MenuItem>
+                  <MenuItem value="B+">B+</MenuItem>
+                  <MenuItem value="B-">B-</MenuItem>
+                  <MenuItem value="AB+">AB+</MenuItem>
+                  <MenuItem value="AB-">AB-</MenuItem>
+                  <MenuItem value="O+">O+</MenuItem>
+                  <MenuItem value="O-">O-</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
+        )}
+
+        {editActiveStep === 2 && (
+          <Grid container spacing={3}>
+            <Grid item xs={12}>
+              <Typography variant="subtitle1" gutterBottom>
+                Allergies
+              </Typography>
+              <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
+                <TextField
+                  fullWidth
+                  label="Add Allergy"
+                  value={editNewAllergy}
+                  onChange={(e) => setEditNewAllergy(e.target.value)}
+                />
+                <Button variant="outlined" onClick={handleAddEditAllergy}>
+                  Add
+                </Button>
+              </Box>
+              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                {editFormData.allergies.map((allergy) => (
+                  <Chip
+                    key={allergy}
+                    label={allergy}
+                    onDelete={() => handleRemoveEditAllergy(allergy)}
+                  />
+                ))}
+              </Box>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Insurance Provider"
+                name="insuranceProvider"
+                value={editFormData.insuranceProvider}
+                onChange={handleEditInputChange}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Insurance Number"
+                name="insuranceNumber"
+                value={editFormData.insuranceNumber}
+                onChange={handleEditInputChange}
+              />
+            </Grid>
+          </Grid>
+        )}
+
+        {editActiveStep < steps.length - 1 && (
+          <Box sx={{ display: "flex", justifyContent: "space-between", mt: 4 }}>
+            <Button
+              disabled={editActiveStep === 0}
+              onClick={handleEditBack}
+              startIcon={<ArrowBack />}
+            >
+              Back
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleEditNext}
+              endIcon={<ArrowForward />}
+              sx={{ bgcolor: "#0EA5A4", "&:hover": { bgcolor: "#0c8c8b" } }}
+            >
+              Next
+            </Button>
+          </Box>
+        )}
+
+        {editActiveStep === steps.length - 1 && (
+          <Box sx={{ display: "flex", justifyContent: "space-between", mt: 4 }}>
+            <Button onClick={handleEditBack} startIcon={<ArrowBack />}>
+              Back
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleEditSubmit}
+              sx={{ bgcolor: "#0EA5A4", "&:hover": { bgcolor: "#0c8c8b" } }}
+            >
+              Update Patient
             </Button>
           </Box>
         )}

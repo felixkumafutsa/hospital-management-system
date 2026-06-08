@@ -20,6 +20,7 @@ import {
   PendingActions,
 } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "../../contexts/AuthContext";
 import api from "../../services/api";
 
 // Import all Recharts components normally - tree-shaking will handle code splitting automatically
@@ -143,58 +144,239 @@ const MetricCard = ({
 );
 
 const DashboardPage = () => {
+  const { user } = useAuth();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
-  // Fetch dashboard stats
+  // Fetch dashboard stats from real API endpoints
   const { data: stats, isLoading } = useQuery({
     queryKey: ["dashboardStats"],
     queryFn: async () => {
-      const response = await api.get("/dashboard/stats");
-      return response.data;
+      // Fetch patients and visits from existing APIs
+      const [patientsRes, visitsRes, financeStatsRes] = await Promise.all([
+        api.get("/patients"),
+        api.get("/visits"),
+        api.get("/finance/stats").catch(() => ({ data: {} })), // Fallback if finance endpoint fails
+      ]);
+
+      const patients = patientsRes.data.patients || [];
+      const visits = visitsRes.data.visits || [];
+      const financeStats = financeStatsRes.data || {};
+
+      // Calculate basic stats
+      const totalPatients = patients.length;
+      const totalVisits = visits.length;
+      const pendingVisits = visits.filter(
+        (v: any) => v.status === "PENDING",
+      ).length;
+      const completedVisits = visits.filter(
+        (v: any) => v.status === "COMPLETED",
+      ).length;
+
+      const todayVisitCount = visits.filter((v: any) => {
+        const visitDate = new Date(v.visitDate);
+        const today = new Date();
+        return visitDate.toDateString() === today.toDateString();
+      }).length;
+
+      return {
+        totalPatients,
+        totalVisits,
+        pendingVisits,
+        completedVisits,
+        todayVisits: todayVisitCount,
+        patientsToday: todayVisitCount,
+        appointmentsToday: todayVisitCount,
+        consultationsToday: completedVisits,
+        totalRevenue: financeStats.totalRevenue || 0,
+        pendingBills: financeStats.totalOutstanding || 0,
+      };
     },
   });
 
-  // Mock chart data (replace with actual API data in production)
-  const patientGrowthData = [
-    { month: "Jan", patients: 120, new: 30 },
-    { month: "Feb", patients: 150, new: 40 },
-    { month: "Mar", patients: 180, new: 35 },
-    { month: "Apr", patients: 220, new: 50 },
-    { month: "May", patients: 270, new: 45 },
-    { month: "Jun", patients: 320, new: 60 },
-  ];
+  // Fetch real chart data from APIs
+  const { data: revenueData = [] } = useQuery({
+    queryKey: ["dashboardRevenueData"],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/finance/revenue");
+        return res.data.data || [];
+      } catch {
+        return [];
+      }
+    },
+  });
 
-  const revenueData = [
-    { month: "Jan", revenue: 12000, expenses: 5000 },
-    { month: "Feb", revenue: 15000, expenses: 6000 },
-    { month: "Mar", revenue: 18000, expenses: 7000 },
-    { month: "Apr", revenue: 22000, expenses: 8000 },
-    { month: "May", revenue: 27000, expenses: 9000 },
-    { month: "Jun", revenue: 32000, expenses: 10000 },
-  ];
+  // Fetch visits data to calculate appointments trend
+  const { data: appointmentsData = [] } = useQuery({
+    queryKey: ["dashboardAppointmentsTrend"],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/visits");
+        const visits = res.data.visits || [];
 
-  const appointmentsData = [
-    { day: "Mon", appointments: 15, consultations: 12 },
-    { day: "Tue", appointments: 22, consultations: 18 },
-    { day: "Wed", appointments: 18, consultations: 15 },
-    { day: "Thu", appointments: 25, consultations: 20 },
-    { day: "Fri", appointments: 20, consultations: 17 },
-    { day: "Sat", appointments: 10, consultations: 8 },
-  ];
+        // Group visits by day of week
+        const dayMap = new Map<
+          string,
+          { appointments: number; consultations: number }
+        >();
+        const daysOfWeek = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-  const departmentData = [
-    { name: "General Medicine", value: 35 },
-    { name: "Cardiology", value: 20 },
-    { name: "Laboratory", value: 15 },
-    { name: "Pediatrics", value: 18 },
-    { name: "Others", value: 12 },
-  ];
+        daysOfWeek.forEach((day) => {
+          dayMap.set(day, { appointments: 0, consultations: 0 });
+        });
+
+        visits.forEach((visit: any) => {
+          const visitDate = new Date(visit.visitDate);
+          const dayIndex = visitDate.getDay();
+          const dayName = daysOfWeek[(dayIndex + 6) % 7]; // Convert JS day (0=Sun) to our format (0=Mon)
+
+          const dayData = dayMap.get(dayName) || {
+            appointments: 0,
+            consultations: 0,
+          };
+          dayData.appointments++;
+          if (visit.status === "COMPLETED") {
+            dayData.consultations++;
+          }
+          dayMap.set(dayName, dayData);
+        });
+
+        return daysOfWeek.map((day) => ({
+          day,
+          appointments: dayMap.get(day)?.appointments || 0,
+          consultations: dayMap.get(day)?.consultations || 0,
+        }));
+      } catch {
+        return daysOfWeek.map((day) => ({
+          day,
+          appointments: 0,
+          consultations: 0,
+        }));
+      }
+    },
+  });
+
+  const daysOfWeek = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  // Fetch patient growth data (monthly)
+  const { data: patientGrowthData = [] } = useQuery({
+    queryKey: ["dashboardPatientGrowth"],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/patients");
+        const patients = res.data.patients || [];
+
+        // Group patients by month
+        const monthMap = new Map<string, { patients: number; new: number }>();
+        const monthNames = [
+          "Jan",
+          "Feb",
+          "Mar",
+          "Apr",
+          "May",
+          "Jun",
+          "Jul",
+          "Aug",
+          "Sep",
+          "Oct",
+          "Nov",
+          "Dec",
+        ];
+
+        // Initialize last 6 months
+        const now = new Date();
+        for (let i = 5; i >= 0; i--) {
+          const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          const monthKey = monthNames[date.getMonth()];
+          monthMap.set(monthKey, { patients: 0, new: 0 });
+        }
+
+        // Count patients registered in each month
+        patients.forEach((patient: any) => {
+          const registrationDate = new Date(
+            patient.registrationDate || patient.createdAt,
+          );
+          const monthKey = monthNames[registrationDate.getMonth()];
+          if (monthMap.has(monthKey)) {
+            const data = monthMap.get(monthKey)!;
+            data.new++;
+            data.patients++;
+          }
+        });
+
+        // Calculate cumulative patient count
+        let cumulativePatients = 0;
+        return Array.from(monthMap.entries()).map(([month, data]) => {
+          cumulativePatients += data.new;
+          return {
+            month,
+            patients: cumulativePatients,
+            new: data.new,
+          };
+        });
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  // Fetch visit data to calculate department stats
+  const { data: departmentData = [] } = useQuery({
+    queryKey: ["dashboardDepartmentStats"],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/visits");
+        const visits = res.data.visits || [];
+
+        // Group visits by visit type (if available) or use generic department names
+        const departmentMap = new Map<string, number>();
+
+        visits.forEach((visit: any) => {
+          const dept = visit.visitType || "General";
+          departmentMap.set(dept, (departmentMap.get(dept) || 0) + 1);
+        });
+
+        const departmentArray = Array.from(departmentMap.entries())
+          .map(([name, value]) => ({ name, value }))
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 5); // Top 5 departments
+
+        // Ensure we have at least 5 entries for the pie chart
+        const defaultDepts = [
+          { name: "General Medicine", value: 0 },
+          { name: "Cardiology", value: 0 },
+          { name: "Laboratory", value: 0 },
+          { name: "Pediatrics", value: 0 },
+          { name: "Others", value: 0 },
+        ];
+
+        departmentArray.forEach((dept) => {
+          const index = defaultDepts.findIndex(
+            (d) => d.name.toLowerCase() === dept.name.toLowerCase(),
+          );
+          if (index >= 0) {
+            defaultDepts[index].value = dept.value;
+          }
+        });
+
+        return defaultDepts;
+      } catch {
+        return [
+          { name: "General Medicine", value: 0 },
+          { name: "Cardiology", value: 0 },
+          { name: "Laboratory", value: 0 },
+          { name: "Pediatrics", value: 0 },
+          { name: "Others", value: 0 },
+        ];
+      }
+    },
+  });
 
   const metrics = [
     {
       title: "Total Patients",
-      value: stats?.totalPatients || 1250,
+      value: stats?.totalPatients ?? 0,
       icon: People,
       color: PRIMARY_COLOR,
       trend: "up" as const,
@@ -202,7 +384,7 @@ const DashboardPage = () => {
     },
     {
       title: "Patients Today",
-      value: stats?.patientsToday || 45,
+      value: stats?.patientsToday ?? 0,
       icon: People,
       color: "#3B82F6",
       trend: "up" as const,
@@ -210,7 +392,7 @@ const DashboardPage = () => {
     },
     {
       title: "Appointments Today",
-      value: stats?.appointmentsToday || 32,
+      value: stats?.appointmentsToday ?? 0,
       icon: CalendarToday,
       color: "#14B8A6",
       trend: "up" as const,
@@ -218,7 +400,7 @@ const DashboardPage = () => {
     },
     {
       title: "Consultations",
-      value: stats?.consultationsToday || 28,
+      value: stats?.consultationsToday ?? 0,
       icon: MedicalServices,
       color: "#8B5CF6",
       trend: "neutral" as const,
@@ -226,7 +408,7 @@ const DashboardPage = () => {
     },
     {
       title: "Total Revenue",
-      value: `$${stats?.totalRevenue?.toLocaleString() || "89,500"}`,
+      value: `$${(stats?.totalRevenue ?? 0).toLocaleString()}`,
       icon: AttachMoney,
       color: "#10B981",
       trend: "up" as const,
@@ -234,7 +416,7 @@ const DashboardPage = () => {
     },
     {
       title: "Pending Bills",
-      value: stats?.pendingBills || 15,
+      value: stats?.pendingBills ?? 0,
       icon: PendingActions,
       color: "#F59E0B",
       trend: "down" as const,
@@ -250,7 +432,7 @@ const DashboardPage = () => {
           variant="h4"
           sx={{ color: TEXT_PRIMARY, fontWeight: 700, mb: 1 }}
         >
-          Welcome back, Admin! 👋
+          Welcome back, {user?.firstName || "User"}! 👋
         </Typography>
         <Typography variant="body1" sx={{ color: TEXT_MUTED }}>
           Here's what's happening with your clinic today.

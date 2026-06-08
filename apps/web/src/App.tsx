@@ -47,13 +47,17 @@ const PrescriptionsPage = lazy(
   () => import("./pages/prescriptions/PrescriptionsPage"),
 );
 const LabTestsPage = lazy(() => import("./pages/lab/LabTestsPage"));
-const UsersManagementPage = lazy(
-  () => import("./pages/users/UsersManagementPage"),
-);
+// UsersManagementPage is deprecated - functionality merged into StaffManagementPage
+// const UsersManagementPage = lazy(
+//   () => import("./pages/users/UsersManagementPage")
+// );
 const PharmacyInventoryPage = lazy(
   () => import("./pages/pharmacy/PharmacyInventoryPage"),
 );
 const SettingsPage = lazy(() => import("./pages/settings/SettingsPage"));
+const MaternityDashboardPage = lazy(
+  () => import("./pages/maternity/MaternityDashboardPage"),
+);
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -217,7 +221,7 @@ function App() {
           <Route
             path="/staff-management"
             element={
-              <ProtectedRoute allowedRoles={["admin"]}>
+              <ProtectedRoute allowedRoles={["ADMINISTRATOR"]}>
                 <StaffManagementPage />
               </ProtectedRoute>
             }
@@ -244,7 +248,7 @@ function App() {
             path="/users"
             element={
               <ProtectedRoute allowedRoles={["ADMINISTRATOR"]}>
-                <UsersManagementPage />
+                <StaffManagementPage />
               </ProtectedRoute>
             }
           />
@@ -257,9 +261,19 @@ function App() {
             }
           />
           <Route
+            path="/maternity"
+            element={
+              <ProtectedRoute
+                allowedRoles={["ADMINISTRATOR", "NURSE", "DOCTOR"]}
+              >
+                <MaternityDashboardPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/settings"
             element={
-              <ProtectedRoute allowedRoles={["ADMINISTRATOR"]}>
+              <ProtectedRoute>
                 <SettingsPage />
               </ProtectedRoute>
             }

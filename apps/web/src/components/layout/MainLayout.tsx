@@ -60,18 +60,14 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
-  const isTablet = useMediaQuery(theme.breakpoints.between("md", "lg"));
+  const isMobile = useMediaQuery(theme.breakpoints.down("lg")); // Only use temporary drawer on screens smaller than lg (1200px)
 
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [desktopCollapsed, setDesktopCollapsed] = useState(isTablet);
+  const [desktopCollapsed, setDesktopCollapsed] = useState(false); // Default to expanded sidebar
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(
     null,
   );
   const [searchQuery, setSearchQuery] = useState("");
-
-  const drawerWidth = desktopCollapsed ? 80 : 260;
-  const actualDrawerWidth = isMobile ? 260 : drawerWidth;
 
   const allMenuItems: MenuItemType[] = [
     {
@@ -157,13 +153,7 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
       text: "Staff Management",
       icon: <People />,
       path: "/staff-management",
-      allowedRoles: ["admin"],
-    },
-    {
-      text: "User Management",
-      icon: <People />,
-      path: "/users",
-      allowedRoles: ["admin"],
+      allowedRoles: ["admin", "ADMINISTRATOR"],
     },
     {
       text: "Finance",
@@ -175,7 +165,7 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
       text: "Settings",
       icon: <Settings />,
       path: "/settings",
-      allowedRoles: ["admin"],
+      allowedRoles: ["*"], // All users can access their personal settings
     },
     {
       text: "Logout",
@@ -415,13 +405,12 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
         minHeight: "100vh",
         bgcolor: BG_COLOR,
         boxSizing: "border-box",
+        overflow: "hidden",
       }}
     >
       <AppBar
         position="fixed"
         sx={{
-          width: { md: `calc(100% - ${actualDrawerWidth}px)` },
-          ml: { md: `${actualDrawerWidth}px` },
           bgcolor: "white",
           boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
           transition: theme.transitions.create(["width", "margin"], {
@@ -429,6 +418,15 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
             duration: theme.transitions.duration.enteringScreen,
           }),
           zIndex: theme.zIndex.drawer + 1,
+          // Only apply width/margin on desktop
+          width: {
+            xs: "100%",
+            lg: `calc(100% - ${desktopCollapsed ? 80 : 260}px)`,
+          },
+          marginLeft: {
+            xs: "0px",
+            lg: desktopCollapsed ? "80px" : "260px",
+          },
         }}
       >
         <Toolbar sx={{ minHeight: "64px !important" }}>
@@ -439,7 +437,8 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
             onClick={handleDrawerToggle}
             sx={{
               mr: 2,
-              display: { md: "none" },
+              // Only show hamburger on mobile (less than lg)
+              display: { lg: "none" },
               bgcolor: alpha(PRIMARY_COLOR, 0.1),
               "&:hover": { bgcolor: alpha(PRIMARY_COLOR, 0.2) },
             }}
@@ -624,26 +623,45 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
         />
       )}
 
-      <Box
-        component="nav"
-        sx={{
-          width: { md: actualDrawerWidth },
-          flexShrink: { md: 0 },
-          boxSizing: "border-box",
-        }}
-        aria-label="main navigation"
-      >
+      {/* Mobile Sidebar - Temporary drawer for mobile/tablet screens */}
+      {isMobile && (
         <Drawer
-          variant={isMobile ? "temporary" : "permanent"}
-          open={isMobile ? mobileOpen : true}
+          variant="temporary"
+          open={mobileOpen}
           onClose={handleDrawerToggle}
           ModalProps={{
-            keepMounted: true, // Better mobile performance
+            keepMounted: false, // Prevents the sidebar from bleeding through on desktop
           }}
           sx={{
+            display: { xs: "block", lg: "none" },
             "& .MuiDrawer-paper": {
               boxSizing: "border-box",
-              width: isMobile ? 260 : actualDrawerWidth,
+              width: 260,
+              borderRight: "none",
+            },
+          }}
+        >
+          {drawer}
+        </Drawer>
+      )}
+
+      {/* Desktop Sidebar - Permanent drawer for large screens */}
+      {!isMobile && (
+        <Drawer
+          variant="permanent"
+          open
+          sx={{
+            display: { xs: "none", lg: "block" },
+            flexShrink: 0,
+            width: desktopCollapsed ? 80 : 260,
+            transition: theme.transitions.create("width", {
+              easing: theme.transitions.easing.sharp,
+              duration: theme.transitions.duration.enteringScreen,
+            }),
+            "& .MuiDrawer-paper": {
+              boxSizing: "border-box",
+              width: desktopCollapsed ? 80 : 260,
+              overflowX: "hidden", // Prevents content overflow during collapse
               transition: theme.transitions.create("width", {
                 easing: theme.transitions.easing.sharp,
                 duration: theme.transitions.duration.enteringScreen,
@@ -654,23 +672,19 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
         >
           {drawer}
         </Drawer>
-      </Box>
+      )}
 
-      {/* Main Content Area */}
+      {/* Main Content Area - flex:1 makes it fill remaining space automatically */}
       <Box
         component="main"
         sx={{
-          flexGrow: 1,
-          width: { md: `calc(100% - ${actualDrawerWidth}px)` },
+          flex: 1,
+          minWidth: 0, // Critical: allows content to shrink properly
           minHeight: "100vh",
           maxWidth: "100%",
           boxSizing: "border-box",
-          transition: theme.transitions.create(["width", "margin"], {
-            easing: theme.transitions.easing.sharp,
-            duration: theme.transitions.duration.enteringScreen,
-          }),
           overflowX: "auto",
-          p: { xs: 2, md: 3, lg: 4 },
+          p: { xs: 2, lg: 3, xl: 4 },
         }}
       >
         <Toolbar /> {/* Spacer for fixed AppBar */}

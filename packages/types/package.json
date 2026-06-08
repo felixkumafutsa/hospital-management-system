@@ -1,0 +1,10 @@
+{
+  "name": "@packages/types",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "types": "index.d.ts",
+  "dependencies": {
+    "zod": "^4.4.3"
+  }
+}

@@ -106,136 +106,136 @@ const ReceptionDashboardPage = () => {
   );
 
   return (
-    <Box sx={{ width: "100%", mt: 4 }}>
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          mb: 4,
-        }}
-      >
-        <Typography variant="h4">Reception Dashboard</Typography>
-        <Box sx={{ display: "flex", gap: 2 }}>
-          <Button
-            variant="contained"
-            startIcon={<Add />}
-            onClick={() => navigate("/patients/register")}
-          >
-            Register Patient
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<People />}
-            onClick={() => navigate("/patients")}
-          >
-            View All Patients
-          </Button>
+      <Box sx={{ width: "100%", mt: 4 }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 4,
+          }}
+        >
+          <Typography variant="h4">Reception Dashboard</Typography>
+          <Box sx={{ display: "flex", gap: 2 }}>
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={() => navigate("/patients/register")}
+            >
+              Register Patient
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<People />}
+              onClick={() => navigate("/patients")}
+            >
+              View All Patients
+            </Button>
+          </Box>
         </Box>
-      </Box>
 
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Today's Visits"
-            value={todayVisits || 0}
-            icon={Schedule}
-            color="#1976d2"
-          />
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          <Grid item xs={12} sm={6} md={3}>
+            <StatCard
+              title="Today's Visits"
+              value={todayVisits || 0}
+              icon={Schedule}
+              color="#1976d2"
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <StatCard
+              title="Waiting Queue"
+              value={
+                queueData?.filter((v) => v.status === "REGISTERED").length || 0
+              }
+              icon={TrendingUp}
+              color="#ed6c02"
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <StatCard
+              title="In Consultation"
+              value={
+                queueData?.filter((v) => v.status === "CONSULTING").length || 0
+              }
+              icon={People}
+              color="#2e7d32"
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <StatCard
+              title="Completed Today"
+              value={
+                queueData?.filter((v) => v.status === "COMPLETED").length || 0
+              }
+              icon={TrendingUp}
+              color="#9c27b0"
+            />
+          </Grid>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Waiting Queue"
-            value={
-              queueData?.filter((v) => v.status === "REGISTERED").length || 0
-            }
-            icon={TrendingUp}
-            color="#ed6c02"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="In Consultation"
-            value={
-              queueData?.filter((v) => v.status === "CONSULTING").length || 0
-            }
-            icon={People}
-            color="#2e7d32"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Completed Today"
-            value={
-              queueData?.filter((v) => v.status === "COMPLETED").length || 0
-            }
-            icon={TrendingUp}
-            color="#9c27b0"
-          />
-        </Grid>
-      </Grid>
 
-      <Paper sx={{ p: 4 }}>
-        <Typography variant="h6" gutterBottom>
-          Current Visit Queue
-        </Typography>
-        <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Patient</TableCell>
-                <TableCell>Patient Number</TableCell>
-                <TableCell>Visit Type</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {queueLoading ? (
+        <Paper sx={{ p: 4 }}>
+          <Typography variant="h6" gutterBottom>
+            Current Visit Queue
+          </Typography>
+          <TableContainer>
+            <Table>
+              <TableHead>
                 <TableRow>
-                  <TableCell colSpan={5} align="center">
-                    Loading queue...
-                  </TableCell>
+                  <TableCell>Patient</TableCell>
+                  <TableCell>Patient Number</TableCell>
+                  <TableCell>Visit Type</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Actions</TableCell>
                 </TableRow>
-              ) : !queueData || queueData.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} align="center">
-                    No active visits in queue
-                  </TableCell>
-                </TableRow>
-              ) : (
-                queueData.map((visit) => (
-                  <TableRow key={visit.id}>
-                    <TableCell>
-                      {visit.patient.firstName} {visit.patient.lastName}
-                    </TableCell>
-                    <TableCell>{visit.patient.patientNumber}</TableCell>
-                    <TableCell>{visit.visitType}</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={visit.status}
-                        color={getStatusColor(visit.status) as any}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        size="small"
-                        onClick={() =>
-                          navigate(`/patients/${visit.patient.id}`)
-                        }
-                      >
-                        View Patient
-                      </Button>
+              </TableHead>
+              <TableBody>
+                {queueLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={5} align="center">
+                      Loading queue...
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Paper>
-    </Box>
+                ) : !queueData || queueData.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} align="center">
+                      No active visits in queue
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  queueData.map((visit) => (
+                    <TableRow key={visit.id}>
+                      <TableCell>
+                        {visit.patient.firstName} {visit.patient.lastName}
+                      </TableCell>
+                      <TableCell>{visit.patient.patientNumber}</TableCell>
+                      <TableCell>{visit.visitType}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={visit.status}
+                          color={getStatusColor(visit.status) as any}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          size="small"
+                          onClick={() =>
+                            navigate(`/patients/${visit.patient.id}`)
+                          }
+                        >
+                          View Patient
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
+      </Box>
   );
 };
 

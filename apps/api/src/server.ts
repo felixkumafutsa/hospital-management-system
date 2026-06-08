@@ -11,6 +11,14 @@ import connectDB from './config/database';
 import authRoutes from './modules/auth/auth.routes';
 import patientRoutes from './modules/patients/patient.routes';
 import visitRoutes from './modules/visit/visit.routes';
+import prescriptionRoutes from './modules/prescriptions/prescription.routes';
+import labRoutes from './modules/laboratory/lab.routes';
+import pharmacyRoutes from './modules/pharmacy/pharmacy.routes';
+import billingRoutes from './modules/billing/billing.routes';
+import staffRoutes from './modules/staff/staff.routes';
+import maternityRoutes from './modules/maternity/maternity.routes';
+import schedulingRoutes from './modules/scheduling/scheduling.routes';
+import appointmentsRoutes from './modules/appointments/appointments.routes';
 import errorHandler from './middlewares/errorHandler';
 import { auditLogger } from './middlewares/auditLogger';
 
@@ -20,8 +28,27 @@ const PORT = process.env.PORT || 4000;
 
 // Security middleware
 app.use(helmet());
+// CORS configuration that works for both local development and Vercel production
+const allowedOrigins = [
+  process.env.CORS_ORIGIN,
+  process.env.FRONTEND_URL,
+  'http://localhost:3000',
+  'http://localhost:4000',
+  // Add your Vercel preview URLs here if needed
+  ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : [])
+].filter(Boolean) as string[];
+
 app.use(cors({
-  origin: true,
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
   credentials: true,
 }));
 
@@ -56,6 +83,14 @@ app.use('/api/v1/auth/login', loginLimiter);
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/visits', visitRoutes);
 app.use('/api/v1/patients', patientRoutes);
+app.use('/api/v1/prescriptions', prescriptionRoutes);
+app.use('/api/v1/lab', labRoutes);
+app.use('/api/v1/pharmacy', pharmacyRoutes);
+app.use('/api/v1/finance', billingRoutes);
+app.use('/api/v1/staff', staffRoutes);
+app.use('/api/v1/maternity', maternityRoutes);
+app.use('/api/v1/scheduling', schedulingRoutes);
+app.use('/api/v1/scheduling', appointmentsRoutes);
 
 // Health check endpoint
 app.get('/api/v1/health', (_req, res) => {
