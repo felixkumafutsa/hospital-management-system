@@ -163,11 +163,11 @@ const StaffManagementPage = () => {
         salary: data.salary,
         isActive: data.status === "ACTIVE",
       };
-      const res = await api.post("/staff", staffData); // Use existing staff endpoint to create system user
+      const res = await api.post("/users", staffData); // Use users endpoint to create system user
       return res.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["all-staff"] });
+      queryClient.invalidateQueries({ queryKey: ["all-users"] });
       handleCloseDrawer();
     },
   });
@@ -176,12 +176,12 @@ const StaffManagementPage = () => {
     addStaffMutation.mutate(formData);
   };
 
-  // Fetch all registered system staff members from the existing /staff endpoint
+  // Fetch all registered system users from the /users endpoint
   const { data: staffMembers, isLoading } = useQuery({
-    queryKey: ["all-staff"],
+    queryKey: ["all-users"],
     queryFn: async () => {
-      // The staff endpoint returns actual system users from the database
-      const res = await api.get("/staff");
+      // The users endpoint returns actual system users from the database
+      const res = await api.get("/users");
       // Transform the API response to match the StaffMember interface
       return res.data.data.map((user: any) => ({
         id: user.id,

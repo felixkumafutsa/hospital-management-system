@@ -165,14 +165,14 @@ export const getPatientLabRequests = (patientId: string) => api.get(`/lab/reques
 export const updateLabRequestStatus = (id: string, status: string) => api.put(`/lab/requests/${id}/status`, { status });
 export const addLabResult = (id: string, resultData: any) => api.put(`/lab/requests/${id}/result`, resultData);
 
-// Staff Management API calls
-export const createStaff = (staffData: any) => api.post('/staff', staffData);
-export const getAllStaff = (params?: any) => api.get('/staff', { params });
-export const getStaff = (id: string) => api.get(`/staff/${id}`);
-export const searchStaff = (query: string) => api.get('/staff/search', { params: { q: query } });
-export const getStaffByRole = (role: string) => api.get(`/staff/role/${role}`);
-export const updateStaff = (id: string, staffData: any) => api.put(`/staff/${id}`, staffData);
-export const deactivateStaff = (id: string) => api.patch(`/staff/${id}/deactivate`);
+// User Management API calls
+export const createUser = (userData: any) => api.post('/users', userData);
+export const getAllUsers = (params?: any) => api.get('/users', { params });
+export const getUser = (id: string) => api.get(`/users/${id}`);
+export const searchUsers = (query: string) => api.get('/users/search', { params: { q: query } });
+export const getUsersByRole = (role: string) => api.get(`/users/role/${role}`);
+export const updateUser = (id: string, userData: any) => api.put(`/users/${id}`, userData);
+export const deactivateUser = (id: string) => api.patch(`/users/${id}/deactivate`);
 
 // Billing/Finance API calls
 export const createInvoice = (invoiceData: any) => api.post('/finance/invoices', invoiceData);

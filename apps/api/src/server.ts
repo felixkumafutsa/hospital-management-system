@@ -87,7 +87,8 @@ app.use('/api/v1/prescriptions', prescriptionRoutes);
 app.use('/api/v1/lab', labRoutes);
 app.use('/api/v1/pharmacy', pharmacyRoutes);
 app.use('/api/v1/finance', billingRoutes);
-app.use('/api/v1/staff', staffRoutes);
+// User management routes (formerly staff routes)
+app.use('/api/v1/users', staffRoutes);
 app.use('/api/v1/maternity', maternityRoutes);
 app.use('/api/v1/scheduling', schedulingRoutes);
 app.use('/api/v1/scheduling', appointmentsRoutes);

@@ -147,12 +147,12 @@ const ConsultationsPage = () => {
     },
   });
 
-  // Fetch all staff and filter to only doctors (uses the existing /staff endpoint which returns all system users)
+  // Fetch all users and filter to only doctors (uses the /users endpoint which returns all system users)
   const { data: doctors } = useQuery({
     queryKey: ["doctors"],
     queryFn: async () => {
-      // The /staff endpoint returns all system users from the database
-      const response = await api.get("/staff");
+      // The /users endpoint returns all system users from the database
+      const response = await api.get("/users");
       // Filter to only include users who are doctors (role.name === "DOCTOR")
       const allStaff = response.data.data || [];
       return allStaff.filter((staff: any) => staff.role?.name === "DOCTOR");
