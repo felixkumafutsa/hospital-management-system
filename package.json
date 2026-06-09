@@ -17,11 +17,12 @@
         "build:api": "cd apps/api && npm run build",
         "build:web": "cd apps/web && npm run build",
         "build": "npm run build:api && npm run build:web",
-        "vercel-build": "npm install && cd apps/api && npm install && npm run build && cd ../web && npm install && npm run build",
+        "vercel-build": "npm run install:all && cd apps/api && npx tsc && cd ../web && npm run build",
         "install:all": "npm install && cd apps/api && npm install && cd ../web && npm install"
     },
     "devDependencies": {
-        "concurrently": "^8.2.2"
+        "concurrently": "^8.2.2",
+        "typescript": "^5.8.2"
     },
     "dependencies": {
         "zod": "^4.4.3"
