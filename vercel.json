@@ -1,7 +1,13 @@
 {
     "$schema": "https://openapi.vercel.sh/vercel.json",
-    "installCommand": "npm cache clean --force && npm install",
-    "buildCommand": "npm run vercel-build",
+    "installCommand": "npm install && cd apps/api && npm install && cd ../web && npm install",
+    "buildCommand": "cd apps/api && npm run build && cd ../web && npm run build",
     "outputDirectory": "apps/web/dist",
-    "framework": null
+    "framework": "vite",
+    "rewrites": [
+        {
+            "source": "/api/(.*)",
+            "destination": "/apps/api/dist/server.js"
+        }
+    ]
 }
