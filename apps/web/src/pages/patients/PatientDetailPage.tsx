@@ -712,7 +712,7 @@ const PatientDetailPage = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {visitsLoading ? (
+                {patientLoading ? (
                   <TableRow>
                     <TableCell colSpan={4} align="center">
                       Loading...

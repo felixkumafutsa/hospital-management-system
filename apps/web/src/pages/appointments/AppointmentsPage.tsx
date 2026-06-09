@@ -36,7 +36,7 @@ import { enUS } from "date-fns/locale/en-US";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 // @ts-ignore - CSS import for react-big-calendar
 import "react-big-calendar/lib/css/react-big-calendar.css";
-import api from "../../services/api";
+import api, { createAppointment } from "../../services/api";
 
 const locales = {
   "en-US": enUS,

@@ -1,46 +1,47 @@
 ﻿{
-    "env":  {
-                "NODE_ENV":  "production"
-            },
-    "builds":  [
-                   {
-                       "config":  {
-                                      "memory":  1024,
-                                      "maxLambdaSize":  "50mb"
-                                  },
-                       "use":  "@vercel/node",
-                       "src":  "apps/api/dist/server.js"
-                   },
-                   {
-                       "src":  "apps/web/dist/**",
-                       "use":  "@vercel/static"
-                   }
-               ],
-    "headers":  [
-                    {
-                        "headers":  [
-                                        {
-                                            "key":  "X-Frame-Options",
-                                            "value":  "DENY"
-                                        },
-                                        {
-                                            "key":  "X-Content-Type-Options",
-                                            "value":  "nosniff"
-                                        }
-                                    ],
-                        "source":  "/(.*)"
-                    }
-                ],
-    "routes":  [
-                   {
-                       "src":  "/api/(.*)",
-                       "dest":  "apps/api/dist/server.js"
-                   },
-                   {
-                       "dest":  "apps/web/dist/index.html",
-                       "continue":  false,
-                       "src":  "/(.*)"
-                   }
-               ],
-    "version":  2
+    "version": 2,
+    "builds": [
+        {
+            "src": "apps/api/package.json",
+            "use": "@vercel/node",
+            "config": {
+                "memory": 1024
+            }
+        },
+        {
+            "src": "apps/web/package.json",
+            "use": "@vercel/static-build",
+            "config": {
+                "distDir": "dist"
+            }
+        }
+    ],
+    "headers": [
+        {
+            "source": "/(.*)",
+            "headers": [
+                {
+                    "key": "X-Frame-Options",
+                    "value": "DENY"
+                },
+                {
+                    "key": "X-Content-Type-Options",
+                    "value": "nosniff"
+                }
+            ]
+        }
+    ],
+    "routes": [
+        {
+            "src": "/api/(.*)",
+            "dest": "/apps/api/dist/server.js"
+        },
+        {
+            "src": "/(.*)",
+            "dest": "/apps/web/dist/index.html"
+        }
+    ],
+    "env": {
+        "NODE_ENV": "production"
+    }
 }

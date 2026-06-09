@@ -36,7 +36,7 @@ import {
 } from "@mui/icons-material";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import api, { createLabRequest, getLabRequests } from "../../services/api";
+import { createLabRequest, getLabRequests } from "../../services/api";
 
 interface LabTest {
   id: string;
