@@ -108,6 +108,12 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
       allowedRoles: ["lab_technician"],
     },
     {
+      text: "Maternity Dashboard",
+      icon: <People />,
+      path: "/maternity",
+      allowedRoles: ["admin", "doctor", "nurse"],
+    },
+    {
       text: "Accounts Dashboard",
       icon: <Receipt />,
       path: "/accounts",
@@ -215,6 +221,38 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
     setMobileOpen(!mobileOpen);
   };
 
+  // Prefetch function to load page chunks before navigation
+  const prefetchPage = (path: string) => {
+    // Map paths to their import functions for prefetching
+    const pageImports: Record<string, () => Promise<unknown>> = {
+      "/reception": () =>
+        import("../../pages/reception/ReceptionDashboardPage"),
+      "/doctor": () => import("../../pages/doctor/DoctorDashboardPage"),
+      "/nurse": () => import("../../pages/nurse/NurseDashboardPage"),
+      "/pharmacy": () => import("../../pages/pharmacy/PharmacyDashboardPage"),
+      "/lab": () => import("../../pages/lab/LabDashboardPage"),
+      "/maternity": () =>
+        import("../../pages/maternity/MaternityDashboardPage"),
+      "/accounts": () => import("../../pages/accounts/AccountsDashboardPage"),
+      "/patients": () => import("../../pages/patients/PatientListPage"),
+      "/appointments": () =>
+        import("../../pages/appointments/AppointmentsPage"),
+      "/consultations": () =>
+        import("../../pages/consultations/ConsultationsPage"),
+      "/prescriptions": () =>
+        import("../../pages/prescriptions/PrescriptionsPage"),
+      "/lab-tests": () => import("../../pages/lab/LabTestsPage"),
+      "/finance": () => import("../../pages/finance/FinanceDashboardPage"),
+      "/settings": () => import("../../pages/settings/SettingsPage"),
+    };
+
+    // Only prefetch if the import function exists
+    if (pageImports[path]) {
+      // Start prefetching the chunk
+      pageImports[path]();
+    }
+  };
+
   const handleNavigation = (path: string) => {
     if (path === "/logout") {
       handleLogout();
@@ -314,6 +352,8 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
               key={item.text}
               component="button"
               onClick={() => handleNavigation(item.path)}
+              onMouseEnter={() => prefetchPage(item.path)}
+              onFocus={() => prefetchPage(item.path)}
               sx={{
                 width: "100%",
                 borderRadius: "10px",

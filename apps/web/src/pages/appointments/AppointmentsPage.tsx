@@ -166,7 +166,7 @@ const AppointmentsPage = () => {
 
   const createAppointmentMutation = useMutation({
     mutationFn: async (data: any) => {
-      await api.post("/scheduling", data);
+      await createAppointment(data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["appointments"] });

@@ -4,7 +4,7 @@ import logger from '../../config/logger';
 
 const prisma = new PrismaClient();
 
-export const createStaff = async (data: any) => {
+export const createUser = async (data: any) => {
   try {
     // Check if email already exists
     const existingUser = await prisma.user.findUnique({
@@ -20,13 +20,13 @@ export const createStaff = async (data: any) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
-    // Generate staff ID
-    const staffCount = await prisma.user.count();
-    const staffId = `BL-STF-${String(staffCount + 1).padStart(3, '0')}`;
+    // Generate user ID
+    const userCount = await prisma.user.count();
+    const userId = `BL-USR-${String(userCount + 1).padStart(3, '0')}`;
 
     const user = await prisma.user.create({
       data: {
-        staffId,
+        staffId: userId,
         email: data.email,
         firstName: data.firstName,
         lastName: data.lastName,
@@ -39,7 +39,7 @@ export const createStaff = async (data: any) => {
       },
     });
 
-    logger.info(`Staff member created: ${user.id}`);
+    logger.info(`User created: ${user.id}`);
     return {
       id: user.id,
       staffId: user.staffId,
@@ -53,12 +53,12 @@ export const createStaff = async (data: any) => {
       createdAt: user.createdAt,
     };
   } catch (error: any) {
-    logger.error(`Error creating staff: ${error.message}`);
+    logger.error(`Error creating user: ${error.message}`);
     throw error;
   }
 };
 
-export const getStaffById = async (id: string) => {
+export const getUserById = async (id: string) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id },
@@ -68,7 +68,7 @@ export const getStaffById = async (id: string) => {
     });
 
     if (!user) {
-      const error = new Error('Staff member not found');
+      const error = new Error('User not found');
       (error as any).statusCode = 404;
       throw error;
     }
@@ -87,17 +87,17 @@ export const getStaffById = async (id: string) => {
       updatedAt: user.updatedAt,
     };
   } catch (error: any) {
-    logger.error(`Error fetching staff: ${error.message}`);
+    logger.error(`Error fetching user: ${error.message}`);
     throw error;
   }
 };
 
-export const getAllStaff = async (limit?: number, offset?: number) => {
+export const getAllUsers = async (limit?: number, offset?: number) => {
   try {
     const skip = offset || 0;
     const take = limit || 10;
 
-    const [staff, total] = await Promise.all([
+    const [users, total] = await Promise.all([
       prisma.user.findMany({
         include: {
           role: true,
@@ -110,7 +110,7 @@ export const getAllStaff = async (limit?: number, offset?: number) => {
     ]);
 
     return {
-      data: staff.map((user) => ({
+      data: users.map((user) => ({
         id: user.id,
         staffId: user.staffId,
         email: user.email,
@@ -127,12 +127,12 @@ export const getAllStaff = async (limit?: number, offset?: number) => {
       offset: skip,
     };
   } catch (error: any) {
-    logger.error(`Error fetching all staff: ${error.message}`);
+    logger.error(`Error fetching all users: ${error.message}`);
     throw error;
   }
 };
 
-export const searchStaff = async (query: string, roleId?: string, limit?: number, offset?: number) => {
+export const searchUsers = async (query: string, roleId?: string, limit?: number, offset?: number) => {
   try {
     const skip = offset || 0;
     const take = limit || 10;
@@ -150,7 +150,7 @@ export const searchStaff = async (query: string, roleId?: string, limit?: number
       where.roleId = roleId;
     }
 
-    const [staff, total] = await Promise.all([
+    const [users, total] = await Promise.all([
       prisma.user.findMany({
         where,
         include: {
@@ -163,7 +163,7 @@ export const searchStaff = async (query: string, roleId?: string, limit?: number
     ]);
 
     return {
-      data: staff.map((user) => ({
+      data: users.map((user) => ({
         id: user.id,
         staffId: user.staffId,
         email: user.email,
@@ -180,12 +180,12 @@ export const searchStaff = async (query: string, roleId?: string, limit?: number
       offset: skip,
     };
   } catch (error: any) {
-    logger.error(`Error searching staff: ${error.message}`);
+    logger.error(`Error searching users: ${error.message}`);
     throw error;
   }
 };
 
-export const updateStaff = async (id: string, data: any) => {
+export const updateUser = async (id: string, data: any) => {
   try {
     // Check if trying to change email to one that already exists
     if (data.email) {
@@ -218,7 +218,7 @@ export const updateStaff = async (id: string, data: any) => {
       },
     });
 
-    logger.info(`Staff member updated: ${user.id}`);
+    logger.info(`User updated: ${user.id}`);
     return {
       id: user.id,
       staffId: user.staffId,
@@ -232,12 +232,12 @@ export const updateStaff = async (id: string, data: any) => {
       updatedAt: user.updatedAt,
     };
   } catch (error: any) {
-    logger.error(`Error updating staff: ${error.message}`);
+    logger.error(`Error updating user: ${error.message}`);
     throw error;
   }
 };
 
-export const deactivateStaff = async (id: string) => {
+export const deactivateUser = async (id: string) => {
   try {
     const user = await prisma.user.update({
       where: { id },
@@ -246,23 +246,23 @@ export const deactivateStaff = async (id: string) => {
       },
     });
 
-    logger.info(`Staff member deactivated: ${user.id}`);
+    logger.info(`User deactivated: ${user.id}`);
     return {
       success: true,
-      message: 'Staff member deactivated',
+      message: 'User deactivated',
     };
   } catch (error: any) {
-    logger.error(`Error deactivating staff: ${error.message}`);
+    logger.error(`Error deactivating user: ${error.message}`);
     throw error;
   }
 };
 
-export const getStaffByRole = async (roleId: string, limit?: number, offset?: number) => {
+export const getUserByRole = async (roleId: string, limit?: number, offset?: number) => {
   try {
     const skip = offset || 0;
     const take = limit || 10;
 
-    const [staff, total] = await Promise.all([
+    const [users, total] = await Promise.all([
       prisma.user.findMany({
         where: { roleId },
         include: {
@@ -275,7 +275,7 @@ export const getStaffByRole = async (roleId: string, limit?: number, offset?: nu
     ]);
 
     return {
-      data: staff.map((user) => ({
+      data: users.map((user) => ({
         id: user.id,
         staffId: user.staffId,
         email: user.email,
@@ -292,7 +292,7 @@ export const getStaffByRole = async (roleId: string, limit?: number, offset?: nu
       offset: skip,
     };
   } catch (error: any) {
-    logger.error(`Error fetching staff by role: ${error.message}`);
+    logger.error(`Error fetching users by role: ${error.message}`);
     throw error;
   }
 };

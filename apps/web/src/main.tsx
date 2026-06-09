@@ -7,13 +7,19 @@ import theme from "./theme";
 import App from "./App";
 import "./index.css";
 
-// Create React Query client
+// Create React Query client with optimized caching
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
+      refetchOnMount: true,
+      refetchOnReconnect: false,
       retry: 1,
-      staleTime: 5 * 60 * 1000, // 5 minutes
+      staleTime: 10 * 60 * 1000, // 10 minutes - keep data fresh longer
+      cacheTime: 30 * 60 * 1000, // 30 minutes - cache data for 30 minutes
+    },
+    mutations: {
+      retry: 1,
     },
   },
 });

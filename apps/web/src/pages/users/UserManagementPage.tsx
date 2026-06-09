@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Box,
   Grid,
@@ -23,6 +23,9 @@ import {
   StepLabel,
   TextField,
   MenuItem,
+  FormControl,
+  InputLabel,
+  Select,
 } from "@mui/material";
 import {
   Add,
@@ -37,12 +40,13 @@ import {
   LocalPharmacy,
   MeetingRoom,
   SupervisorAccount,
+  FilterList,
 } from "@mui/icons-material";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
 
-interface StaffMember {
+interface User {
   id: string;
   firstName: string;
   lastName: string;
@@ -54,12 +58,14 @@ interface StaffMember {
   avatar?: string;
 }
 
-const StaffManagementPage = () => {
+const UserManagementPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
+  const [roleFilter, setRoleFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -82,7 +88,7 @@ const StaffManagementPage = () => {
 
   const statusOptions = ["ACTIVE", "INACTIVE", "ON_LEAVE", "SICK"];
 
-  interface StaffFormData {
+  interface UserFormData {
     firstName: string;
     lastName: string;
     email: string;
@@ -96,7 +102,7 @@ const StaffManagementPage = () => {
     status: string;
   }
 
-  const initialFormData: StaffFormData = {
+  const initialFormData: UserFormData = {
     firstName: "",
     lastName: "",
     email: "",
@@ -110,7 +116,7 @@ const StaffManagementPage = () => {
     status: "ACTIVE",
   };
 
-  const [formData, setFormData] = useState<StaffFormData>(initialFormData);
+  const [formData, setFormData] = useState<UserFormData>(initialFormData);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -146,24 +152,24 @@ const StaffManagementPage = () => {
     setPage(0);
   };
 
-  // Mutation for adding new staff (creates a system user using existing /staff endpoint)
-  const addStaffMutation = useMutation({
-    mutationFn: async (data: StaffFormData) => {
-      // Transform staff form data to match the API's expected staff creation format
-      const staffData = {
+  // Mutation for adding new user
+  const addUserMutation = useMutation({
+    mutationFn: async (data: UserFormData) => {
+      // Transform user form data to match the API's expected user creation format
+      const userData = {
         firstName: data.firstName,
         lastName: data.lastName,
         email: data.email,
         phone: data.phone,
         address: data.address,
-        role: data.role, // Role name is passed correctly to the existing endpoint
+        role: data.role,
         department: data.department,
         employeeId: data.employeeId,
         hireDate: data.hireDate,
         salary: data.salary,
         isActive: data.status === "ACTIVE",
       };
-      const res = await api.post("/users", staffData); // Use users endpoint to create system user
+      const res = await api.post("/users", userData);
       return res.data;
     },
     onSuccess: () => {
@@ -173,16 +179,16 @@ const StaffManagementPage = () => {
   });
 
   const handleSubmit = () => {
-    addStaffMutation.mutate(formData);
+    addUserMutation.mutate(formData);
   };
 
   // Fetch all registered system users from the /users endpoint
-  const { data: staffMembers, isLoading } = useQuery({
+  const { data: users, isLoading } = useQuery({
     queryKey: ["all-users"],
     queryFn: async () => {
       // The users endpoint returns actual system users from the database
       const res = await api.get("/users");
-      // Transform the API response to match the StaffMember interface
+      // Transform the API response to match the User interface
       return res.data.data.map((user: any) => ({
         id: user.id,
         firstName: user.firstName,
@@ -193,21 +199,34 @@ const StaffManagementPage = () => {
         status: user.isActive ? "ACTIVE" : "INACTIVE",
         phone: user.phone || "N/A",
         avatar: null,
-      })) as StaffMember[];
+      })) as User[];
     },
   });
 
-  // Filter staff based on search term
-  const filteredStaff =
-    staffMembers?.filter(
-      (staff) =>
-        `${staff.firstName} ${staff.lastName}`
+  // Filter users based on search term and filters
+  const filteredUsers = useMemo(() => {
+    if (!users) return [];
+
+    return users.filter((user) => {
+      // Apply search term filter
+      const matchesSearch =
+        `${user.firstName} ${user.lastName}`
           .toLowerCase()
           .includes(searchTerm.toLowerCase()) ||
-        staff.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        staff.role.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        staff.status.toLowerCase().includes(searchTerm.toLowerCase()),
-    ) || [];
+        user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.role.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.department.toLowerCase().includes(searchTerm.toLowerCase());
+
+      // Apply role filter
+      const matchesRole = !roleFilter || user.role === roleFilter;
+
+      // Apply status filter
+      const matchesStatus = !statusFilter || user.status === statusFilter;
+
+      return matchesSearch && matchesRole && matchesStatus;
+    });
+  }, [users, searchTerm, roleFilter, statusFilter]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -378,7 +397,7 @@ const StaffManagementPage = () => {
             <Grid item xs={12}>
               <Paper variant="outlined" sx={{ p: 2 }}>
                 <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                  Staff Member Summary
+                  User Summary
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid item xs={6}>
@@ -431,13 +450,13 @@ const StaffManagementPage = () => {
               <Button
                 variant="contained"
                 onClick={handleSubmit}
-                disabled={addStaffMutation.isPending}
+                disabled={addUserMutation.isPending}
                 sx={{ bgcolor: "#0EA5A4", "&:hover": { bgcolor: "#0c8c8b" } }}
               >
-                {addStaffMutation.isPending ? (
+                {addUserMutation.isPending ? (
                   <CircularProgress size={24} color="inherit" />
                 ) : (
-                  "Create Staff Account"
+                  "Create User Account"
                 )}
               </Button>
             </Box>
@@ -469,33 +488,86 @@ const StaffManagementPage = () => {
       >
         <Box>
           <Typography variant="h4" sx={{ mb: 1, fontWeight: 600 }}>
-            Staff Management
+            User Management
           </Typography>
           <Typography color="text.secondary">
-            Manage hospital staff members and their accounts
+            Manage hospital users and their accounts
           </Typography>
         </Box>
         <Button variant="contained" startIcon={<Add />} onClick={handleOpenAdd}>
-          Add Staff Member
+          Add User
         </Button>
       </Box>
 
-      {/* Search Bar */}
-      <Paper elevation={2} sx={{ p: 2, mb: 3 }}>
-        <TextField
-          fullWidth
-          placeholder="Search staff by name, email, role, or status..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          variant="standard"
-          InputProps={{
-            disableUnderline: true,
-            startAdornment: <Search sx={{ mr: 1, color: "text.secondary" }} />,
-          }}
-        />
+      {/* Search and Filter Bar */}
+      <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+        <Grid container spacing={3} alignItems="center">
+          <Grid item xs={12} md={5}>
+            <TextField
+              fullWidth
+              placeholder="Search users by name, email, role, or status..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              variant="outlined"
+              InputProps={{
+                startAdornment: (
+                  <Search sx={{ mr: 1, color: "text.secondary" }} />
+                ),
+              }}
+            />
+          </Grid>
+          <Grid item xs={6} md={3}>
+            <FormControl fullWidth>
+              <InputLabel>Filter by Role</InputLabel>
+              <Select
+                value={roleFilter}
+                label="Filter by Role"
+                onChange={(e) => {
+                  setRoleFilter(e.target.value);
+                  setPage(0);
+                }}
+              >
+                <MenuItem value="">All Roles</MenuItem>
+                {roleOptions.map((role) => (
+                  <MenuItem key={role.value} value={role.value}>
+                    {role.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={6} md={3}>
+            <FormControl fullWidth>
+              <InputLabel>Filter by Status</InputLabel>
+              <Select
+                value={statusFilter}
+                label="Filter by Status"
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setPage(0);
+                }}
+              >
+                <MenuItem value="">All Statuses</MenuItem>
+                {statusOptions.map((status) => (
+                  <MenuItem key={status} value={status}>
+                    {status.replace("_", " ")}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid
+            item
+            xs={12}
+            md={1}
+            sx={{ display: "flex", justifyContent: "center" }}
+          >
+            <FilterList sx={{ color: "text.secondary" }} />
+          </Grid>
+        </Grid>
       </Paper>
 
-      {/* Staff Table */}
+      {/* Users Table */}
       <Paper elevation={2} sx={{ width: "100%", overflow: "hidden" }}>
         {isLoading ? (
           <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
@@ -507,9 +579,7 @@ const StaffManagementPage = () => {
               <Table>
                 <TableHead sx={{ backgroundColor: "#f5f5f5" }}>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: "bold" }}>
-                      Staff Member
-                    </TableCell>
+                    <TableCell sx={{ fontWeight: "bold" }}>User</TableCell>
                     <TableCell sx={{ fontWeight: "bold" }}>Contact</TableCell>
                     <TableCell sx={{ fontWeight: "bold" }}>Role</TableCell>
                     <TableCell sx={{ fontWeight: "bold" }}>
@@ -520,10 +590,10 @@ const StaffManagementPage = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {filteredStaff
+                  {filteredUsers
                     .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                    .map((staff) => (
-                      <TableRow key={staff.id} hover>
+                    .map((user) => (
+                      <TableRow key={user.id} hover>
                         <TableCell>
                           <Box
                             sx={{
@@ -537,29 +607,29 @@ const StaffManagementPage = () => {
                             </Avatar>
                             <Box>
                               <Typography fontWeight={500}>
-                                {staff.firstName} {staff.lastName}
+                                {user.firstName} {user.lastName}
                               </Typography>
                             </Box>
                           </Box>
                         </TableCell>
                         <TableCell>
-                          <Typography>{staff.email}</Typography>
+                          <Typography>{user.email}</Typography>
                           <Typography variant="body2" color="text.secondary">
-                            {staff.phone}
+                            {user.phone}
                           </Typography>
                         </TableCell>
                         <TableCell>
                           <Chip
-                            label={staff.role}
+                            label={user.role}
                             size="small"
                             variant="outlined"
                           />
                         </TableCell>
-                        <TableCell>{staff.department}</TableCell>
+                        <TableCell>{user.department}</TableCell>
                         <TableCell>
                           <Chip
-                            label={staff.status}
-                            color={getStatusColor(staff.status) as any}
+                            label={user.status}
+                            color={getStatusColor(user.status) as any}
                             size="small"
                           />
                         </TableCell>
@@ -567,7 +637,7 @@ const StaffManagementPage = () => {
                           <Tooltip title="View Details">
                             <IconButton
                               size="small"
-                              onClick={() => navigate(`/users/${staff.id}`)}
+                              onClick={() => navigate(`/users/${user.id}`)}
                             >
                               <Visibility />
                             </IconButton>
@@ -585,11 +655,11 @@ const StaffManagementPage = () => {
                         </TableCell>
                       </TableRow>
                     ))}
-                  {filteredStaff.length === 0 && (
+                  {filteredUsers.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
                         <Typography color="text.secondary">
-                          No staff members found matching your search
+                          No users found matching your search criteria
                         </Typography>
                       </TableCell>
                     </TableRow>
@@ -598,13 +668,17 @@ const StaffManagementPage = () => {
               </Table>
             </TableContainer>
             <TablePagination
-              rowsPerPageOptions={[5, 10, 25]}
+              rowsPerPageOptions={[5, 10, 25, 50]}
               component="div"
-              count={filteredStaff.length}
+              count={filteredUsers.length}
               rowsPerPage={rowsPerPage}
               page={page}
               onPageChange={handleChangePage}
               onRowsPerPageChange={handleChangeRowsPerPage}
+              labelRowsPerPage="Rows per page:"
+              labelDisplayedRows={({ from, to, count }) =>
+                `${from}-${to} of ${count !== -1 ? count : `more than ${to}`}`
+              }
             />
           </>
         )}
@@ -621,10 +695,10 @@ const StaffManagementPage = () => {
       >
         <Box sx={{ mb: 4 }}>
           <Typography variant="h5" sx={{ mb: 1, fontWeight: 600 }}>
-            Add New Staff Member
+            Add New User
           </Typography>
           <Typography color="text.secondary">
-            Fill in the information to create a new staff account
+            Fill in the information to create a new user account
           </Typography>
         </Box>
         <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
@@ -691,4 +765,4 @@ const StaffManagementPage = () => {
   );
 };
 
-export default StaffManagementPage;
+export default UserManagementPage;

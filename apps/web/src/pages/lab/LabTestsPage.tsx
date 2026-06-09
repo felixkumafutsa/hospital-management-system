@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Box,
   Grid,
@@ -22,11 +22,21 @@ import {
   StepLabel,
   TextField,
   MenuItem,
+  FormControl,
+  InputLabel,
+  Select,
 } from "@mui/material";
-import { Add, Edit, Visibility, Search, Science } from "@mui/icons-material";
+import {
+  Add,
+  Edit,
+  Visibility,
+  Search,
+  Science,
+  FilterList,
+} from "@mui/icons-material";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import api from "../../services/api";
+import api, { createLabRequest, getLabRequests } from "../../services/api";
 
 interface LabTest {
   id: string;
@@ -46,6 +56,8 @@ const LabTestsPage = () => {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState("");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -138,10 +150,10 @@ const LabTestsPage = () => {
     setPage(0);
   };
 
-  // Mutation for adding new lab test
+  // Mutation for adding new lab test to real API
   const addTestMutation = useMutation({
     mutationFn: async (data: LabTestFormData) => {
-      const res = await api.post("/lab-tests", data);
+      const res = await createLabRequest(data);
       return res.data;
     },
     onSuccess: () => {
@@ -154,12 +166,12 @@ const LabTestsPage = () => {
     addTestMutation.mutate(formData);
   };
 
-  // Fetch lab tests from API
+  // Fetch lab tests from real API
   const { data: labTests, isLoading } = useQuery({
     queryKey: ["lab-tests"],
     queryFn: async () => {
-      const res = await api.get("/lab/requests");
-      return res.data.tests.map((test: any) => ({
+      const res = await getLabRequests();
+      return res.data.requests.map((test: any) => ({
         id: test.id,
         testNumber: `LAB-${test.id.slice(0, 8).toUpperCase()}`,
         patientName:
@@ -177,16 +189,29 @@ const LabTestsPage = () => {
     },
   });
 
-  // Filter lab tests based on search term
-  const filteredTests =
-    labTests?.filter(
-      (test) =>
+  // Filter lab tests based on search term and filters
+  const filteredTests = useMemo(() => {
+    if (!labTests) return [];
+
+    return labTests.filter((test) => {
+      // Apply search term filter
+      const matchesSearch =
         test.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         test.testNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
         test.testType.toLowerCase().includes(searchTerm.toLowerCase()) ||
         test.requestedBy.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        test.status.toLowerCase().includes(searchTerm.toLowerCase()),
-    ) || [];
+        test.status.toLowerCase().includes(searchTerm.toLowerCase());
+
+      // Apply status filter
+      const matchesStatus = !statusFilter || test.status === statusFilter;
+
+      // Apply priority filter
+      const matchesPriority =
+        !priorityFilter || test.priority === priorityFilter;
+
+      return matchesSearch && matchesStatus && matchesPriority;
+    });
+  }, [labTests, searchTerm, statusFilter, priorityFilter]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -543,19 +568,72 @@ const LabTestsPage = () => {
         </Grid>
       </Grid>
 
-      {/* Search Bar */}
-      <Paper elevation={2} sx={{ p: 2, mb: 3 }}>
-        <TextField
-          fullWidth
-          placeholder="Search lab tests by patient, ID, test type, or status..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          variant="standard"
-          InputProps={{
-            disableUnderline: true,
-            startAdornment: <Search sx={{ mr: 1, color: "text.secondary" }} />,
-          }}
-        />
+      {/* Search and Filter Bar */}
+      <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+        <Grid container spacing={3} alignItems="center">
+          <Grid item xs={12} md={5}>
+            <TextField
+              fullWidth
+              placeholder="Search lab tests by patient, ID, test type, or status..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              variant="outlined"
+              InputProps={{
+                startAdornment: (
+                  <Search sx={{ mr: 1, color: "text.secondary" }} />
+                ),
+              }}
+            />
+          </Grid>
+          <Grid item xs={6} md={3}>
+            <FormControl fullWidth>
+              <InputLabel>Filter by Status</InputLabel>
+              <Select
+                value={statusFilter}
+                label="Filter by Status"
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setPage(0);
+                }}
+              >
+                <MenuItem value="">All Statuses</MenuItem>
+                {statusOptions.map((status) => (
+                  <MenuItem key={status} value={status}>
+                    {status.replace("_", " ")}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={6} md={3}>
+            <FormControl fullWidth>
+              <InputLabel>Filter by Priority</InputLabel>
+              <Select
+                value={priorityFilter}
+                label="Filter by Priority"
+                onChange={(e) => {
+                  setPriorityFilter(e.target.value);
+                  setPage(0);
+                }}
+              >
+                <MenuItem value="">All Priorities</MenuItem>
+                {priorityOptions.map((priority) => (
+                  <MenuItem key={priority} value={priority}>
+                    {priority.replace("_", " ")}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid
+            item
+            xs={12}
+            md={1}
+            sx={{ display: "flex", justifyContent: "center" }}
+          >
+            <FilterList sx={{ color: "text.secondary" }} />
+          </Grid>
+        </Grid>
       </Paper>
 
       {/* Lab Tests Table */}
@@ -642,13 +720,17 @@ const LabTestsPage = () => {
               </Table>
             </TableContainer>
             <TablePagination
-              rowsPerPageOptions={[5, 10, 25]}
+              rowsPerPageOptions={[5, 10, 25, 50]}
               component="div"
               count={filteredTests.length}
               rowsPerPage={rowsPerPage}
               page={page}
               onPageChange={handleChangePage}
               onRowsPerPageChange={handleChangeRowsPerPage}
+              labelRowsPerPage="Rows per page:"
+              labelDisplayedRows={({ from, to, count }) =>
+                `${from}-${to} of ${count !== -1 ? count : `more than ${to}`}`
+              }
             />
           </>
         )}

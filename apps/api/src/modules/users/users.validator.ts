@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const createStaffSchema = z.object({
+export const createUserSchema = z.object({
   email: z.string().email('Invalid email format'),
   firstName: z.string().min(1, 'First name is required'),
   lastName: z.string().min(1, 'Last name is required'),
@@ -9,7 +9,7 @@ export const createStaffSchema = z.object({
   roleId: z.string().uuid('Invalid role ID format'),
 });
 
-export const updateStaffSchema = z.object({
+export const updateUserSchema = z.object({
   email: z.string().email('Invalid email format').optional(),
   firstName: z.string().min(1, 'First name is required').optional(),
   lastName: z.string().min(1, 'Last name is required').optional(),
@@ -18,13 +18,13 @@ export const updateStaffSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
-export const searchStaffSchema = z.object({
+export const searchUsersSchema = z.object({
   q: z.string().optional(),
   role: z.string().optional(),
   limit: z.number().int().positive().optional(),
   offset: z.number().int().nonnegative().optional(),
 });
 
-export type CreateStaffInput = z.infer<typeof createStaffSchema>;
-export type UpdateStaffInput = z.infer<typeof updateStaffSchema>;
-export type SearchStaffInput = z.infer<typeof searchStaffSchema>;
+export type CreateUserInput = z.infer<typeof createUserSchema>;
+export type UpdateUserInput = z.infer<typeof updateUserSchema>;
+export type SearchUsersInput = z.infer<typeof searchUsersSchema>;

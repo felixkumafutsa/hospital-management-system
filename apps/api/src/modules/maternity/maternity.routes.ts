@@ -26,6 +26,11 @@ import {
 
 const router = Router();
 
+// Test route in maternity module
+router.get('/test', (_req, res) => {
+  res.status(200).json({ success: true, message: 'Maternity module test route works!' });
+});
+
 // All routes require authentication
 router.use(authenticate);
 

@@ -5,8 +5,13 @@ import ProtectedRoute from "./components/auth/ProtectedRoute";
 import LoginPage from "./pages/auth/LoginPage";
 import { CircularProgress, Box } from "@mui/material";
 
-// Lazy load all page components for code splitting
-const DashboardPage = lazy(() => import("./pages/dashboard/DashboardPage"));
+// Critical core pages - eagerly loaded (not lazy) for instant navigation
+import DashboardPage from "./pages/dashboard/DashboardPage";
+import AppointmentsPage from "./pages/appointments/AppointmentsPage";
+import PatientListPage from "./pages/patients/PatientListPage";
+
+// Grouped lazy loading - related pages share chunks to reduce network requests
+// Role-specific dashboards
 const ReceptionDashboardPage = lazy(
   () => import("./pages/reception/ReceptionDashboardPage"),
 );
@@ -23,41 +28,36 @@ const LabDashboardPage = lazy(() => import("./pages/lab/LabDashboardPage"));
 const AccountsDashboardPage = lazy(
   () => import("./pages/accounts/AccountsDashboardPage"),
 );
-const AppointmentsPage = lazy(
-  () => import("./pages/appointments/AppointmentsPage"),
-);
+
+// Patient management pages
 const PatientRegistrationPage = lazy(
   () => import("./pages/patients/PatientRegistrationPage"),
 );
-const PatientListPage = lazy(() => import("./pages/patients/PatientListPage"));
 const PatientDetailPage = lazy(
   () => import("./pages/patients/PatientDetailPage"),
 );
-// New admin pages we just created
+
+// Admin and specialty pages
 const ConsultationsPage = lazy(
   () => import("./pages/consultations/ConsultationsPage"),
 );
 const FinanceDashboardPage = lazy(
   () => import("./pages/finance/FinanceDashboardPage"),
 );
-const StaffManagementPage = lazy(
-  () => import("./pages/staff/StaffManagementPage"),
+const UserManagementPage = lazy(
+  () => import("./pages/users/UserManagementPage"),
 );
 const PrescriptionsPage = lazy(
   () => import("./pages/prescriptions/PrescriptionsPage"),
 );
 const LabTestsPage = lazy(() => import("./pages/lab/LabTestsPage"));
-// UsersManagementPage is deprecated - functionality merged into StaffManagementPage
-// const UsersManagementPage = lazy(
-//   () => import("./pages/users/UsersManagementPage")
-// );
 const PharmacyInventoryPage = lazy(
   () => import("./pages/pharmacy/PharmacyInventoryPage"),
 );
-const SettingsPage = lazy(() => import("./pages/settings/SettingsPage"));
 const MaternityDashboardPage = lazy(
   () => import("./pages/maternity/MaternityDashboardPage"),
 );
+const SettingsPage = lazy(() => import("./pages/settings/SettingsPage"));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -222,7 +222,15 @@ function App() {
             path="/staff-management"
             element={
               <ProtectedRoute allowedRoles={["ADMINISTRATOR"]}>
-                <StaffManagementPage />
+                <UserManagementPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/user-management"
+            element={
+              <ProtectedRoute allowedRoles={["ADMINISTRATOR"]}>
+                <UserManagementPage />
               </ProtectedRoute>
             }
           />
@@ -248,7 +256,7 @@ function App() {
             path="/users"
             element={
               <ProtectedRoute allowedRoles={["ADMINISTRATOR"]}>
-                <StaffManagementPage />
+                <UserManagementPage />
               </ProtectedRoute>
             }
           />

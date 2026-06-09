@@ -1,42 +1,42 @@
 import { Request, Response, NextFunction } from 'express';
 import {
-  createNewStaff,
-  getStaff,
-  listAllStaff,
-  searchStaffService,
-  updateStaffService,
-  deactivateStaffService,
-  getStaffByRoleService,
-} from './staff.service';
-import { CreateStaffInput, UpdateStaffInput } from './staff.validator';
+  createNewUser,
+  getUser,
+  listAllUsers,
+  searchUsersService,
+  updateUserService,
+  deactivateUserService,
+  getUserByRoleService,
+} from './users.service';
+import { CreateUserInput, UpdateUserInput } from './users.validator';
 
-export const createStaffController = async (
-  req: Request<{}, {}, CreateStaffInput>,
+export const createUserController = async (
+  req: Request<{}, {}, CreateUserInput>,
   res: Response,
   next: NextFunction
 ) => {
   try {
-    const result = await createNewStaff(req.body);
+    const result = await createNewUser(req.body);
     res.status(201).json(result);
   } catch (error) {
     next(error);
   }
 };
 
-export const getStaffController = async (
+export const getUserController = async (
   req: Request<{ id: string }>,
   res: Response,
   next: NextFunction
 ) => {
   try {
-    const result = await getStaff(req.params.id);
+    const result = await getUser(req.params.id);
     res.status(200).json(result);
   } catch (error) {
     next(error);
   }
 };
 
-export const getAllStaffController = async (
+export const getAllUsersController = async (
   req: Request<{}, {}, {}, { limit?: string; offset?: string }>,
   res: Response,
   next: NextFunction
@@ -44,14 +44,14 @@ export const getAllStaffController = async (
   try {
     const limit = req.query.limit ? parseInt(req.query.limit, 10) : undefined;
     const offset = req.query.offset ? parseInt(req.query.offset, 10) : undefined;
-    const result = await listAllStaff(limit, offset);
+    const result = await listAllUsers(limit, offset);
     res.status(200).json(result);
   } catch (error) {
     next(error);
   }
 };
 
-export const searchStaffController = async (
+export const searchUsersController = async (
   req: Request<{}, {}, {}, { q: string; role?: string; limit?: string; offset?: string }>,
   res: Response,
   next: NextFunction
@@ -59,40 +59,40 @@ export const searchStaffController = async (
   try {
     const limit = req.query.limit ? parseInt(req.query.limit, 10) : undefined;
     const offset = req.query.offset ? parseInt(req.query.offset, 10) : undefined;
-    const result = await searchStaffService(req.query.q, req.query.role, limit, offset);
+    const result = await searchUsersService(req.query.q, req.query.role, limit, offset);
     res.status(200).json(result);
   } catch (error) {
     next(error);
   }
 };
 
-export const updateStaffController = async (
-  req: Request<{ id: string }, {}, UpdateStaffInput>,
+export const updateUserController = async (
+  req: Request<{ id: string }, {}, UpdateUserInput>,
   res: Response,
   next: NextFunction
 ) => {
   try {
-    const result = await updateStaffService(req.params.id, req.body);
+    const result = await updateUserService(req.params.id, req.body);
     res.status(200).json(result);
   } catch (error) {
     next(error);
   }
 };
 
-export const deactivateStaffController = async (
+export const deactivateUserController = async (
   req: Request<{ id: string }>,
   res: Response,
   next: NextFunction
 ) => {
   try {
-    const result = await deactivateStaffService(req.params.id);
+    const result = await deactivateUserService(req.params.id);
     res.status(200).json(result);
   } catch (error) {
     next(error);
   }
 };
 
-export const getStaffByRoleController = async (
+export const getUserByRoleController = async (
   req: Request<{ roleId: string }, {}, {}, { limit?: string; offset?: string }>,
   res: Response,
   next: NextFunction
@@ -100,7 +100,7 @@ export const getStaffByRoleController = async (
   try {
     const limit = req.query.limit ? parseInt(req.query.limit, 10) : undefined;
     const offset = req.query.offset ? parseInt(req.query.offset, 10) : undefined;
-    const result = await getStaffByRoleService(req.params.roleId, limit, offset);
+    const result = await getUserByRoleService(req.params.roleId, limit, offset);
     res.status(200).json(result);
   } catch (error) {
     next(error);

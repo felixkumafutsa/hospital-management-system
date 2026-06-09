@@ -87,60 +87,67 @@ const PatientDetailPage = () => {
   const navigate = useNavigate();
   const [tabValue, setTabValue] = React.useState(0);
 
-  const { data: patientData, isLoading: patientLoading } = useQuery({
-    queryKey: ["patient", id],
+  // Fetch core patient and visits data in parallel
+  const { data: combinedData, isLoading: coreDataLoading } = useQuery({
+    queryKey: ["patient-detail", id],
     queryFn: async () => {
-      const response = await api.get(`/patients/${id}`);
-      return response.data.patient as Patient;
-    },
-    enabled: !!id,
-  });
+      // Fetch base data in parallel
+      const [patientResponse, visitsResponse] = await Promise.all([
+        api.get(`/patients/${id}`),
+        api.get(`/visits/patient/${id}`),
+      ]);
 
-  const { data: visitsData, isLoading: visitsLoading } = useQuery({
-    queryKey: ["patientVisits", id],
-    queryFn: async () => {
-      const response = await api.get(`/visits/patient/${id}`);
-      return response.data.visits as Visit[];
-    },
-    enabled: !!id,
-  });
+      const patient = patientResponse.data.patient as Patient;
+      const visits = visitsResponse.data.visits as Visit[];
 
-  // Get current active visit for the patient
-  const currentVisit = visitsData?.find(
-    (v) => v.status !== "COMPLETED" && v.status !== "CANCELLED",
-  );
-
-  // Fetch lab tests for current visit
-  const { data: labTestsData } = useQuery({
-    queryKey: ["visitLabTests", currentVisit?.id],
-    queryFn: async () => {
-      const response = await api.get(`/lab-requests/visit/${currentVisit?.id}`);
-      return response.data.items as LabTest[];
-    },
-    enabled: !!currentVisit?.id,
-  });
-
-  // Fetch prescriptions for current visit
-  const { data: prescriptionsData } = useQuery({
-    queryKey: ["visitPrescriptions", currentVisit?.id],
-    queryFn: async () => {
-      const response = await api.get(
-        `/prescriptions/visit/${currentVisit?.id}`,
+      // Find current active visit
+      const currentVisit = visits.find(
+        (v) => v.status !== "COMPLETED" && v.status !== "CANCELLED",
       );
-      return response.data.items as PrescriptionItem[];
+
+      // If there's a current visit, fetch its related data in parallel too
+      if (currentVisit?.id) {
+        const [labTestsResponse, prescriptionsResponse, invoiceResponse] =
+          await Promise.all([
+            api.get(`/lab-requests/visit/${currentVisit.id}`),
+            api.get(`/prescriptions/visit/${currentVisit.id}`),
+            api.get(`/invoices/visit/${currentVisit.id}`),
+          ]);
+
+        return {
+          patientData: patient,
+          visitsData: visits,
+          currentVisit,
+          labTestsData: labTestsResponse.data.items as LabTest[],
+          prescriptionsData: prescriptionsResponse.data
+            .items as PrescriptionItem[],
+          invoiceData: invoiceResponse.data.invoice as Invoice,
+        };
+      }
+
+      return {
+        patientData: patient,
+        visitsData: visits,
+        currentVisit: undefined,
+        labTestsData: [],
+        prescriptionsData: [],
+        invoiceData: undefined,
+      };
     },
-    enabled: !!currentVisit?.id,
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000, // 5 minutes - cache this detail page data
   });
 
-  // Fetch invoice for current visit
-  const { data: invoiceData } = useQuery({
-    queryKey: ["visitInvoice", currentVisit?.id],
-    queryFn: async () => {
-      const response = await api.get(`/invoices/visit/${currentVisit?.id}`);
-      return response.data.invoice as Invoice;
-    },
-    enabled: !!currentVisit?.id,
-  });
+  // Extract all data from the combined query
+  const {
+    patientData,
+    visitsData,
+    currentVisit,
+    labTestsData = [],
+    prescriptionsData = [],
+    invoiceData,
+  } = combinedData || {};
+  const patientLoading = coreDataLoading;
 
   // Calculate totals
   const currentLabTestsCount = labTestsData?.length || 0;

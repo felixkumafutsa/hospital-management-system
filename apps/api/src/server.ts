@@ -15,7 +15,7 @@ import prescriptionRoutes from './modules/prescriptions/prescription.routes';
 import labRoutes from './modules/laboratory/lab.routes';
 import pharmacyRoutes from './modules/pharmacy/pharmacy.routes';
 import billingRoutes from './modules/billing/billing.routes';
-import staffRoutes from './modules/staff/staff.routes';
+import userRoutes from './modules/users/users.routes';
 import maternityRoutes from './modules/maternity/maternity.routes';
 import schedulingRoutes from './modules/scheduling/scheduling.routes';
 import appointmentsRoutes from './modules/appointments/appointments.routes';
@@ -81,17 +81,17 @@ app.use(generalLimiter);
 // API Routes
 app.use('/api/v1/auth/login', loginLimiter);
 app.use('/api/v1/auth', authRoutes);
+// Move user management and maternity routes first to avoid any path matching issues
+app.use('/api/v1/users', userRoutes);
+app.use('/api/v1/maternity', maternityRoutes);
 app.use('/api/v1/visits', visitRoutes);
 app.use('/api/v1/patients', patientRoutes);
 app.use('/api/v1/prescriptions', prescriptionRoutes);
 app.use('/api/v1/lab', labRoutes);
 app.use('/api/v1/pharmacy', pharmacyRoutes);
 app.use('/api/v1/finance', billingRoutes);
-// User management routes (formerly staff routes)
-app.use('/api/v1/users', staffRoutes);
-app.use('/api/v1/maternity', maternityRoutes);
 app.use('/api/v1/scheduling', schedulingRoutes);
-app.use('/api/v1/scheduling', appointmentsRoutes);
+app.use('/api/v1/appointments', appointmentsRoutes);
 
 // Health check endpoint
 app.get('/api/v1/health', (_req, res) => {

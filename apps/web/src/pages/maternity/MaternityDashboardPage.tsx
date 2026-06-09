@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   Box,
   Grid,
@@ -24,7 +24,7 @@ import {
   Tooltip,
 } from "@mui/material";
 import { Add as AddIcon, Visibility, Edit } from "@mui/icons-material";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import Swal from "sweetalert2";
 import api from "../../services/api";
 
@@ -40,21 +40,9 @@ interface MaternityRecord {
   createdAt: string;
 }
 
-interface ANCVisit {
-  id: string;
-  maternityRecordId: string;
-  visitDate: string;
-  weight: number;
-  bloodPressure: string;
-  fundalHeight: number;
-  fetalHeartRate: number;
-  notes: string;
-}
-
 const MaternityDashboardPage = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
-  const queryClient = useQueryClient();
 
   // Fetch all patients for the form
   const { data: patients } = useQuery({
@@ -66,7 +54,7 @@ const MaternityDashboardPage = () => {
   });
 
   // Fetch all maternity records
-  const { data: maternityRecords, isLoading } = useQuery({
+  const { data: maternityRecords } = useQuery({
     queryKey: ["maternity-records"],
     queryFn: async () => {
       const response = await api.get("/maternity");

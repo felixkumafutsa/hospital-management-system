@@ -127,13 +127,13 @@ export const processTimeOffRequest = (id: string, action: 'APPROVE' | 'REJECTED'
 // Scheduling Dashboard
 export const getSchedulingStats = () => api.get('/scheduling/stats');
 
-// Appointments API calls - these are patient appointments, registered under /scheduling
-export const createAppointment = (appointmentData: any) => api.post('/scheduling', appointmentData);
-export const getAppointments = (params?: any) => api.get('/scheduling', { params });
-export const getAppointment = (id: string) => api.get(`/scheduling/${id}`);
-export const getPatientAppointments = (patientId: string) => api.get(`/scheduling/patient/${patientId}`);
-export const updateAppointmentStatus = (id: string, status: string) => api.put(`/scheduling/${id}`, { status });
-export const deleteAppointment = (id: string) => api.delete(`/scheduling/${id}`);
+// Appointments API calls - these are patient appointments, registered under /appointments
+export const createAppointment = (appointmentData: any) => api.post('/appointments', appointmentData);
+export const getAppointments = (params?: any) => api.get('/appointments', { params });
+export const getAppointment = (id: string) => api.get(`/appointments/${id}`);
+export const getPatientAppointments = (patientId: string) => api.get(`/appointments/patient/${patientId}`);
+export const updateAppointmentStatus = (id: string, status: string) => api.put(`/appointments/${id}/status`, { status });
+export const deleteAppointment = (id: string) => api.delete(`/appointments/${id}`);
 
 // Prescription API calls
 export const createPrescription = (prescriptionData: any) => api.post('/prescriptions', prescriptionData);
