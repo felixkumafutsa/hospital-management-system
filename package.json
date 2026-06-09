@@ -18,11 +18,10 @@
         "build:web": "npm run build -w apps/web",
         "build": "npm run build:api && npm run build:web",
         "vercel-build": "npm run build",
-        "install:all": "npm install""devDependencies": {
-            "concurrently": "^8.2.2",
-            "typescript": "^5.8.2"
-        },
-        ,
+        "install:all": "npm install"
+    },
+    "devDependencies": {
+        "concurrently": "^8.2.2",
         "typescript": "^5.8.2"
     },
     "dependencies": {
