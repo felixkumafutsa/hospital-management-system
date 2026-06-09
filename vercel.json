@@ -1,0 +1,7 @@
+{
+    "$schema": "https://openapi.vercel.sh/vercel.json",
+    "installCommand": "npm cache clean --force && npm install",
+    "buildCommand": "npm run vercel-build",
+    "outputDirectory": "apps/web/dist",
+    "framework": null
+}
