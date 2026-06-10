@@ -16,9 +16,9 @@
         "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
         "build:api": "npm run build -w apps/api",
         "build:web": "npm run build -w apps/web",
-        "build": "npm run build:api && npm run build:web",
-        "vercel-build": "cd apps/api && npm run vercel-build",
-        "postinstall": "npm run prisma:generate -w apps/api",
+        "build": "cd apps/api && npm run build && cd ../.. && npm run build:web",
+        "vercel-build": "cd apps/api && npm install && npx prisma generate && npx tsc",
+        "postinstall": "cd apps/api && npx prisma generate",
         "install:all": "npm install"
     },
     "devDependencies": {
