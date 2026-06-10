@@ -32,14 +32,21 @@ const format = winston.format.combine(
   ),
 );
 
-const transports = [
+const isDevelopment = process.env.NODE_ENV === 'development';
+const transports: winston.transport[] = [
   new winston.transports.Console(),
-  new winston.transports.File({
-    filename: 'logs/error.log',
-    level: 'error',
-  }),
-  new winston.transports.File({ filename: 'logs/all.log' }),
 ];
+
+// Only add file transports in development (local environment)
+if (isDevelopment) {
+  transports.push(
+    new winston.transports.File({
+      filename: 'logs/error.log',
+      level: 'error',
+    }),
+    new winston.transports.File({ filename: 'logs/all.log' })
+  );
+}
 
 const logger = winston.createLogger({
   level: level(),
