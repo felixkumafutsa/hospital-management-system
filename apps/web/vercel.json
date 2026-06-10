@@ -3,5 +3,14 @@
     "installCommand": "npm install --ignore-scripts",
     "buildCommand": "npm run build",
     "outputDirectory": "dist",
-    "framework": "vite"
+    "framework": "vite",
+    "regions": [
+        "iad1"
+    ],
+    "routes": [
+        {
+            "src": "/(.*)",
+            "dest": "/index.html"
+        }
+    ]
 }
