@@ -33,12 +33,13 @@ const format = winston.format.combine(
 );
 
 const isDevelopment = process.env.NODE_ENV === 'development';
+const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY;
 const transports: winston.transport[] = [
   new winston.transports.Console(),
 ];
 
-// Only add file transports in development (local environment)
-if (isDevelopment) {
+// Only add file transports in local development (never in serverless environments)
+if (isDevelopment && !isServerless) {
   transports.push(
     new winston.transports.File({
       filename: 'logs/error.log',
