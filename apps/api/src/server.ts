@@ -279,23 +279,30 @@ app.get('/api/v1/health', (_req, res) => {
 // Global error handler
 app.use(errorHandler);
 
-const startServer = async () => {
-  try {
-    // Connect to database
-    await connectDB();
-    logger.info('✅ Connected to PostgreSQL database');
+// Vercel serverless function export
+if (process.env.VERCEL) {
+  // For Vercel, export the Express app directly
+  module.exports = app;
+} else {
+  // For local development, start the server normally
+  const startServer = async () => {
+    try {
+      // Connect to database
+      await connectDB();
+      logger.info('✅ Connected to PostgreSQL database');
 
-    // Start server
-    app.listen(PORT, () => {
-      logger.info(`🚀 Server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
-      logger.info(`📚 Health check: http://localhost:${PORT}/api/v1/health`);
-    });
-  } catch (error) {
-    logger.error('❌ Failed to start server:', error);
-    process.exit(1);
-  } finally {
-    await prisma.$disconnect();
-  }
-};
+      // Start server
+      app.listen(PORT, () => {
+        logger.info(`🚀 Server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
+        logger.info(`📚 Health check: http://localhost:${PORT}/api/v1/health`);
+      });
+    } catch (error) {
+      logger.error('❌ Failed to start server:', error);
+      process.exit(1);
+    } finally {
+      await prisma.$disconnect();
+    }
+  };
 
-startServer();
+  startServer();
+}
