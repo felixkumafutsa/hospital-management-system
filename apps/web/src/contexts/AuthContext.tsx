@@ -47,6 +47,13 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const API_BASE_URL =
   (import.meta as any).env.VITE_API_URL || "http://localhost:4000/api/v1";
 
+// DEBUG LOGGING - helps diagnose login issues
+console.group("🔐 Auth Debug Info");
+console.log("API_BASE_URL:", API_BASE_URL);
+console.log("VITE_API_URL env var:", (import.meta as any).env.VITE_API_URL);
+console.log("Current window location:", window.location.href);
+console.groupEnd();
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
@@ -111,19 +118,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Login function
   const login = async (email: string, password: string) => {
+    const fullLoginUrl = `${API_BASE_URL}/auth/login`;
+    console.group("🔐 Login Attempt Debug");
+    console.log("Login URL being called:", fullLoginUrl);
+    console.log("Request payload:", { email, password: "***REDACTED***" });
+
     try {
       const response = await axios.post(
-        `${API_BASE_URL}/auth/login`,
+        fullLoginUrl,
         { email, password },
         {
           withCredentials: true,
         },
       );
+      console.log("✅ Login SUCCESS! Response:", response.data);
       const { accessToken: newToken, user: userData } = response.data.data;
       localStorage.setItem("accessToken", newToken);
       setAccessToken(newToken);
       setUser(userData);
+      console.groupEnd();
     } catch (error: any) {
+      console.error("❌ Login FAILED! Full error:", error);
+      console.error("Error code:", error.code);
+      console.error("Error message:", error.message);
+      console.error("Response status:", error.response?.status);
+      console.error("Response data:", error.response?.data);
+      console.error("Request was sent to:", fullLoginUrl);
+      console.groupEnd();
+
       const errorMessage =
         error.response?.data?.error?.message || "Login failed";
       throw new Error(errorMessage);

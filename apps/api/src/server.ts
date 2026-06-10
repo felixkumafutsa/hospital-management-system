@@ -37,6 +37,8 @@ const allowedOrigins = [
   'http://localhost:4000',
   // Add your production Vercel frontend URL
   'https://hospital-management-system-web-lyart.vercel.app',
+  // Add your preview deployment URL
+  'https://hospital-management-system-caovjis5s-felixkumafutsas-projects.vercel.app',
   // Add your Vercel preview URLs here if needed
   ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : [])
 ].filter(Boolean) as string[];
