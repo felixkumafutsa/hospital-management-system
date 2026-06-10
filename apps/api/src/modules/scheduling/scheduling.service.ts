@@ -84,11 +84,11 @@ export const updateStaffSchedule = async (id: string, data: Partial<CreateSchedu
   
   // If we're changing date/shift, check for conflicts
   if (data.shiftDate || data.shiftType) {
-    const newDate = data.shiftDate || existing.shiftDate;
+    const newDate = typeof data.shiftDate === 'string' ? data.shiftDate : existing.shiftDate;
     const newType = data.shiftType || existing.shiftType;
     const userId = data.userId || existing.userId;
     
-    const hasConflict = await checkScheduleConflict(userId, newDate, newType);
+    const hasConflict = await checkScheduleConflict(userId, newDate as string, newType as any);
     if (hasConflict && (data.shiftDate || data.shiftType)) {
       // Only throw if we're actually modifying these fields
       throw new ApiError(409,'Schedule conflict: Staff member already has a shift at this time', 'SCHEDULE_CONFLICT');
