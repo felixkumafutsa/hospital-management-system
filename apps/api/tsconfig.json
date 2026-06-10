@@ -4,7 +4,8 @@
     "lib": ["ES2022"],
     "module": "CommonJS",
     "moduleResolution": "node",
-    "baseUrl": "../../",
+    "baseUrl": "./",
+    "rootDir": "./",
     "outDir": "./dist",
     "strict": true,
     "noImplicitAny": true,
@@ -24,10 +25,10 @@
     "declaration": true,
     "removeComments": true,
     "paths": {
-      "@packages/types": ["packages/types/index.d.ts"],
-      "@packages/*": ["packages/*"]
+      "@packages/types": ["../../packages/types/index.d.ts"],
+      "@packages/*": ["../../packages/*"]
     }
   },
-  "include": ["./src/**/*", "./prisma/seed/**/*", "../../packages/**/*"],
+  "include": ["./src/**/*", "./prisma/seed/**/*", "../../packages/types/**/*"],
   "exclude": ["node_modules", "./dist"]
 }
