@@ -124,6 +124,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     console.log("Request payload:", { email, password: "***REDACTED***" });
 
     try {
+      // Ensure no double slashes in URL
+      const cleanBaseUrl = API_BASE_URL.endsWith("/")
+        ? API_BASE_URL.slice(0, -1)
+        : API_BASE_URL;
+      const fullLoginUrl = `${cleanBaseUrl}/auth/login`;
+      console.log("Clean login URL:", fullLoginUrl);
+
       const response = await axios.post(
         fullLoginUrl,
         { email, password },

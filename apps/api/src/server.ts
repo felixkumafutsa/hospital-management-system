@@ -35,10 +35,10 @@ const allowedOrigins = [
   process.env.FRONTEND_URL,
   'http://localhost:3000',
   'http://localhost:4000',
-  // Add your production Vercel frontend URL
+  // All your frontend Vercel deployment URLs
   'https://hospital-management-system-web-lyart.vercel.app',
-  // Add your preview deployment URL
-  'https://hospital-management-system-caovjis5s-felixkumafutsas-projects.vercel.app',
+  'https://hospital-management-system-git-519a0f-felixkumafutsas-projects.vercel.app',
+  'https://hospital-management-system-1q7jlb2ef-felixkumafutsas-projects.vercel.app',
   // Add your Vercel preview URLs here if needed
   ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : [])
 ].filter(Boolean) as string[];
