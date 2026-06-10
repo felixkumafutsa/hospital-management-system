@@ -11,8 +11,8 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
     // Set refresh token as HTTP-only cookie for additional security
     res.cookie('refreshToken', result.refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: true, // Always secure in production for cross-site
+      sameSite: 'none', // Required for cross-site requests between different domains
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: '/api/v1/auth',
     });
@@ -52,8 +52,8 @@ export const refresh = async (req: Request, res: Response) => {
     // Update the refresh token cookie
     res.cookie('refreshToken', result.refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: true,
+      sameSite: 'none',
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/api/v1/auth',
     });
@@ -89,8 +89,8 @@ export const logout = async (req: Request, res: Response) => {
     // Clear the refresh token cookie
     res.clearCookie('refreshToken', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: true,
+      sameSite: 'none',
       path: '/api/v1/auth',
     });
 
