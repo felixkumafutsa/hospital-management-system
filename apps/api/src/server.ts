@@ -93,6 +93,177 @@ app.use('/api/v1/finance', billingRoutes);
 app.use('/api/v1/scheduling', schedulingRoutes);
 app.use('/api/v1/appointments', appointmentsRoutes);
 
+// API homepage/documentation
+app.get('/', (_req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Better Life Clinic HMS API</title>
+      <style>
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+        }
+        .container {
+          background: white;
+          border-radius: 20px;
+          padding: 40px;
+          max-width: 900px;
+          width: 100%;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .header {
+          text-align: center;
+          margin-bottom: 40px;
+        }
+        .logo {
+          width: 80px;
+          height: 80px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          border-radius: 20px;
+          margin: 0 auto 20px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+          font-size: 32px;
+        }
+        h1 {
+          color: #1a1a2e;
+          font-size: 2.5rem;
+          margin-bottom: 10px;
+        }
+        .subtitle {
+          color: #666;
+          font-size: 1.1rem;
+        }
+        .status-badge {
+          display: inline-block;
+          background: #10b981;
+          color: white;
+          padding: 8px 20px;
+          border-radius: 30px;
+          font-size: 0.9rem;
+          font-weight: 600;
+          margin-top: 15px;
+        }
+        .section {
+          margin: 30px 0;
+        }
+        h2 {
+          color: #1a1a2e;
+          font-size: 1.5rem;
+          margin-bottom: 20px;
+          padding-bottom: 10px;
+          border-bottom: 3px solid #667eea;
+          display: inline-block;
+        }
+        .endpoint-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+          gap: 15px;
+          margin-top: 20px;
+        }
+        .endpoint {
+          background: #f8f9ff;
+          padding: 15px;
+          border-radius: 10px;
+          border-left: 4px solid #667eea;
+        }
+        .method {
+          display: inline-block;
+          padding: 4px 10px;
+          border-radius: 5px;
+          font-size: 0.8rem;
+          font-weight: 700;
+          margin-right: 10px;
+        }
+        .method.get { background: #10b981; color: white; }
+        .method.post { background: #3b82f6; color: white; }
+        .method.put { background: #f59e0b; color: white; }
+        .method.delete { background: #ef4444; color: white; }
+        .path {
+          font-family: 'Courier New', monospace;
+          color: #333;
+          font-size: 0.9rem;
+        }
+        .health-link {
+          display: inline-block;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          padding: 15px 40px;
+          border-radius: 10px;
+          text-decoration: none;
+          font-weight: 600;
+          margin-top: 20px;
+          transition: transform 0.3s ease;
+        }
+        .health-link:hover {
+          transform: translateY(-2px);
+        }
+        .footer {
+          text-align: center;
+          margin-top: 40px;
+          padding-top: 20px;
+          border-top: 1px solid #eee;
+          color: #888;
+          font-size: 0.9rem;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <div class="logo">🏥</div>
+          <h1>Better Life Clinic HMS</h1>
+          <p class="subtitle">Hospital Management System REST API</p>
+          <span class="status-badge">● Server Online</span>
+        </div>
+
+        <div class="section">
+          <h2>Quick Links</h2>
+          <a href="/api/v1/health" class="health-link">Check API Health</a>
+        </div>
+
+        <div class="section">
+          <h2>Available API Endpoints (v1)</h2>
+          <div class="endpoint-grid">
+            <div class="endpoint"><span class="method get">GET</span><span class="path">/api/v1/health</span></div>
+            <div class="endpoint"><span class="method post">POST</span><span class="path">/api/v1/auth/login</span></div>
+            <div class="endpoint"><span class="method get">GET</span><span class="path">/api/v1/users</span></div>
+            <div class="endpoint"><span class="method get">GET</span><span class="path">/api/v1/patients</span></div>
+            <div class="endpoint"><span class="method get">GET</span><span class="path">/api/v1/appointments</span></div>
+            <div class="endpoint"><span class="method get">GET</span><span class="path">/api/v1/lab</span></div>
+            <div class="endpoint"><span class="method get">GET</span><span class="path">/api/v1/pharmacy</span></div>
+            <div class="endpoint"><span class="method get">GET</span><span class="path">/api/v1/finance</span></div>
+            <div class="endpoint"><span class="method get">GET</span><span class="path">/api/v1/maternity</span></div>
+            <div class="endpoint"><span class="method get">GET</span><span class="path">/api/v1/prescriptions</span></div>
+          </div>
+        </div>
+
+        <div class="footer">
+          <p>Better Life Private Clinic HMS • All rights reserved</p>
+          <p>Server deployed on Vercel • Built with Node.js & Express</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `);
+});
+
 // Health check endpoint
 app.get('/api/v1/health', (_req, res) => {
   res.status(200).json({
