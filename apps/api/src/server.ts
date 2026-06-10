@@ -1,13 +1,23 @@
 import dotenv from 'dotenv';
 dotenv.config();
+import { execSync } from 'child_process';
+// Force Prisma generate on Vercel to avoid caching issues
+if (process.env.VERCEL) {
+  try {
+    console.log('Running Prisma generate in Vercel environment...');
+    execSync('npx prisma generate', { stdio: 'inherit' });
+    console.log('Prisma generate completed successfully');
+  } catch (error) {
+    console.error('Prisma generate failed:', error);
+  }
+}
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { rateLimit } from 'express-rate-limit';
-import { PrismaClient } from '@prisma/client';
 import logger from './config/logger';
-import connectDB from './config/database';
+import connectDB, { prisma } from './config/database';
 import authRoutes from './modules/auth/auth.routes';
 import patientRoutes from './modules/patients/patient.routes';
 import visitRoutes from './modules/visit/visit.routes';
@@ -23,7 +33,6 @@ import errorHandler from './middlewares/errorHandler';
 import { auditLogger } from './middlewares/auditLogger';
 
 const app = express();
-const prisma = new PrismaClient();
 const PORT = process.env.PORT || 4000;
 
 // Security middleware

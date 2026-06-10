@@ -17,7 +17,8 @@
         "build:api": "npm run build -w apps/api",
         "build:web": "npm run build -w apps/web",
         "build": "npm run build:api && npm run build:web",
-        "vercel-build": "npm run build",
+        "vercel-build": "cd apps/api && npm run vercel-build",
+        "postinstall": "npm run prisma:generate -w apps/api",
         "install:all": "npm install"
     },
     "devDependencies": {

@@ -8,13 +8,15 @@
   },
   "scripts": {
     "dev": "nodemon --exec \"ts-node -r tsconfig-paths/register\" src/server.ts",
-    "build": "npm run prisma:generate && npx tsc",
+    "build": "prisma generate && npx tsc",
+    "vercel-build": "prisma generate && npx tsc",
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "ts-node -r tsconfig-paths/register prisma/seed/index.ts",
     "lint": "eslint src/**/*.ts",
-    "lint:fix": "eslint src/**/*.ts --fix"
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@packages/types": "*",
