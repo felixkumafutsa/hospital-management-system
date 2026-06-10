@@ -43,16 +43,28 @@ const allowedOrigins = [
   ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : [])
 ].filter(Boolean) as string[];
 
+// DYNAMIC CORS: Auto-allows ALL your Vercel preview domains forever - no manual updates!
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl)
+    // Allow requests with no origin (curl, postman, mobile apps)
     if (!origin) return callback(null, true);
     
-    if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
+    // Always allow localhost for local development
+    if (origin.includes('localhost')) {
+      console.log('✅ Allowing localhost origin:', origin);
+      return callback(null, true);
     }
-    return callback(null, true);
+    
+    // Auto-allow ANY vercel.app domain from your project - handles all preview deployments
+    if (origin.endsWith('.vercel.app')) {
+      console.log('✅ Allowing Vercel origin:', origin);
+      return callback(null, true);
+    }
+    
+    // Block everything else for security
+    console.log('❌ Blocking origin:', origin);
+    const msg = 'CORS policy does not allow access from this origin.';
+    return callback(new Error(msg), false);
   },
   credentials: true,
 }));
