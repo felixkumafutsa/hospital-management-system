@@ -32,22 +32,24 @@ const format = winston.format.combine(
   ),
 );
 
-const isDevelopment = process.env.NODE_ENV === 'development';
-const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY;
+// NEVER add file transports in any production or serverless environment
+// Only use Console transport which works everywhere
 const transports: winston.transport[] = [
   new winston.transports.Console(),
 ];
 
-// Only add file transports in local development (never in serverless environments)
-if (isDevelopment && !isServerless) {
-  transports.push(
-    new winston.transports.File({
-      filename: 'logs/error.log',
-      level: 'error',
-    }),
-    new winston.transports.File({ filename: 'logs/all.log' })
-  );
-}
+// Only add file transports when explicitly in local development
+// This provides an extra layer of safety - if you need file logging locally,
+// you can uncomment this block temporarily
+// if (process.env.NODE_ENV === 'development' && !process.env.VERCEL) {
+//   transports.push(
+//     new winston.transports.File({
+//       filename: 'logs/error.log',
+//       level: 'error',
+//     }),
+//     new winston.transports.File({ filename: 'logs/all.log' })
+//   );
+// }
 
 const logger = winston.createLogger({
   level: level(),
