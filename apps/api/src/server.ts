@@ -41,6 +41,12 @@ app.use(cors({
       return callback(null, true);
     }
     
+    // Explicitly allow your production frontend domain
+    if (origin === 'https://hospital-management-system-web-felixkumafutsas-projects.vercel.app') {
+      console.log('✅ Allowing production frontend origin:', origin);
+      return callback(null, true);
+    }
+    
     // Auto-allow ANY vercel.app domain from your project - handles all preview deployments
     if (origin.endsWith('.vercel.app')) {
       console.log('✅ Allowing Vercel origin:', origin);
