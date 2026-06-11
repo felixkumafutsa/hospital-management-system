@@ -40,6 +40,7 @@ const allowedOrigins = [
   'https://hospital-management-system-git-f88a90-felixkumafutsas-projects.vercel.app',
   'https://hospital-management-system-3lse6iors-felixkumafutsas-projects.vercel.app',
   // Local development
+  'http://localhost:3000',
   'http://localhost:5173',
   'http://localhost:4000'
 ];
