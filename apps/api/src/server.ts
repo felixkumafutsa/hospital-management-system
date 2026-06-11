@@ -29,9 +29,12 @@ app.set('trust proxy', 1);
 
 // Security middleware
 app.use(helmet());
-// Simple CORS that works everywhere - temporarily allow all origins for Vercel deployment
+// Fixed CORS that works with credentials - cannot use origin:'*' with credentials: true
 app.use(cors({
-  origin: '*',
+  origin: (origin, callback) => {
+    // Always allow - this works with credentials
+    callback(null, true);
+  },
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
