@@ -29,36 +29,12 @@ app.set('trust proxy', 1);
 
 // Security middleware
 app.use(helmet());
-// DYNAMIC CORS: Auto-allows ALL your Vercel preview domains forever - no manual updates!
+// Simple CORS configuration that works with Vercel deployments
 app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (curl, postman, mobile apps)
-    if (!origin) return callback(null, true);
-    
-    // Always allow localhost for local development
-    if (origin.includes('localhost')) {
-      console.log('✅ Allowing localhost origin:', origin);
-      return callback(null, true);
-    }
-    
-    // Explicitly allow your production frontend domain
-    if (origin === 'https://hospital-management-system-web-felixkumafutsas-projects.vercel.app') {
-      console.log('✅ Allowing production frontend origin:', origin);
-      return callback(null, true);
-    }
-    
-    // Auto-allow ANY vercel.app domain from your project - handles all preview deployments
-    if (origin.endsWith('.vercel.app')) {
-      console.log('✅ Allowing Vercel origin:', origin);
-      return callback(null, true);
-    }
-    
-    // Block everything else for security
-    console.log('❌ Blocking origin:', origin);
-    const msg = 'CORS policy does not allow access from this origin.';
-    return callback(new Error(msg), false);
-  },
+  origin: '*',
   credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
 }));
 
 // Rate limiting
