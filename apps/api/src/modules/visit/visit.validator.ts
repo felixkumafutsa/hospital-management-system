@@ -41,7 +41,10 @@ export const getVisitsSchema = z.object({
 // Admit patient schema
 export const admitPatientSchema = z.object({
   body: z.object({
-    roomNumber: z.string().min(1, 'Room number is required'),
+    ward: z.string().min(1, 'Ward ID is required'),
+    bedNumber: z.string().min(1, 'Bed number is required'),
+    attendingDoctorId: z.string().uuid('Valid attending doctor ID is required'),
+    expectedDischargeDate: z.coerce.date().optional(),
     dailyRate: z.number().positive('Daily rate must be a positive number')
   }),
   params: z.object({

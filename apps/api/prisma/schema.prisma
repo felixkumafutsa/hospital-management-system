@@ -119,8 +119,14 @@ model Visit {
   admissionDate DateTime? // Date/time patient was admitted
   dischargeDate DateTime? // Date/time patient was discharged
   stayDuration  Int? // Calculated stay duration in days
-  roomNumber    String? // Room number if admitted
+  ward          String? // Ward name if admitted
+  bedNumber     String? // Bed number if admitted
+  attendingDoctorId String? // Attending doctor for admitted patients
+  expectedDischargeDate DateTime? // Expected discharge date
   dailyRate     Decimal?    @db.Decimal(10, 2) // Daily rate for inpatient stay
+  // Emergency fields
+  triageLevel   TriageLevel? // Triage level for emergency cases
+  emergencyNotes String? // Emergency treatment notes
 
   vitals        Vital[]
   consultation  Consultation?
@@ -140,12 +146,31 @@ enum VisitType {
   EMERGENCY
 }
 
+enum TriageLevel {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum FollowUpStatus {
+  SCHEDULED
+  COMPLETED
+  MISSED
+}
+
 enum VisitStatus {
   REGISTERED
+  WAITING_FOR_CONSULTATION
   TRIAGED
   CONSULTING
-  LAB_PENDING
-  PHARMACY
+  AWAITING_LABORATORY
+  RESULTS_AVAILABLE
+  AWAITING_PHARMACY
+  ADMITTED
+  MATERNITY
+  EMERGENCY
+  REFERRED
   BILLING
   COMPLETED
   CANCELLED
@@ -185,6 +210,8 @@ model Consultation {
   plan           String?
   followUpDate   DateTime?
   followUpNotes  String?
+  followUpStatus FollowUpStatus?
+  assignedDoctorId String? // Doctor assigned for follow-up
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -645,11 +672,46 @@ enum TimeOffStatus {
 }
 
 // Audit Log
+// Bed & Ward Management for admissions
+model Ward {
+  id          String   @id @default(uuid())
+  name        String   @unique // Medical Ward, Surgical Ward, ICU, Maternity
+  department  String
+  totalBeds   Int
+  description String?
+  isActive    Boolean  @default(true)
+  beds        Bed[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Bed {
+  id           String   @id @default(uuid())
+  ward         Ward     @relation(fields: [wardId], references: [id])
+  wardId       String
+  bedNumber    String   // Bed 1, Bed 2 etc.
+  status       BedStatus @default(AVAILABLE)
+  isOccupied   Boolean  @default(false)
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([wardId, bedNumber])
+}
+
+enum BedStatus {
+  AVAILABLE
+  OCCUPIED
+  MAINTENANCE
+  RESERVED
+}
+
 model AuditLog {
   id         String   @id @default(uuid())
   user       User     @relation(fields: [userId], references: [id])
   userId     String
   action     String // CREATE_PATIENT, DISPENSE_DRUG, LOGIN, etc.
+  module     String // Which module the action was performed in
   resource   String
   resourceId String?
   ipAddress  String?

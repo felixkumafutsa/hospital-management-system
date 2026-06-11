@@ -5,9 +5,11 @@ import {
   getPatientVisitHistory,
   fetchAllVisits,
   updateVisitStatusService,
-  getVisitQueue
+  getVisitQueue,
+  admitExistingPatient,
+  dischargeExistingPatient
 } from './visit.service';
-import { CreateVisitInput, UpdateVisitStatusInput } from './visit.validator';
+import { CreateVisitInput, UpdateVisitStatusInput, AdmitPatientInput } from './visit.validator';
 
 // Create new visit
 export const createVisitController = async (
@@ -101,6 +103,42 @@ export const getVisitQueueController = async (
 ) => {
   try {
     const result = await getVisitQueue();
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Admit patient to ward
+export const admitPatientController = async (
+  req: Request<{ id: string }, {}, AdmitPatientInput>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const expectedDischargeDate = req.body.expectedDischargeDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // Default to 7 days from now
+    const result = await admitExistingPatient(
+      req.params.id,
+      req.body.ward,
+      req.body.bedNumber,
+      req.body.attendingDoctorId,
+      expectedDischargeDate,
+      req.body.dailyRate
+    );
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Discharge patient
+export const dischargePatientController = async (
+  req: Request<{ id: string }>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const result = await dischargeExistingPatient(req.params.id);
     res.status(200).json(result);
   } catch (error) {
     next(error);

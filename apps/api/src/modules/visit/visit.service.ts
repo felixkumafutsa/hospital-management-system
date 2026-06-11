@@ -6,13 +6,20 @@ import {
   updateVisitStatus,
   getActiveVisitsQueue,
   admitPatient,
-  dischargePatient
+  dischargePatient,
+  setEmergencyStatus,
+  setMaternityStatus,
+  getWardOccupancy,
+  getWaitingConsultationQueue,
+  getPendingLabTests,
+  getPendingPrescriptions,
+  getCurrentAdmissions
 } from './visit.repository';
 import { findPatientById } from '../patients/patient.repository';
 import { ApiError } from '../../middlewares/errorHandler';
 import { CreateVisitInput, UpdateVisitStatusInput } from './visit.validator';
 
-// Create new visit service
+// Create new visit service - sets status to WAITING_FOR_CONSULTATION after registration
 export const createNewVisit = async (data: CreateVisitInput, userId: string) => {
   // Check if patient exists
   const patient = await findPatientById(data.patientId);
@@ -27,7 +34,10 @@ export const createNewVisit = async (data: CreateVisitInput, userId: string) => 
     data.referralNote
   );
 
-  return { success: true, visit };
+  // After registration, patient is waiting for consultation
+  const updatedVisit = await updateVisitStatus(visit.id, 'WAITING_FOR_CONSULTATION');
+
+  return { success: true, visit: updatedVisit };
 };
 
 // Get visit by ID service
@@ -88,18 +98,144 @@ export const getVisitQueue = async () => {
   return { success: true, queue: visits };
 };
 
-// Admit patient (inpatient stay) service
-export const admitExistingPatient = async (id: string, roomNumber: string, dailyRate: number) => {
+// Flag patient as emergency
+export const setPatientEmergency = async (
+  id: string, 
+  triageLevel: string,
+  emergencyNotes?: string
+) => {
   const visit = await findVisitById(id);
   if (!visit) {
     throw new ApiError(404, 'VISIT_NOT_FOUND', 'Visit not found');
   }
 
-  if (visit.visitType !== 'INPATIENT') {
-    throw new ApiError(400, 'INVALID_VISIT_TYPE', 'Cannot admit patient with non-inpatient visit type');
+  const updatedVisit = await setEmergencyStatus(id, triageLevel, emergencyNotes);
+  return {
+    success: true,
+    message: 'Patient marked as emergency case',
+    visit: updatedVisit
+  };
+};
+
+// Route patient to maternity
+export const routeToMaternity = async (id: string) => {
+  const visit = await findVisitById(id);
+  if (!visit) {
+    throw new ApiError(404, 'VISIT_NOT_FOUND', 'Visit not found');
   }
 
-  const updatedVisit = await admitPatient(id, roomNumber, dailyRate);
+  const updatedVisit = await setMaternityStatus(id);
+  return {
+    success: true,
+    message: 'Patient routed to maternity unit',
+    visit: updatedVisit
+  };
+};
+
+// Send patient to lab - updates status to AWAITING_LABORATORY
+export const sendToLaboratory = async (id: string) => {
+  const visit = await findVisitById(id);
+  if (!visit) {
+    throw new ApiError(404, 'VISIT_NOT_FOUND', 'Visit not found');
+  }
+
+  const updatedVisit = await updateVisitStatus(id, 'AWAITING_LABORATORY');
+  return {
+    success: true,
+    message: 'Patient sent to laboratory',
+    visit: updatedVisit
+  };
+};
+
+// Mark lab results as available - notifies doctor
+export const labResultsAvailable = async (id: string) => {
+  const visit = await findVisitById(id);
+  if (!visit) {
+    throw new ApiError(404, 'VISIT_NOT_FOUND', 'Visit not found');
+  }
+
+  const updatedVisit = await updateVisitStatus(id, 'RESULTS_AVAILABLE');
+  return {
+    success: true,
+    message: 'Lab results marked as available, doctor notified',
+    visit: updatedVisit
+  };
+};
+
+// Send patient to pharmacy
+export const sendToPharmacy = async (id: string) => {
+  const visit = await findVisitById(id);
+  if (!visit) {
+    throw new ApiError(404, 'VISIT_NOT_FOUND', 'Visit not found');
+  }
+
+  const updatedVisit = await updateVisitStatus(id, 'AWAITING_PHARMACY');
+  return {
+    success: true,
+    message: 'Patient sent to pharmacy',
+    visit: updatedVisit
+  };
+};
+
+// Complete visit after pharmacy dispensing
+export const completeVisit = async (id: string) => {
+  const visit = await findVisitById(id);
+  if (!visit) {
+    throw new ApiError(404, 'VISIT_NOT_FOUND', 'Visit not found');
+  }
+
+  const updatedVisit = await updateVisitStatus(id, 'COMPLETED');
+  return {
+    success: true,
+    message: 'Visit completed successfully',
+    visit: updatedVisit
+  };
+};
+
+// Dashboard statistics services
+export const getDashboardStats = async () => {
+  const [waitingPatients, pendingLabs, pendingPrescriptions, currentAdmissions, wardOccupancy] = await Promise.all([
+    getWaitingConsultationQueue(),
+    getPendingLabTests(),
+    getPendingPrescriptions(),
+    getCurrentAdmissions(),
+    getWardOccupancy()
+  ]);
+
+  return {
+    success: true,
+    stats: {
+      waitingForConsultation: waitingPatients.length,
+      pendingLabTests: pendingLabs.length,
+      pendingPrescriptions: pendingPrescriptions.length,
+      currentAdmissions: currentAdmissions.length,
+      wardOccupancy
+    }
+  };
+};
+
+// Admit patient (inpatient stay) service
+export const admitExistingPatient = async (
+  id: string, 
+  ward: string, 
+  bedNumber: string, 
+  attendingDoctorId: string,
+  expectedDischargeDate: Date,
+  dailyRate: number
+) => {
+  const visit = await findVisitById(id);
+  if (!visit) {
+    throw new ApiError(404, 'VISIT_NOT_FOUND', 'Visit not found');
+  }
+
+  const updatedVisit = await admitPatient(
+    id, 
+    ward, 
+    bedNumber, 
+    attendingDoctorId, 
+    expectedDischargeDate, 
+    dailyRate
+  );
   return { 
     success: true, 
     message: 'Patient admitted successfully', 

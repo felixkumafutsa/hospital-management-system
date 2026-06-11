@@ -9,10 +9,11 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
     const result = await authService.login(email, password);
     
     // Set refresh token as HTTP-only cookie for additional security
+    const isLocalhost = req.hostname === 'localhost' || req.hostname === '127.0.0.1';
     res.cookie('refreshToken', result.refreshToken, {
       httpOnly: true,
-      secure: true, // Always secure in production for cross-site
-      sameSite: 'none', // Required for cross-site requests between different domains
+      secure: !isLocalhost, // Secure only in production (HTTPS), not localhost (HTTP)
+      sameSite: isLocalhost ? 'lax' : 'none', // lax for localhost, none for cross-site
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: '/api/v1/auth',
     });
@@ -50,10 +51,11 @@ export const refresh = async (req: Request, res: Response) => {
     const result = await authService.refreshToken(refreshToken);
     
     // Update the refresh token cookie
+    const isLocalhost = req.hostname === 'localhost' || req.hostname === '127.0.0.1';
     res.cookie('refreshToken', result.refreshToken, {
       httpOnly: true,
-      secure: true,
-      sameSite: 'none',
+      secure: !isLocalhost, // Secure only in production (HTTPS), not localhost (HTTP)
+      sameSite: isLocalhost ? 'lax' : 'none', // lax for localhost, none for cross-site
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/api/v1/auth',
     });

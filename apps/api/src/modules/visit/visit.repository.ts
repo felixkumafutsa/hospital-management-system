@@ -126,16 +126,28 @@ export const updateVisitStatus = async (
 // Admit patient (for inpatient stays)
 export const admitPatient = async (
   id: string,
-  roomNumber: string,
+  ward: string,
+  bedNumber: string,
+  attendingDoctorId: string,
+  expectedDischargeDate: Date,
   dailyRate: number
 ): Promise<Visit> => {
+  // Mark bed as occupied
+  await prisma.bed.updateMany({
+    where: { wardId: ward, bedNumber: bedNumber, isOccupied: false },
+    data: { isOccupied: true, status: 'OCCUPIED' }
+  });
+
   return prisma.visit.update({
     where: { id },
     data: {
       admissionDate: new Date(),
-      roomNumber,
+      ward,
+      bedNumber,
+      attendingDoctorId,
+      expectedDischargeDate,
       dailyRate,
-      status: VisitStatus.CONSULTING // Update status to indicate active stay
+      status: VisitStatus.ADMITTED
     }
   });
 };
@@ -146,6 +158,14 @@ export const dischargePatient = async (id: string): Promise<Visit> => {
   
   if (!visit || !visit.admissionDate) {
     throw new Error('Cannot discharge patient who was not admitted');
+  }
+
+  // Free up the bed
+  if (visit.ward && visit.bedNumber) {
+    await prisma.bed.updateMany({
+      where: { wardId: visit.ward, bedNumber: visit.bedNumber },
+      data: { isOccupied: false, status: 'AVAILABLE' }
+    });
   }
 
   // Calculate stay duration in days
@@ -171,6 +191,73 @@ export const getActiveVisitsQueue = async (): Promise<Visit[]> => {
         notIn: [VisitStatus.COMPLETED, VisitStatus.CANCELLED]
       }
     },
+    orderBy: [
+      // Emergency cases first
+      { status: { desc: 'ASC' } },
+      { visitDate: 'asc' }
+    ],
+    include: {
+      patient: {
+        select: {
+          firstName: true,
+          lastName: true,
+          patientNumber: true
+        }
+      }
+    }
+  });
+};
+
+// Update visit with emergency triage
+export const setEmergencyStatus = async (
+  id: string,
+  triageLevel: string,
+  emergencyNotes?: string
+): Promise<Visit> => {
+  return prisma.visit.update({
+    where: { id },
+    data: {
+      status: VisitStatus.EMERGENCY,
+      triageLevel,
+      emergencyNotes,
+      visitType: VisitType.EMERGENCY
+    }
+  });
+};
+
+// Update visit with maternity routing
+export const setMaternityStatus = async (id: string): Promise<Visit> => {
+  return prisma.visit.update({
+    where: { id },
+    data: {
+      status: VisitStatus.MATERNITY,
+      visitType: VisitType.ANC
+    }
+  });
+};
+
+// Get ward occupancy statistics
+export const getWardOccupancy = async () => {
+  const wards = await prisma.ward.findMany({
+    include: {
+      beds: true
+    }
+  });
+
+  return wards.map((ward: any) => ({
+    ...ward,
+    occupiedBeds: ward.beds.filter((bed: any) => bed.isOccupied).length,
+    availableBeds: ward.beds.filter((bed: any) => bed.status === 'AVAILABLE').length,
+    totalBeds: ward.totalBeds
+  }));
+};
+
+// Get patients waiting for consultation
+export const getWaitingConsultationQueue = async (): Promise<Visit[]> => {
+  return prisma.visit.findMany({
+    where: {
+      status: VisitStatus.WAITING_FOR_CONSULTATION
+    },
     orderBy: { visitDate: 'asc' },
     include: {
       patient: {
@@ -180,6 +267,49 @@ export const getActiveVisitsQueue = async (): Promise<Visit[]> => {
           patientNumber: true
         }
       }
+    }
+  });
+};
+
+// Get pending lab tests
+export const getPendingLabTests = async (): Promise<Visit[]> => {
+  return prisma.visit.findMany({
+    where: {
+      status: VisitStatus.AWAITING_LABORATORY
+    },
+    include: {
+      patient: true,
+      labRequests: {
+        include: { items: { include: { test: true } } }
+      }
+    }
+  });
+};
+
+// Get pending prescriptions
+export const getPendingPrescriptions = async (): Promise<Visit[]> => {
+  return prisma.visit.findMany({
+    where: {
+      status: VisitStatus.AWAITING_PHARMACY
+    },
+    include: {
+      patient: true,
+      prescriptions: {
+        where: { status: 'PENDING' },
+        include: { items: { include: { medicine: true } } }
+      }
+    }
+  });
+};
+
+// Get current admissions
+export const getCurrentAdmissions = async (): Promise<Visit[]> => {
+  return prisma.visit.findMany({
+    where: {
+      status: VisitStatus.ADMITTED
+    },
+    include: {
+      patient: true
     }
   });
 };

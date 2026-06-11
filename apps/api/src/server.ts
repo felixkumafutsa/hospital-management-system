@@ -29,20 +29,6 @@ app.set('trust proxy', 1);
 
 // Security middleware
 app.use(helmet());
-// CORS configuration that works for both local development and Vercel production
-const allowedOrigins = [
-  process.env.CORS_ORIGIN,
-  process.env.FRONTEND_URL,
-  'http://localhost:3000',
-  'http://localhost:4000',
-  // All your frontend Vercel deployment URLs
-  'https://hospital-management-system-web-lyart.vercel.app',
-  'https://hospital-management-system-git-519a0f-felixkumafutsas-projects.vercel.app',
-  'https://hospital-management-system-1q7jlb2ef-felixkumafutsas-projects.vercel.app',
-  // Add your Vercel preview URLs here if needed
-  ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : [])
-].filter(Boolean) as string[];
-
 // DYNAMIC CORS: Auto-allows ALL your Vercel preview domains forever - no manual updates!
 app.use(cors({
   origin: (origin, callback) => {

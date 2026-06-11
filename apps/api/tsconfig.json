@@ -29,6 +29,6 @@
       "@packages/*": ["../../packages/*"]
     }
   },
-  "include": ["./src/**/*", "./prisma/seed/**/*", "../../packages/types/**/*"],
+  "include": ["./src/**/*", "./prisma/seed/**/*"],
   "exclude": ["node_modules", "./dist"]
 }
