@@ -44,8 +44,18 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // API base URL - uses current origin in production, localhost in development
-const API_BASE_URL =
-  (import.meta as any).env.VITE_API_URL || "http://localhost:4000/api/v1";
+const API_BASE_URL = (() => {
+  const envUrl = (import.meta as any).env.VITE_API_URL;
+  if (envUrl) return envUrl;
+
+  // If no env var is set and we're in production, use your API domain
+  if (window.location.hostname !== "localhost") {
+    return "https://hospital-management-system-api-felixkumafutsas-projects.vercel.app/api/v1";
+  }
+
+  // Default to localhost for development
+  return "http://localhost:4000/api/v1";
+})();
 
 // DEBUG LOGGING - helps diagnose login issues
 console.group("🔐 Auth Debug Info");
