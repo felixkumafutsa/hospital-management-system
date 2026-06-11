@@ -29,48 +29,9 @@ app.set('trust proxy', 1);
 
 // Security middleware
 app.use(helmet());
-// Comprehensive CORS configuration that allows all your Vercel deployment domains
-const allowedOrigins = [
-  // Frontend domains
-  'https://hospital-management-system-web-felixkumafutsas-projects.vercel.app',
-  'https://hospital-management-system-git-519a0f-felixkumafutsas-projects.vercel.app',
-  'https://hospital-management-system-l3105cn19-felixkumafutsas-projects.vercel.app',
-  // Backend/API domains (in case they need to call themselves)
-  'https://hospital-management-system-api-felixkumafutsas-projects.vercel.app',
-  'https://hospital-management-system-git-f88a90-felixkumafutsas-projects.vercel.app',
-  'https://hospital-management-system-3lse6iors-felixkumafutsas-projects.vercel.app',
-  // Local development
-  'http://localhost:3000',
-  'http://localhost:5173',
-  'http://localhost:4000'
-];
-
+// Simple CORS that works everywhere - temporarily allow all origins for Vercel deployment
 app.use(cors({
-  origin: (origin, callback) => {
-    console.log('🔍 CORS - Checking origin:', origin);
-    
-    // Allow requests with no origin
-    if (!origin) {
-      console.log('✅ Allowing request with no origin');
-      return callback(null, true);
-    }
-    
-    // Check if origin is in allowed list
-    if (allowedOrigins.includes(origin)) {
-      console.log('✅ Allowing origin:', origin);
-      return callback(null, true);
-    }
-    
-    // Also allow any other vercel.app domain for future previews
-    if (origin.endsWith('.vercel.app')) {
-      console.log('✅ Allowing preview domain:', origin);
-      return callback(null, true);
-    }
-    
-    // Block everything else
-    console.log('❌ Blocking origin:', origin);
-    return callback(new Error('CORS policy blocks this origin'), false);
-  },
+  origin: '*',
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
