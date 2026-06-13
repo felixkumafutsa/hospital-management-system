@@ -14,6 +14,7 @@ const router = Router();
 // Public routes
 router.post('/login', loginValidator, validate, authController.login);
 router.post('/refresh', refreshTokenValidator, validate, authController.refresh);
+router.post('/refresh-token', refreshTokenValidator, validate, authController.refresh); // alias for frontend compatibility
 
 // Protected routes (require authentication)
 router.post('/logout', logoutValidator, validate, authenticate, authController.logout);

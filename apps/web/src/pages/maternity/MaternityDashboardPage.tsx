@@ -43,6 +43,10 @@ interface MaternityRecord {
 const MaternityDashboardPage = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
+  const [selectedPatient, setSelectedPatient] = useState("");
+  const [lmp, setLmp] = useState("");
+  const [gravida, setGravida] = useState<number>(0);
+  const [parity, setParity] = useState<number>(0);
 
   // Fetch all patients for the form
   const { data: patients } = useQuery({
@@ -53,11 +57,11 @@ const MaternityDashboardPage = () => {
     },
   });
 
-  // Fetch all maternity records
-  const { data: maternityRecords } = useQuery({
+  // Fetch all ANC (maternity) records
+  const { data: maternityRecords, refetch } = useQuery({
     queryKey: ["maternity-records"],
     queryFn: async () => {
-      const response = await api.get("/maternity");
+      const response = await api.get("/maternity/anc");
       return response.data.data as MaternityRecord[];
     },
   });
@@ -180,7 +184,16 @@ const MaternityDashboardPage = () => {
               <Grid item xs={12}>
                 <FormControl fullWidth required>
                   <InputLabel>Select Patient</InputLabel>
-                  <Select label="Select Patient">
+                  <Select
+                    label="Select Patient"
+                    value={selectedPatient}
+                    onChange={(e) =>
+                      setSelectedPatient(e.target.value as string)
+                    }
+                  >
+                    <MenuItem value="">
+                      <em>None</em>
+                    </MenuItem>
                     {patients?.map((patient: any) => (
                       <MenuItem key={patient.id} value={patient.id}>
                         {patient.firstName} {patient.lastName} -{" "}
@@ -200,6 +213,8 @@ const MaternityDashboardPage = () => {
                   fullWidth
                   label="Last Menstrual Period"
                   type="date"
+                  value={lmp}
+                  onChange={(e) => setLmp(e.target.value)}
                   InputLabelProps={{ shrink: true }}
                 />
               </Grid>
@@ -208,6 +223,8 @@ const MaternityDashboardPage = () => {
                   fullWidth
                   label="Gravida (Number of pregnancies)"
                   type="number"
+                  value={gravida}
+                  onChange={(e) => setGravida(parseInt(e.target.value) || 0)}
                 />
               </Grid>
               <Grid item xs={12}>
@@ -215,6 +232,8 @@ const MaternityDashboardPage = () => {
                   fullWidth
                   label="Parity (Number of live births)"
                   type="number"
+                  value={parity}
+                  onChange={(e) => setParity(parseInt(e.target.value) || 0)}
                 />
               </Grid>
             </Grid>
@@ -229,11 +248,44 @@ const MaternityDashboardPage = () => {
             </Button>
             <Button
               variant="contained"
-              onClick={() => {
+              onClick={async () => {
                 if (activeStep === steps.length - 1) {
-                  handleCloseDrawer();
-                  Swal.fire("Success", "Pregnancy record created", "success");
+                  try {
+                    // Submit the ANC record
+                    await api.post("/maternity/anc", {
+                      patientId: selectedPatient,
+                      lmp: new Date(lmp),
+                      gravida,
+                      parity,
+                      status: "ONGOING",
+                    });
+                    handleCloseDrawer();
+                    // Reset form
+                    setSelectedPatient("");
+                    setLmp("");
+                    setGravida(0);
+                    setParity(0);
+                    setActiveStep(0);
+                    // Refetch records
+                    refetch();
+                    Swal.fire("Success", "Pregnancy record created", "success");
+                  } catch (error) {
+                    Swal.fire(
+                      "Error",
+                      "Failed to create pregnancy record",
+                      "error",
+                    );
+                  }
                 } else {
+                  // Validate before proceeding to next step
+                  if (activeStep === 0 && !selectedPatient) {
+                    Swal.fire(
+                      "Warning",
+                      "Please select a patient first",
+                      "warning",
+                    );
+                    return;
+                  }
                   setActiveStep((prev) => prev + 1);
                 }
               }}

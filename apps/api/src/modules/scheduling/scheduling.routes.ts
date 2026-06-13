@@ -34,8 +34,28 @@ router.get('/', listSchedulesController);
 // Get scheduling dashboard statistics
 router.get('/stats', getSchedulingStatsController);
 
+// Get schedules for a specific user — must be before /:id
+router.get('/user/:userId', getSchedulesByUserController);
+
+// Get schedules for a specific department on a date — must be before /:id
+router.get('/department/:department/date/:date', getSchedulesByDepartmentController);
+
+// ==================== Time Off Request Routes ====================
+// All /timeoff/* routes must be before /:id to avoid route shadowing
 // Get all pending time off requests
 router.get('/timeoff/pending', getPendingTimeOffController);
+
+// Submit new time off request
+router.post('/timeoff', createTimeOffController);
+
+// Get time off requests for a specific user — must be before /timeoff/:id
+router.get('/timeoff/user/:userId', getTimeOffByUserController);
+
+// Get specific time off request
+router.get('/timeoff/:id', getTimeOffController);
+
+// Approve/reject time off request
+router.post('/timeoff/:id/process', validate(ProcessTimeOffSchema), processTimeOffController);
 
 // Create new schedule
 router.post('/', validate(CreateScheduleSchema), createScheduleController);
@@ -48,24 +68,5 @@ router.put('/:id', validate(UpdateScheduleSchema), updateScheduleController);
 
 // Delete schedule
 router.delete('/:id', deleteScheduleController);
-
-// Get schedules for a specific user
-router.get('/user/:userId', getSchedulesByUserController);
-
-// Get schedules for a specific department on a date
-router.get('/department/:department/date/:date', getSchedulesByDepartmentController);
-
-// ==================== Time Off Request Routes ====================
-// Submit new time off request
-router.post('/timeoff', createTimeOffController);
-
-// Get specific time off request
-router.get('/timeoff/:id', getTimeOffController);
-
-// Get time off requests for a specific user
-router.get('/timeoff/user/:userId', getTimeOffByUserController);
-
-// Approve/reject time off request
-router.post('/timeoff/:id/process', validate(ProcessTimeOffSchema), processTimeOffController);
 
 export default router;

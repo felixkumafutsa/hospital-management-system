@@ -1,3 +1,4 @@
+import { Request } from 'express';
 import {
   createVisit,
   findVisitById,
@@ -17,7 +18,16 @@ import {
 } from './visit.repository';
 import { findPatientById } from '../patients/patient.repository';
 import { ApiError } from '../../middlewares/errorHandler';
+import { TriageLevel } from '@prisma/client';
 import { CreateVisitInput, UpdateVisitStatusInput } from './visit.validator';
+import { 
+  notifyDoctorsOfLabResults, 
+  notifyLabTechniciansOfNewPatient,
+  notifyPharmacistsOfNewPrescription,
+  notifyEmergencyCase,
+  notifyAdmission,
+  notifyDischarge
+} from '../notifications/notifications.service';
 
 // Create new visit service - sets status to WAITING_FOR_CONSULTATION after registration
 export const createNewVisit = async (data: CreateVisitInput, userId: string) => {
@@ -101,18 +111,41 @@ export const getVisitQueue = async () => {
 // Flag patient as emergency
 export const setPatientEmergency = async (
   id: string, 
-  triageLevel: string,
-  emergencyNotes?: string
+  triageLevel: TriageLevel,
+  emergencyNotes?: string,
+  req?: Request
 ) => {
   const visit = await findVisitById(id);
   if (!visit) {
     throw new ApiError(404, 'VISIT_NOT_FOUND', 'Visit not found');
   }
 
+  // Get patient details for notification
+  const patient = await findPatientById(visit.patientId);
+  if (!patient) {
+    throw new ApiError(404, 'PATIENT_NOT_FOUND', 'Patient not found');
+  }
+
+  // Create audit log before update
+  if (req) {
+    await req.createAuditLog({
+      action: 'MARK_EMERGENCY',
+      resource: 'VISIT',
+      resourceId: visit.id,
+      before: { status: visit.status },
+      after: { status: 'EMERGENCY', triageLevel }
+    });
+  }
+
   const updatedVisit = await setEmergencyStatus(id, triageLevel, emergencyNotes);
+  
+  // Notify doctors of emergency case
+  const patientName = `${patient.firstName} ${patient.lastName}`;
+  await notifyEmergencyCase(visit.id, patientName, triageLevel);
+
   return {
     success: true,
-    message: 'Patient marked as emergency case',
+    message: 'Patient marked as emergency case, emergency team notified',
     visit: updatedVisit
   };
 };
@@ -133,56 +166,125 @@ export const routeToMaternity = async (id: string) => {
 };
 
 // Send patient to lab - updates status to AWAITING_LABORATORY
-export const sendToLaboratory = async (id: string) => {
+export const sendToLaboratory = async (id: string, req: Request) => {
   const visit = await findVisitById(id);
   if (!visit) {
     throw new ApiError(404, 'VISIT_NOT_FOUND', 'Visit not found');
   }
 
+  // Get patient details for notification
+  const patient = await findPatientById(visit.patientId);
+  if (!patient) {
+    throw new ApiError(404, 'PATIENT_NOT_FOUND', 'Patient not found');
+  }
+
+  // Create audit log before update
+  await req.createAuditLog({
+    action: 'UPDATE_VISIT_STATUS',
+    resource: 'VISIT',
+    resourceId: visit.id,
+    before: { status: visit.status },
+    after: { status: 'AWAITING_LABORATORY' }
+  });
+
   const updatedVisit = await updateVisitStatus(id, 'AWAITING_LABORATORY');
+  
+  // Notify lab technicians
+  const patientName = `${patient.firstName} ${patient.lastName}`;
+  await notifyLabTechniciansOfNewPatient(visit.id, patientName);
+
   return {
     success: true,
-    message: 'Patient sent to laboratory',
+    message: 'Patient sent to laboratory, lab team notified',
     visit: updatedVisit
   };
 };
 
 // Mark lab results as available - notifies doctor
-export const labResultsAvailable = async (id: string) => {
+export const labResultsAvailable = async (id: string, req: Request) => {
   const visit = await findVisitById(id);
   if (!visit) {
     throw new ApiError(404, 'VISIT_NOT_FOUND', 'Visit not found');
   }
 
+  // Get patient details for notification
+  const patient = await findPatientById(visit.patientId);
+  if (!patient) {
+    throw new ApiError(404, 'PATIENT_NOT_FOUND', 'Patient not found');
+  }
+
+  // Create audit log before update
+  await req.createAuditLog({
+    action: 'UPDATE_VISIT_STATUS',
+    resource: 'VISIT',
+    resourceId: visit.id,
+    before: { status: visit.status },
+    after: { status: 'RESULTS_AVAILABLE' }
+  });
+
   const updatedVisit = await updateVisitStatus(id, 'RESULTS_AVAILABLE');
+  
+  // Notify doctors of available lab results
+  const patientName = `${patient.firstName} ${patient.lastName}`;
+  await notifyDoctorsOfLabResults(visit.id, patientName);
+
   return {
     success: true,
-    message: 'Lab results marked as available, doctor notified',
+    message: 'Lab results marked as available, doctors notified',
     visit: updatedVisit
   };
 };
 
 // Send patient to pharmacy
-export const sendToPharmacy = async (id: string) => {
+export const sendToPharmacy = async (id: string, req: Request) => {
   const visit = await findVisitById(id);
   if (!visit) {
     throw new ApiError(404, 'VISIT_NOT_FOUND', 'Visit not found');
   }
 
+  // Get patient details for notification
+  const patient = await findPatientById(visit.patientId);
+  if (!patient) {
+    throw new ApiError(404, 'PATIENT_NOT_FOUND', 'Patient not found');
+  }
+
+  // Create audit log before update
+  await req.createAuditLog({
+    action: 'UPDATE_VISIT_STATUS',
+    resource: 'VISIT',
+    resourceId: visit.id,
+    before: { status: visit.status },
+    after: { status: 'AWAITING_PHARMACY' }
+  });
+
   const updatedVisit = await updateVisitStatus(id, 'AWAITING_PHARMACY');
+  
+  // Notify pharmacists
+  const patientName = `${patient.firstName} ${patient.lastName}`;
+  await notifyPharmacistsOfNewPrescription(visit.id, patientName);
+
   return {
     success: true,
-    message: 'Patient sent to pharmacy',
+    message: 'Patient sent to pharmacy, pharmacy team notified',
     visit: updatedVisit
   };
 };
 
 // Complete visit after pharmacy dispensing
-export const completeVisit = async (id: string) => {
+export const completeVisit = async (id: string, req: Request) => {
   const visit = await findVisitById(id);
   if (!visit) {
     throw new ApiError(404, 'VISIT_NOT_FOUND', 'Visit not found');
   }
+
+  // Create audit log before update
+  await req.createAuditLog({
+    action: 'UPDATE_VISIT_STATUS',
+    resource: 'VISIT',
+    resourceId: visit.id,
+    before: { status: visit.status },
+    after: { status: 'COMPLETED' }
+  });
 
   const updatedVisit = await updateVisitStatus(id, 'COMPLETED');
   return {
@@ -221,11 +323,29 @@ export const admitExistingPatient = async (
   bedNumber: string, 
   attendingDoctorId: string,
   expectedDischargeDate: Date,
-  dailyRate: number
+  dailyRate: number,
+  req?: Request
 ) => {
   const visit = await findVisitById(id);
   if (!visit) {
     throw new ApiError(404, 'VISIT_NOT_FOUND', 'Visit not found');
+  }
+
+  // Get patient details for notification
+  const patient = await findPatientById(visit.patientId);
+  if (!patient) {
+    throw new ApiError(404, 'PATIENT_NOT_FOUND', 'Patient not found');
+  }
+
+  // Create audit log before update if request object is available
+  if (req) {
+    await req.createAuditLog({
+      action: 'ADMIT_PATIENT',
+      resource: 'VISIT',
+      resourceId: visit.id,
+      before: { status: visit.status },
+      after: { status: 'ADMITTED', ward, bedNumber, expectedDischargeDate }
+    });
   }
 
   const updatedVisit = await admitPatient(
@@ -236,15 +356,16 @@ export const admitExistingPatient = async (
     expectedDischargeDate, 
     dailyRate
   );
-  return { 
-    success: true, 
-    message: 'Patient admitted successfully', 
-    visit: updatedVisit 
-  };
+  
+  // Notify ward nurses and attending doctor
+  const patientName = `${patient.firstName} ${patient.lastName}`;
+  await notifyAdmission(patientName, ward, bedNumber, visit.id);
+
+  return { success: true, message: 'Patient admitted successfully, care team notified', visit: updatedVisit };
 };
 
 // Discharge patient service
-export const dischargeExistingPatient = async (id: string) => {
+export const dischargeExistingPatient = async (id: string, req?: Request) => {
   const visit = await findVisitById(id);
   if (!visit) {
     throw new ApiError(404, 'VISIT_NOT_FOUND', 'Visit not found');
@@ -254,10 +375,32 @@ export const dischargeExistingPatient = async (id: string) => {
     throw new ApiError(400, 'PATIENT_NOT_ADMITTED', 'Cannot discharge patient who was not admitted');
   }
 
+  // Get patient details for notification
+  const patient = await findPatientById(visit.patientId);
+  if (!patient) {
+    throw new ApiError(404, 'PATIENT_NOT_FOUND', 'Patient not found');
+  }
+
+  // Create audit log before update if request object is available
+  if (req) {
+    await req.createAuditLog({
+      action: 'DISCHARGE_PATIENT',
+      resource: 'VISIT',
+      resourceId: visit.id,
+      before: { status: visit.status, admissionDate: visit.admissionDate },
+      after: { status: 'DISCHARGED', dischargeDate: new Date() }
+    });
+  }
+
   const updatedVisit = await dischargePatient(id);
+  
+  // Notify billing department and ward staff
+  const patientName = `${patient.firstName} ${patient.lastName}`;
+  await notifyDischarge(patientName, visit.ward, visit.bedNumber, visit.id);
+
   return { 
     success: true, 
-    message: `Patient discharged successfully after ${updatedVisit.stayDuration} days`, 
+    message: `Patient discharged successfully after ${updatedVisit.stayDuration} days, care team and billing notified`, 
     visit: updatedVisit 
   };
 };

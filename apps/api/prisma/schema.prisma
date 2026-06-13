@@ -12,25 +12,29 @@ datasource db {
 
 // Auth & Users
 model User {
-  id              String           @id @default(uuid())
-  staffId         String           @unique // e.g., BL-STF-001
-  email           String           @unique
-  passwordHash    String
-  firstName       String
-  lastName        String
-  phone           String?
-  role            Role             @relation(fields: [roleId], references: [id])
-  roleId          String
-  isActive        Boolean          @default(true)
-  lastLoginAt     DateTime?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  consultations   Consultation[]
-  auditLogs       AuditLog[]
-  appointments    Appointment[]
-  staffSchedules          StaffSchedule[]
-  timeOffRequests         TimeOffRequest[] @relation("StaffTimeOffRequests")
-  approvedTimeOffRequests TimeOffRequest[] @relation("ApprovedTimeOffRequests")
+  id                         String             @id @default(uuid())
+  staffId                    String             @unique // e.g., BL-STF-001
+  email                      String             @unique
+  passwordHash               String
+  firstName                  String
+  lastName                   String
+  phone                      String?
+  role                       Role               @relation(fields: [roleId], references: [id])
+  roleId                     String
+  isActive                   Boolean            @default(true)
+  lastLoginAt                DateTime?
+  createdAt                  DateTime           @default(now())
+  updatedAt                  DateTime           @updatedAt
+  consultations              Consultation[]
+  auditLogs                  AuditLog[]
+  appointments               Appointment[]
+  staffSchedules             StaffSchedule[]
+  timeOffRequests            TimeOffRequest[]   @relation("StaffTimeOffRequests")
+  approvedTimeOffRequests    TimeOffRequest[]   @relation("ApprovedTimeOffRequests")
+  followUpsAsDoctor          FollowUp[]         @relation("FollowUpDoctor")
+  emergencyCasesAsDoctor     EmergencyCase[]    @relation("EmergencyDoctor")
+  dischargeSummariesAsDoctor DischargeSummary[] @relation("DischargeDoctor")
+  notifications              Notification[]
 
   @@index([email])
 }
@@ -87,12 +91,14 @@ model Patient {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  visits           Visit[]
-  appointments     Appointment[]
-  ancRecords       AncRecord[]
-  deliveryRecords  DeliveryRecord[]
-  postnatalRecords PostnatalRecord[]
-  invoices         Invoice[]
+  visits             Visit[]
+  appointments       Appointment[]
+  ancRecords         AncRecord[]
+  deliveryRecords    DeliveryRecord[]
+  postnatalRecords   PostnatalRecord[]
+  invoices           Invoice[]
+  followUps          FollowUp[]
+  dischargeSummaries DischargeSummary[]
 
   @@index([patientNumber])
   @@index([nationalId])
@@ -107,32 +113,35 @@ enum Gender {
 
 // Visits & Clinical Records
 model Visit {
-  id            String      @id @default(uuid())
-  patient       Patient     @relation(fields: [patientId], references: [id])
-  patientId     String
-  visitDate     DateTime    @default(now())
-  visitType     VisitType   @default(OUTPATIENT)
-  status        VisitStatus @default(REGISTERED)
-  referralNote  String?
-  createdBy     String // userId
+  id                    String       @id @default(uuid())
+  patient               Patient      @relation(fields: [patientId], references: [id])
+  patientId             String
+  visitDate             DateTime     @default(now())
+  visitType             VisitType    @default(OUTPATIENT)
+  status                VisitStatus  @default(REGISTERED)
+  referralNote          String?
+  createdBy             String // userId
   // For inpatient stays (admit/discharge functionality)
-  admissionDate DateTime? // Date/time patient was admitted
-  dischargeDate DateTime? // Date/time patient was discharged
-  stayDuration  Int? // Calculated stay duration in days
-  ward          String? // Ward name if admitted
-  bedNumber     String? // Bed number if admitted
-  attendingDoctorId String? // Attending doctor for admitted patients
+  admissionDate         DateTime? // Date/time patient was admitted
+  dischargeDate         DateTime? // Date/time patient was discharged
+  stayDuration          Int? // Calculated stay duration in days
+  ward                  String? // Ward name if admitted
+  bedNumber             String? // Bed number if admitted
+  attendingDoctorId     String? // Attending doctor for admitted patients
   expectedDischargeDate DateTime? // Expected discharge date
-  dailyRate     Decimal?    @db.Decimal(10, 2) // Daily rate for inpatient stay
+  dailyRate             Decimal?     @db.Decimal(10, 2) // Daily rate for inpatient stay
   // Emergency fields
-  triageLevel   TriageLevel? // Triage level for emergency cases
-  emergencyNotes String? // Emergency treatment notes
+  triageLevel           TriageLevel? // Triage level for emergency cases
+  emergencyNotes        String? // Emergency treatment notes
 
-  vitals        Vital[]
-  consultation  Consultation?
-  labRequests   LabRequest[]
-  prescriptions Prescription[]
-  invoice       Invoice?
+  vitals           Vital[]
+  consultation     Consultation?
+  labRequests      LabRequest[]
+  prescriptions    Prescription[]
+  invoice          Invoice?
+  followUps        FollowUp[]
+  emergencyCase    EmergencyCase?
+  dischargeSummary DischargeSummary?
 
   @@index([patientId])
   @@index([visitDate])
@@ -198,22 +207,22 @@ model Vital {
 }
 
 model Consultation {
-  id             String    @id @default(uuid())
-  visit          Visit     @relation(fields: [visitId], references: [id])
-  visitId        String    @unique
-  doctor         User      @relation(fields: [doctorId], references: [id])
-  doctorId       String
-  chiefComplaint String
-  historyOfPC    String?
-  examination    String?
-  clinicalNotes  String?
-  plan           String?
-  followUpDate   DateTime?
-  followUpNotes  String?
-  followUpStatus FollowUpStatus?
+  id               String          @id @default(uuid())
+  visit            Visit           @relation(fields: [visitId], references: [id])
+  visitId          String          @unique
+  doctor           User            @relation(fields: [doctorId], references: [id])
+  doctorId         String
+  chiefComplaint   String
+  historyOfPC      String?
+  examination      String?
+  clinicalNotes    String?
+  plan             String?
+  followUpDate     DateTime?
+  followUpNotes    String?
+  followUpStatus   FollowUpStatus?
   assignedDoctorId String? // Doctor assigned for follow-up
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
   diagnoses Diagnosis[]
 
@@ -486,15 +495,16 @@ model InvoiceItem {
 }
 
 model Payment {
-  id         String        @id @default(uuid())
-  invoice    Invoice       @relation(fields: [invoiceId], references: [id])
-  invoiceId  String
-  amount     Decimal       @db.Decimal(10, 2)
-  method     PaymentMethod
-  reference  String? // Mobile money ref, bank ref
-  receivedBy String // cashierId
-  receivedAt DateTime      @default(now())
-  notes      String?
+  id           String               @id @default(uuid())
+  invoice      Invoice              @relation(fields: [invoiceId], references: [id])
+  invoiceId    String
+  amount       Decimal              @db.Decimal(10, 2)
+  method       PaymentMethod
+  reference    String? // Mobile money ref, bank ref
+  receivedBy   String // cashierId
+  receivedAt   DateTime             @default(now())
+  notes        String?
+  verification PaymentVerification?
 }
 
 enum InvoiceStatus {
@@ -631,8 +641,10 @@ model StaffSchedule {
   staff      User      @relation(fields: [userId], references: [id])
   userId     String
   shiftDate  DateTime
-  shiftType  ShiftType // MORNING, AFTERNOON, NIGHT
-  department String // Emergency, Pediatrics, Maternity, etc.
+  shiftType  ShiftType // MORNING, AFTERNOON, NIGHT, DAY, ON_CALL
+  startTime  String // e.g., "07:00"
+  endTime    String // e.g., "15:00"
+  department String? // Emergency, Pediatrics, Maternity, etc.
   notes      String?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
@@ -663,6 +675,8 @@ enum ShiftType {
   MORNING // 7AM - 3PM
   AFTERNOON // 1PM - 9PM
   NIGHT // 8PM - 8AM
+  DAY // 8AM - 5PM
+  ON_CALL // 24-hour on-call
 }
 
 enum TimeOffStatus {
@@ -686,15 +700,15 @@ model Ward {
 }
 
 model Bed {
-  id           String   @id @default(uuid())
-  ward         Ward     @relation(fields: [wardId], references: [id])
-  wardId       String
-  bedNumber    String   // Bed 1, Bed 2 etc.
-  status       BedStatus @default(AVAILABLE)
-  isOccupied   Boolean  @default(false)
-  notes        String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id         String    @id @default(uuid())
+  ward       Ward      @relation(fields: [wardId], references: [id])
+  wardId     String
+  bedNumber  String // Bed 1, Bed 2 etc.
+  status     BedStatus @default(AVAILABLE)
+  isOccupied Boolean   @default(false)
+  notes      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   @@unique([wardId, bedNumber])
 }
@@ -723,4 +737,150 @@ model AuditLog {
   @@index([userId])
   @@index([resource, resourceId])
   @@index([createdAt])
+}
+
+// Follow-up Module
+model FollowUp {
+  id               String         @id @default(uuid())
+  patient          Patient        @relation(fields: [patientId], references: [id])
+  patientId        String
+  visit            Visit?         @relation(fields: [visitId], references: [id])
+  visitId          String?
+  assignedDoctor   User?          @relation("FollowUpDoctor", fields: [assignedDoctorId], references: [id])
+  assignedDoctorId String?
+  followUpDate     DateTime
+  followUpReason   String
+  followUpNotes    String?
+  status           FollowUpStatus @default(SCHEDULED)
+  completedAt      DateTime?
+  completedBy      String? // userId
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([patientId])
+  @@index([assignedDoctorId])
+  @@index([followUpDate])
+  @@index([status])
+}
+
+// Emergency Case Module
+model EmergencyCase {
+  id                String      @id @default(uuid())
+  visit             Visit       @relation(fields: [visitId], references: [id])
+  visitId           String      @unique
+  triageLevel       TriageLevel
+  chiefComplaint    String
+  vitalSigns        String? // JSON string of vital signs
+  consciousness     String? // Alert, Verbal, Pain, Unresponsive
+  breathing         String? // Normal, Labored, Absent
+  circulation       String? // Normal, Poor, Absent
+  disability        String? // Normal, Altered
+  exposure          String? // Normal, Hypothermia, Hyperthermia
+  treatmentNotes    String?
+  attendingDoctor   User?       @relation("EmergencyDoctor", fields: [attendingDoctorId], references: [id])
+  attendingDoctorId String?
+  isResolved        Boolean     @default(false)
+  resolvedAt        DateTime?
+  resolvedBy        String? // userId
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@index([visitId])
+  @@index([triageLevel])
+  @@index([isResolved])
+}
+
+// Payment Verification Module
+model PaymentVerification {
+  id               String    @id @default(uuid())
+  payment          Payment   @relation(fields: [paymentId], references: [id])
+  paymentId        String    @unique
+  transactionId    String    @unique // Mobile money transaction ID
+  phoneNumber      String // Phone number used for payment
+  provider         String // AIRTEL_MONEY, TNM_MPAMBA
+  amount           Decimal   @db.Decimal(10, 2)
+  verificationCode String? // OTP or verification code
+  isVerified       Boolean   @default(false)
+  verifiedAt       DateTime?
+  verifiedBy       String? // userId
+  receiptUrl       String? // URL to generated receipt
+  failureReason    String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([paymentId])
+  @@index([transactionId])
+  @@index([isVerified])
+}
+
+// Notification Module
+model Notification {
+  id          String               @id @default(uuid())
+  user        User?                @relation(fields: [userId], references: [id])
+  userId      String?
+  title       String
+  message     String
+  type        NotificationType
+  priority    NotificationPriority @default(NORMAL)
+  isRead      Boolean              @default(false)
+  readAt      DateTime?
+  actionUrl   String? // URL to navigate to when clicked
+  relatedId   String? // ID of related entity (visit, patient, etc.)
+  relatedType String? // Type of related entity
+  smsSent     Boolean              @default(false)
+  smsStatus   String? // SENT, FAILED, PENDING
+  createdAt   DateTime             @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+enum NotificationType {
+  APPOINTMENT_REMINDER
+  LAB_RESULT_AVAILABLE
+  PRESCRIPTION_READY
+  PAYMENT_DUE
+  FOLLOW_UP_REMINDER
+  EMERGENCY_ALERT
+  ADMISSION_UPDATE
+  DISCHARGE_SUMMARY
+  SYSTEM
+}
+
+enum NotificationPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+// Discharge Summary Module
+model DischargeSummary {
+  id                     String    @id @default(uuid())
+  visit                  Visit     @relation(fields: [visitId], references: [id])
+  visitId                String    @unique
+  patient                Patient   @relation(fields: [patientId], references: [id])
+  patientId              String
+  admissionDate          DateTime
+  dischargeDate          DateTime
+  dischargeReason        String
+  finalDiagnosis         String
+  treatmentSummary       String
+  medicationsOnDischarge String[]
+  followUpInstructions   String
+  dischargeBy            String // userId
+  attendingDoctor        User?     @relation("DischargeDoctor", fields: [attendingDoctorId], references: [id])
+  attendingDoctorId      String?
+  complications          String?
+  patientCondition       String // Stable, Improved, Worsened
+  isSignedOff            Boolean   @default(false)
+  signedOffAt            DateTime?
+  signedOffBy            String? // userId
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  @@index([visitId])
+  @@index([patientId])
+  @@index([dischargeDate])
 }

@@ -1,23 +1,4 @@
 {
     "version": 2,
-    "builds": [
-        {
-            "src": "apps/api/dist/server.js",
-            "use": "@vercel/node"
-        },
-        {
-            "src": "apps/web/out/**",
-            "use": "@vercel/static"
-        }
-    ],
-    "routes": [
-        {
-            "src": "/api/(.*)",
-            "dest": "apps/api/dist/server.js"
-        },
-        {
-            "src": "/(.*)",
-            "dest": "apps/web/out/$1"
-        }
-    ]
+    "$comment": "This root vercel.json is unused. Each app deploys from its own directory: apps/api and apps/web have their own vercel.json files."
 }

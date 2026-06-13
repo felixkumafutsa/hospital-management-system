@@ -34,12 +34,24 @@ router.get('/test', (_req, res) => {
 // All routes require authentication
 router.use(authenticate);
 
+// Root route for maternity module
+router.get('/', (_req, res) => {
+  res.status(200).json({ 
+    success: true, 
+    message: 'Maternity module API',
+    availableEndpoints: ['/anc', '/deliveries', '/postnatal', '/stats']
+  });
+});
+
 // ==================== ANC (Antenatal Care) Routes ====================
 // Get all ANC records
 router.get('/anc', listAncController);
 
 // Get ANC dashboard statistics
 router.get('/stats', getMaternityStatsController);
+
+// Get all ANC records for a specific patient — must be before /anc/:id
+router.get('/anc/patient/:patientId', getAncByPatientController);
 
 // Create new ANC record
 router.post('/anc', validate(CreateAncSchema), createAncController);
@@ -50,12 +62,12 @@ router.get('/anc/:id', getAncController);
 // Update ANC record
 router.put('/anc/:id', validate(UpdateAncSchema), updateAncController);
 
-// Get all ANC records for a specific patient
-router.get('/anc/patient/:patientId', getAncByPatientController);
-
 // ==================== Delivery Record Routes ====================
 // Get all delivery records
 router.get('/deliveries', listDeliveryController);
+
+// Get all delivery records for a specific patient — must be before /deliveries/:id
+router.get('/deliveries/patient/:patientId', getDeliveryByPatientController);
 
 // Create new delivery record
 router.post('/deliveries', validate(CreateDeliverySchema), createDeliveryController);
@@ -63,20 +75,17 @@ router.post('/deliveries', validate(CreateDeliverySchema), createDeliveryControl
 // Get specific delivery record
 router.get('/deliveries/:id', getDeliveryController);
 
-// Get all delivery records for a specific patient
-router.get('/deliveries/patient/:patientId', getDeliveryByPatientController);
-
 // ==================== Postnatal Record Routes ====================
 // Get all postnatal records
 router.get('/postnatal', listPostnatalController);
+
+// Get all postnatal records for a specific patient — must be before /postnatal/:id
+router.get('/postnatal/patient/:patientId', getPostnatalByPatientController);
 
 // Create new postnatal record
 router.post('/postnatal', validate(CreatePostnatalSchema), createPostnatalController);
 
 // Get specific postnatal record
 router.get('/postnatal/:id', getPostnatalController);
-
-// Get all postnatal records for a specific patient
-router.get('/postnatal/patient/:patientId', getPostnatalByPatientController);
 
 export default router;

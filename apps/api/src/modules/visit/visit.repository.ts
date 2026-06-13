@@ -1,5 +1,5 @@
 import { prisma } from '../../config/database';
-import { Visit, VisitType, VisitStatus } from '@prisma/client';
+import { Visit, VisitType, VisitStatus, TriageLevel } from '@prisma/client';
 
 // Create new visit
 export const createVisit = async (
@@ -193,7 +193,7 @@ export const getActiveVisitsQueue = async (): Promise<Visit[]> => {
     },
     orderBy: [
       // Emergency cases first
-      { status: { desc: 'ASC' } },
+      { status: 'asc' },
       { visitDate: 'asc' }
     ],
     include: {
@@ -211,7 +211,7 @@ export const getActiveVisitsQueue = async (): Promise<Visit[]> => {
 // Update visit with emergency triage
 export const setEmergencyStatus = async (
   id: string,
-  triageLevel: string,
+  triageLevel: TriageLevel,
   emergencyNotes?: string
 ): Promise<Visit> => {
   return prisma.visit.update({

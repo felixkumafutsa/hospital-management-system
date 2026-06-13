@@ -1,11 +1,18 @@
 import { prisma } from '../../config/database';
-import type { CreateScheduleInput, CreateTimeOffInput, ShiftType } from '@packages/types';
+import { ShiftType } from '@prisma/client';
+import type { CreateScheduleInput, CreateTimeOffInput } from '@packages/types';
 
 // Staff Schedule operations
 export const createStaffSchedule = async (data: CreateScheduleInput) => {
   return prisma.staffSchedule.create({
     data: {
-      ...data,
+      userId: data.userId,
+      shiftDate: new Date(data.shiftDate),
+      shiftType: data.shiftType,
+      startTime: data.startTime,
+      endTime: data.endTime,
+      department: data.department || null,
+      notes: data.notes || null
     },
     include: {
       staff: {
@@ -129,10 +136,18 @@ export const getAllSchedules = async (skip: number, take: number, filters?: any)
   return { schedules, total };
 };
 
-export const updateSchedule = async (id: string, data: Partial<CreateScheduleInput>) => {
+export const updateSchedule = async (id: string, data: Omit<Partial<CreateScheduleInput>, 'userId'>) => {
+  const updateData: any = {};
+  if (data.shiftDate) updateData.shiftDate = new Date(data.shiftDate);
+  if (data.shiftType) updateData.shiftType = data.shiftType;
+  if (data.startTime) updateData.startTime = data.startTime;
+  if (data.endTime) updateData.endTime = data.endTime;
+  if (data.department !== undefined) updateData.department = data.department || null;
+  if (data.notes !== undefined) updateData.notes = data.notes || null;
+  
   return prisma.staffSchedule.update({
     where: { id },
-    data,
+    data: updateData,
     include: {
       staff: true
     }
@@ -265,7 +280,7 @@ export const checkScheduleConflict = async (userId: string, shiftDate: string, s
   const existing = await prisma.staffSchedule.findFirst({
     where: {
       userId,
-      shiftDate,
+      shiftDate: new Date(shiftDate),
       shiftType
     }
   });

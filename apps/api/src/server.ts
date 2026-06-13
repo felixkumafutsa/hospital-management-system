@@ -18,6 +18,8 @@ import userRoutes from './modules/users/users.routes';
 import maternityRoutes from './modules/maternity/maternity.routes';
 import schedulingRoutes from './modules/scheduling/scheduling.routes';
 import appointmentsRoutes from './modules/appointments/appointments.routes';
+import notificationRoutes from './modules/notifications/notifications.routes';
+import followupRoutes from './modules/followup/followup.routes';
 import errorHandler from './middlewares/errorHandler';
 import { auditLogger } from './middlewares/auditLogger';
 
@@ -31,7 +33,7 @@ app.set('trust proxy', 1);
 app.use(helmet());
 // Fixed CORS that works with credentials - cannot use origin:'*' with credentials: true
 app.use(cors({
-  origin: (origin, callback) => {
+  origin: (_origin, callback) => {
     // Always allow - this works with credentials
     callback(null, true);
   },
@@ -80,6 +82,8 @@ app.use('/api/v1/pharmacy', pharmacyRoutes);
 app.use('/api/v1/finance', billingRoutes);
 app.use('/api/v1/scheduling', schedulingRoutes);
 app.use('/api/v1/appointments', appointmentsRoutes);
+app.use('/api/v1/notifications', notificationRoutes);
+app.use('/api/v1/followups', followupRoutes);
 
 // API homepage/documentation
 app.get('/', (_req, res) => {
@@ -269,7 +273,11 @@ app.use(errorHandler);
 
 // Vercel serverless function export
 if (process.env.VERCEL) {
-  // For Vercel, export the Express app directly
+  // Connect DB eagerly on Vercel so the first request isn't a cold-start miss.
+  // connectDB() is idempotent — calling it multiple times is safe.
+  connectDB().catch((err) => {
+    logger.error('❌ Failed to connect to database on Vercel:', err);
+  });
   module.exports = app;
 } else {
   // For local development, start the server normally
@@ -286,9 +294,8 @@ if (process.env.VERCEL) {
       });
     } catch (error) {
       logger.error('❌ Failed to start server:', error);
-      process.exit(1);
-    } finally {
       await prisma.$disconnect();
+      process.exit(1);
     }
   };
 

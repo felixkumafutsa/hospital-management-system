@@ -7,9 +7,17 @@ import {
   updateVisitStatusService,
   getVisitQueue,
   admitExistingPatient,
-  dischargeExistingPatient
+  dischargeExistingPatient,
+  setPatientEmergency,
+  routeToMaternity,
+  sendToLaboratory,
+  labResultsAvailable,
+  sendToPharmacy,
+  completeVisit,
+  getDashboardStats
 } from './visit.service';
 import { CreateVisitInput, UpdateVisitStatusInput, AdmitPatientInput } from './visit.validator';
+import { TriageLevel } from '@prisma/client';
 
 // Create new visit
 export const createVisitController = async (
@@ -123,7 +131,8 @@ export const admitPatientController = async (
       req.body.bedNumber,
       req.body.attendingDoctorId,
       expectedDischargeDate,
-      req.body.dailyRate
+      req.body.dailyRate,
+      req
     );
     res.status(200).json(result);
   } catch (error) {
@@ -138,7 +147,110 @@ export const dischargePatientController = async (
   next: NextFunction
 ) => {
   try {
-    const result = await dischargeExistingPatient(req.params.id);
+    const result = await dischargeExistingPatient(req.params.id, req);
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Mark patient as emergency
+export const setPatientEmergencyController = async (
+  req: Request<{ id: string }, {}, { triageLevel: TriageLevel; emergencyNotes?: string }>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const result = await setPatientEmergency(
+      req.params.id,
+      req.body.triageLevel,
+      req.body.emergencyNotes,
+      req
+    );
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Route patient to maternity
+export const routeToMaternityController = async (
+  req: Request<{ id: string }>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const result = await routeToMaternity(req.params.id);
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Send patient to laboratory
+export const sendToLaboratoryController = async (
+  req: Request<{ id: string }>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const result = await sendToLaboratory(req.params.id, req);
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Mark lab results as available
+export const labResultsAvailableController = async (
+  req: Request<{ id: string }>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const result = await labResultsAvailable(req.params.id, req);
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Send patient to pharmacy
+export const sendToPharmacyController = async (
+  req: Request<{ id: string }>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const result = await sendToPharmacy(req.params.id, req);
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Complete visit
+export const completeVisitController = async (
+  req: Request<{ id: string }>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const result = await completeVisit(req.params.id, req);
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get dashboard statistics
+export const getDashboardStatsController = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const result = await getDashboardStats();
     res.status(200).json(result);
   } catch (error) {
     next(error);
