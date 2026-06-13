@@ -99,17 +99,18 @@ app.use((req, res, next) => {
   }
   
   // If request doesn't already have /api/ prefix, forward it to /api/v1
-  if (!req.path.startsWith('/api/') && !req.path.startsWith('/api-v1/')) {
+  // Prevent infinite loops by checking if we've already rewritten the URL
+  if (!req.path.startsWith('/api/') && !req.url.startsWith('/api/v1/')) {
     // Apply login limiter only to auth/login requests
     if (req.path === '/auth/login') {
       loginLimiter(req, res, () => {
         req.url = '/api/v1' + req.url;
-        app.handle(req, res);
+        next();
       });
     } else {
-      // Forward all other unprefixed requests to /api/v1
+      // Rewrite URL and pass to next middleware instead of app.handle() to avoid loops
       req.url = '/api/v1' + req.url;
-      app.handle(req, res);
+      next();
     }
     return;
   }
