@@ -85,6 +85,39 @@ app.use('/api/v1/appointments', appointmentsRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/followups', followupRoutes);
 
+// Redirect old routes without /api/v1 prefix to the correct endpoint (fixes 404 for legacy frontend calls)
+app.use('/auth/login', loginLimiter, (req, res, next) => {
+  // Forward the request to the actual /api/v1/auth/login endpoint
+  req.url = '/api/v1/auth/login' + req.url;
+  app.handle(req, res, next);
+});
+
+// Catch-all for other missing routes - ensure CORS headers are always present
+app.use((req, res, next) => {
+  // Explicitly set CORS headers for all responses, including 404s to fix CORS errors
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  
+  // Handle preflight OPTIONS for any unmatched route
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  // If it's an unmatched API request, provide helpful error
+  if (req.path.startsWith('/auth/') || req.path.startsWith('/api/') === false) {
+    return res.status(404).json({
+      error: 'Not Found',
+      message: 'The requested endpoint does not exist. Did you forget to add the /api/v1 prefix?',
+      correctEndpoint: `/api/v1${req.path}`,
+      example: '/api/v1/auth/login'
+    });
+  }
+  
+  next();
+});
+
 // API homepage/documentation
 app.get('/', (_req, res) => {
   res.send(`
