@@ -68,6 +68,40 @@ app.use(auditLogger);
 // Apply general rate limiter to all routes
 app.use(generalLimiter);
 
+// GLOBAL URL REWRITE MIDDLEWARE - MUST COME BEFORE ALL API ROUTES
+// Handle ALL requests without /api/v1 prefix - fixes all 404s for legacy frontend calls
+app.use((req, res, next) => {
+  // ALWAYS set CORS headers FIRST - this guarantees they're on EVERY response
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  
+  // Handle preflight OPTIONS immediately
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  // If request is NOT already going to /api/..., rewrite it to add /api/v1 prefix
+  if (!req.path.startsWith('/api/')) {
+    // For login, apply rate limiter before forwarding
+    if (req.path === '/auth/login') {
+      loginLimiter(req, res, () => {
+        req.url = '/api/v1' + req.url;
+        next();
+      });
+      return;
+    }
+    // All other unprefixed requests - just rewrite and forward
+    req.url = '/api/v1' + req.url;
+    next();
+    return;
+  }
+  
+  // Already an API request - proceed normally
+  next();
+});
+
 // API Routes
 app.use('/api/v1/auth/login', loginLimiter);
 app.use('/api/v1/auth', authRoutes);
@@ -84,39 +118,6 @@ app.use('/api/v1/scheduling', schedulingRoutes);
 app.use('/api/v1/appointments', appointmentsRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/followups', followupRoutes);
-
-// Global middleware to handle ALL requests without /api/v1 prefix - fixes all 404s for legacy frontend calls
-app.use((req, res, next) => {
-  // Always set CORS headers FIRST before any processing to ensure they're on EVERY response
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  
-  // Handle preflight OPTIONS immediately
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-  
-  // If request doesn't already have /api/ prefix, forward it to /api/v1
-  // Prevent infinite loops by checking if we've already rewritten the URL
-  if (!req.path.startsWith('/api/') && !req.url.startsWith('/api/v1/')) {
-    // Apply login limiter only to auth/login requests
-    if (req.path === '/auth/login') {
-      loginLimiter(req, res, () => {
-        req.url = '/api/v1' + req.url;
-        next();
-      });
-    } else {
-      // Rewrite URL and pass to next middleware instead of app.handle() to avoid loops
-      req.url = '/api/v1' + req.url;
-      next();
-    }
-    return;
-  }
-  
-  next();
-});
 
 // API homepage/documentation
 app.get('/', (_req, res) => {
