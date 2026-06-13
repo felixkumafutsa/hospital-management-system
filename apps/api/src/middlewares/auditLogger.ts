@@ -5,6 +5,7 @@ import { prisma } from '../config/database';
 interface AuditLogData {
   action: string;
   resource: string;
+  module?: string;
   resourceId?: string;
   before?: any;
   after?: any;
@@ -30,6 +31,7 @@ export const auditLogger = (req: Request, _res: Response, next: NextFunction) =>
           data: {
             userId: req.user.userId,
             action: data.action,
+            module: data.module || 'UNKNOWN',
             resource: data.resource,
             resourceId: data.resourceId,
             ipAddress: req.ip || req.socket.remoteAddress,
@@ -66,6 +68,7 @@ export const captureAuditData = (action: string, resource: string) => {
             req.createAuditLog({
               action,
               resource,
+              module: 'AUTO_CAPTURE',
               resourceId,
               before: null,
               after: req.body,

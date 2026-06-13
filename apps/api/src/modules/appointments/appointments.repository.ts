@@ -1,5 +1,5 @@
 import { prisma } from '../../config/database';
-import { Appointment } from '@prisma/client';
+import { Appointment, AppointmentStatus } from '@prisma/client';
 import { CreateAppointmentInput } from './appointments.validator';
 
 // Create new appointment
@@ -156,7 +156,7 @@ export const getPatientAppointments = async (patientId: string): Promise<Appoint
 // Update appointment status
 export const updateAppointmentStatus = async (
   id: string,
-  status: string
+  status: AppointmentStatus
 ): Promise<Appointment> => {
   return prisma.appointment.update({
     where: { id },
