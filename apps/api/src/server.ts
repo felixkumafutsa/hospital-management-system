@@ -79,7 +79,8 @@ app.use((req, res, next) => {
   
   // Handle preflight OPTIONS immediately
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    res.status(200).end();
+    return;
   }
   
   // If request is NOT already going to /api/..., rewrite it to add /api/v1 prefix
