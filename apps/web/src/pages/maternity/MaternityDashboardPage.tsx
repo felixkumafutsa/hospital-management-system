@@ -28,24 +28,24 @@ import { useQuery } from "@tanstack/react-query";
 import Swal from "sweetalert2";
 import api from "../../services/api";
 
-interface MaternityRecord {
+/*interface MaternityRecord {
   id: string;
   patientId: string;
   gestationWeeks: number;
   visitDate: string;
   recordedBy: string;
-  weightKg: string;
+  weightKg: number;
   bpSystolic: number;
   bpDiastolic: number;
   fetalHeartRate: number;
-  fundusHeight: string;
+  fundusHeight: number;
   presentation: string | null;
   ultrasoundNotes: string | null;
   riskFactors: string[];
   notes: string;
   nextVisitDate: string;
   status?: string;
-}
+}*/
 
 const MaternityDashboardPage = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -134,7 +134,7 @@ const MaternityDashboardPage = () => {
     setNewNextVisitDate("");
   };
 
-  const handleEditRecord = (record: any) => {
+  const handleEditRecord = () => {
     Swal.fire("Info", "Edit functionality coming soon", "info");
   };
 
@@ -151,11 +151,11 @@ const MaternityDashboardPage = () => {
       
       // Submit new visit record
       await api.put(`/maternity/anc/${selectedRecord.id}`, {
-        weightKg: newWeightKg ? parseFloat(newWeightKg as string) : selectedRecord.weightKg,
-        bpSystolic: newBpSystolic ? parseInt(newBpSystolic as string) : selectedRecord.bpSystolic,
-        bpDiastolic: newBpDiastolic ? parseInt(newBpDiastolic as string) : selectedRecord.bpDiastolic,
-        fetalHeartRate: newFetalHeartRate ? parseInt(newFetalHeartRate as string) : selectedRecord.fetalHeartRate,
-        fundusHeight: newFundusHeight ? parseFloat(newFundusHeight as string) : selectedRecord.fundusHeight,
+        weightKg: newWeightKg !== "" ? newWeightKg : selectedRecord.weightKg,
+        bpSystolic: newBpSystolic !== "" ? newBpSystolic : selectedRecord.bpSystolic,
+        bpDiastolic: newBpDiastolic !== "" ? newBpDiastolic : selectedRecord.bpDiastolic,
+        fetalHeartRate: newFetalHeartRate !== "" ? newFetalHeartRate : selectedRecord.fetalHeartRate,
+        fundusHeight: newFundusHeight !== "" ? newFundusHeight : selectedRecord.fundusHeight,
         presentation: newPresentation || selectedRecord.presentation,
         notes: newNotes || selectedRecord.notes,
         nextVisitDate: newNextVisitDate ? new Date(newNextVisitDate).toISOString() : selectedRecord.nextVisitDate,
@@ -226,7 +226,7 @@ const MaternityDashboardPage = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {(maternityRecords || []).map((record) => {
+            {(maternityRecords || []).map((record: any) => {
               // Find the patient for this record to get their full name
               const patient = patients?.find((p: any) => p.id === record.patientId);
               const patientName = patient ? `${patient.firstName} ${patient.lastName}` : 'Unknown Patient';
@@ -246,7 +246,7 @@ const MaternityDashboardPage = () => {
                       </IconButton>
                     </Tooltip>
                     <Tooltip title="Edit">
-                      <IconButton size="small" onClick={() => handleEditRecord(record)}>
+                      <IconButton size="small" onClick={() => handleEditRecord()}>
                         <Edit />
                       </IconButton>
                     </Tooltip>
@@ -468,9 +468,9 @@ const MaternityDashboardPage = () => {
                       gestationWeeks,
                       gravida,
                       parity,
-                      weightKg: weightKg ? parseFloat(weightKg as string) : undefined,
-                      bpSystolic: bpSystolic ? parseInt(bpSystolic as string) : undefined,
-                      bpDiastolic: bpDiastolic ? parseInt(bpDiastolic as string) : undefined,
+                      weightKg: weightKg !== "" ? weightKg : undefined,
+                      bpSystolic: bpSystolic !== "" ? bpSystolic : undefined,
+                      bpDiastolic: bpDiastolic !== "" ? bpDiastolic : undefined,
                       visitDate: new Date().toISOString(),
                       edd: calculateEDD(lmp),
                       status: "ACTIVE",
@@ -544,201 +544,152 @@ const MaternityDashboardPage = () => {
                   </Grid>
                   <Grid item xs={6}>
                     <Typography variant="body2" color="text.secondary">Last Visit</Typography>
-                    <Typography>{selectedRecord.visitDate ? new Date(selectedRecord.visitDate).toLocaleDateString() : 'N/A'}</Typography>
+                    <Typography>{new Date(selectedRecord.visitDate).toLocaleDateString()}</Typography>
                   </Grid>
                   <Grid item xs={6}>
-                    <Typography variant="body2" color="text.secondary">Next Scheduled</Typography>
-                    <Typography>{selectedRecord.nextVisitDate ? new Date(selectedRecord.nextVisitDate).toLocaleDateString() : 'N/A'}</Typography>
+                    <Typography variant="body2" color="text.secondary">Next Visit</Typography>
+                    <Typography>{new Date(selectedRecord.nextVisitDate).toLocaleDateString()}</Typography>
                   </Grid>
                 </Grid>
               </Paper>
 
-              {/* Latest Vital Signs */}
-              <Paper sx={{ p: 2, mb: 3 }}>
-                <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 'bold' }}>
-                  Latest Vital Signs
-                </Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={4}>
-                    <Typography variant="body2" color="text.secondary">Weight (kg)</Typography>
-                    <Typography>{selectedRecord.weightKg || 'N/A'}</Typography>
-                  </Grid>
-                  <Grid item xs={4}>
-                    <Typography variant="body2" color="text.secondary">Blood Pressure</Typography>
-                    <Typography>{selectedRecord.bpSystolic && selectedRecord.bpDiastolic ? `${selectedRecord.bpSystolic}/${selectedRecord.bpDiastolic}` : 'N/A'}</Typography>
-                  </Grid>
-                  <Grid item xs={4}>
-                    <Typography variant="body2" color="text.secondary">Fetal Heart Rate</Typography>
-                    <Typography>{selectedRecord.fetalHeartRate ? `${selectedRecord.fetalHeartRate} bpm` : 'N/A'}</Typography>
-                  </Grid>
-                </Grid>
-              </Paper>
-
-              {/* Consultation History */}
-              <Paper sx={{ p: 2, mb: 3 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                    Consultation History
-                  </Typography>
+              {!newVisitFormOpen && (
+                <Box sx={{ mb: 3, display: 'flex', gap: 2 }}>
+                  <Button 
+                    variant="contained" 
+                    onClick={() => setNewVisitFormOpen(true)}
+                    startIcon={<AddIcon />}
+                  >
+                    Add New Visit
+                  </Button>
                   <Button 
                     variant="outlined" 
-                    size="small"
-                    onClick={() => setNewVisitFormOpen(!newVisitFormOpen)}
+                    color="success"
+                    onClick={markAsDelivered}
                   >
-                    {newVisitFormOpen ? "Cancel" : "+ Record New Visit"}
+                    Mark as Delivered
                   </Button>
                 </Box>
+              )}
 
-                {/* New Visit Form */}
-                {newVisitFormOpen && (
-                  <Box sx={{ mb: 3, p: 2, border: '1px solid #1976d2', borderRadius: 1, bgcolor: '#fafafa' }}>
-                    <Typography variant="subtitle2" sx={{ mb: 2, color: '#1976d2' }}>Record New Consultation</Typography>
-                    <Grid container spacing={2}>
-                      <Grid item xs={6}>
-                        <TextField
-                          fullWidth
-                          label="Weight (kg)"
-                          type="number"
-                          value={newWeightKg}
-                          onChange={(e) => setNewWeightKg(parseFloat(e.target.value) || "")}
-                        />
-                      </Grid>
-                      <Grid item xs={6}>
-                        <TextField
-                          fullWidth
-                          label="BP Systolic"
-                          type="number"
-                          value={newBpSystolic}
-                          onChange={(e) => setNewBpSystolic(parseInt(e.target.value) || "")}
-                        />
-                      </Grid>
-                      <Grid item xs={6}>
-                        <TextField
-                          fullWidth
-                          label="BP Diastolic"
-                          type="number"
-                          value={newBpDiastolic}
-                          onChange={(e) => setNewBpDiastolic(parseInt(e.target.value) || "")}
-                        />
-                      </Grid>
-                      <Grid item xs={6}>
-                        <TextField
-                          fullWidth
-                          label="Fetal Heart Rate"
-                          type="number"
-                          value={newFetalHeartRate}
-                          onChange={(e) => setNewFetalHeartRate(parseInt(e.target.value) || "")}
-                        />
-                      </Grid>
-                      <Grid item xs={6}>
-                        <TextField
-                          fullWidth
-                          label="Fundus Height (cm)"
-                          type="number"
-                          value={newFundusHeight}
-                          onChange={(e) => setNewFundusHeight(parseFloat(e.target.value) || "")}
-                        />
-                      </Grid>
-                      <Grid item xs={6}>
-                        <TextField
-                          fullWidth
-                          label="Presentation"
+              {newVisitFormOpen && (
+                <Paper sx={{ p: 2, mb: 3, border: '1px solid #1976d2' }}>
+                  <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 'bold' }}>
+                    Add New Visit
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid item xs={6}>
+                      <TextField
+                        fullWidth
+                        label="Weight (kg)"
+                        type="number"
+                        value={newWeightKg}
+                        onChange={(e) => setNewWeightKg(parseFloat(e.target.value) || "")}
+                      />
+                    </Grid>
+                    <Grid item xs={6}>
+                      <TextField
+                        fullWidth
+                        label="BP Systolic"
+                        type="number"
+                        value={newBpSystolic}
+                        onChange={(e) => setNewBpSystolic(parseInt(e.target.value) || "")}
+                      />
+                    </Grid>
+                    <Grid item xs={6}>
+                      <TextField
+                        fullWidth
+                        label="BP Diastolic"
+                        type="number"
+                        value={newBpDiastolic}
+                        onChange={(e) => setNewBpDiastolic(parseInt(e.target.value) || "")}
+                      />
+                    </Grid>
+                    <Grid item xs={6}>
+                      <TextField
+                        fullWidth
+                        label="Fetal Heart Rate"
+                        type="number"
+                        value={newFetalHeartRate}
+                        onChange={(e) => setNewFetalHeartRate(parseInt(e.target.value) || "")}
+                      />
+                    </Grid>
+                    <Grid item xs={6}>
+                      <TextField
+                        fullWidth
+                        label="Fundus Height"
+                        type="number"
+                        value={newFundusHeight}
+                        onChange={(e) => setNewFundusHeight(parseFloat(e.target.value) || "")}
+                      />
+                    </Grid>
+                    <Grid item xs={6}>
+                      <FormControl fullWidth>
+                        <InputLabel>Presentation</InputLabel>
+                        <Select
                           value={newPresentation}
-                          onChange={(e) => setNewPresentation(e.target.value)}
-                        />
-                      </Grid>
-                      <Grid item xs={12}>
-                        <TextField
-                          fullWidth
-                          label="Next Visit Date"
-                          type="date"
-                          value={newNextVisitDate}
-                          onChange={(e) => setNewNextVisitDate(e.target.value)}
-                          InputLabelProps={{ shrink: true }}
-                        />
-                      </Grid>
-                      <Grid item xs={12}>
-                        <TextField
-                          fullWidth
-                          label="Consultation Notes"
-                          multiline
-                          rows={2}
-                          value={newNotes}
-                          onChange={(e) => setNewNotes(e.target.value)}
-                          placeholder="Doctor's notes from this consultation..."
-                        />
-                      </Grid>
-                      <Grid item xs={12}>
-                        <Button variant="contained" onClick={addNewVisit} sx={{ mr: 2 }}>
-                          Submit New Visit
-                        </Button>
-                        <Button onClick={() => setNewVisitFormOpen(false)}>
-                          Cancel
-                        </Button>
-                      </Grid>
+                          label="Presentation"
+                          onChange={(e) => setNewPresentation(e.target.value as string)}
+                        >
+                          <MenuItem value="">None</MenuItem>
+                          <MenuItem value="cephalic">Cephalic</MenuItem>
+                          <MenuItem value="breech">Breech</MenuItem>
+                          <MenuItem value="transverse">Transverse</MenuItem>
+                        </Select>
+                      </FormControl>
                     </Grid>
-                  </Box>
-                )}
-
-                {/* List of Previous Consultations */}
-                <Box>
-                  {/* Show current record as the latest visit */}
-                  <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderRadius: 1, mb: 1 }}>
-                    <Grid container spacing={2}>
-                      <Grid item xs={4}>
-                        <Typography variant="body2" color="text.secondary">Visit Date</Typography>
-                        <Typography>{new Date(selectedRecord.visitDate).toLocaleDateString()}</Typography>
-                      </Grid>
-                      <Grid item xs={4}>
-                        <Typography variant="body2" color="text.secondary">Gestation</Typography>
-                        <Typography>{selectedRecord.gestationWeeks} weeks</Typography>
-                      </Grid>
-                      <Grid item xs={4}>
-                        <Typography variant="body2" color="text.secondary">Vitals</Typography>
-                        <Typography>{selectedRecord.weightKg || 'N/A'}kg / {selectedRecord.bpSystolic && selectedRecord.bpDiastolic ? `${selectedRecord.bpSystolic}/${selectedRecord.bpDiastolic}` : 'N/A'}</Typography>
-                      </Grid>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        label="Next Visit Date"
+                        type="date"
+                        value={newNextVisitDate}
+                        onChange={(e) => setNewNextVisitDate(e.target.value)}
+                        InputLabelProps={{ shrink: true }}
+                      />
                     </Grid>
-                    {selectedRecord.notes && (
-                      <Typography variant="body2" sx={{ mt: 1, color: 'text.secondary' }}>Notes: {selectedRecord.notes}</Typography>
-                    )}
-                  </Box>
-                </Box>
-              </Paper>
-
-              {/* Additional Notes */}
-              <Paper sx={{ p: 2, mb: 3 }}>
-                <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 'bold' }}>
-                  Additional Information
-                </Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12}>
-                    <Typography variant="body2" color="text.secondary">Ultrasound Notes</Typography>
-                    <Typography>{selectedRecord.ultrasoundNotes || 'No ultrasound notes'}</Typography>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        label="Notes"
+                        multiline
+                        rows={3}
+                        value={newNotes}
+                        onChange={(e) => setNewNotes(e.target.value)}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+                      <Button onClick={() => setNewVisitFormOpen(false)}>Cancel</Button>
+                      <Button variant="contained" onClick={addNewVisit}>Save Visit</Button>
+                    </Grid>
                   </Grid>
-                  <Grid item xs={12}>
-                    <Typography variant="body2" color="text.secondary">Risk Factors</Typography>
-                    <Typography>
-                      {selectedRecord.riskFactors && selectedRecord.riskFactors.length > 0 
-                        ? selectedRecord.riskFactors.join(', ') 
-                        : 'No risk factors identified'}
-                    </Typography>
-                  </Grid>
-                </Grid>
-              </Paper>
+                </Paper>
+              )}
 
-              {/* Actions */}
-              <Box sx={{ mt: 4, display: 'flex', justifyContent: 'space-between' }}>
-                <Button onClick={handleCloseDetailsDrawer}>
-                  Close
-                </Button>
-                <Button 
-                  variant="contained" 
-                  color="success"
-                  onClick={markAsDelivered}
-                >
-                  Mark as Delivered
-                </Button>
-              </Box>
+              {/* Previous visits history */}
+              <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 'bold' }}>
+                Visit History
+              </Typography>
+              <TableContainer component={Paper}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Date</TableCell>
+                      <TableCell>Weight</TableCell>
+                      <TableCell>BP</TableCell>
+                      <TableCell>FHR</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    <TableRow key={selectedRecord.id}>
+                      <TableCell>{new Date(selectedRecord.visitDate).toLocaleDateString()}</TableCell>
+                      <TableCell>{selectedRecord.weightKg}</TableCell>
+                      <TableCell>{selectedRecord.bpSystolic}/{selectedRecord.bpDiastolic}</TableCell>
+                      <TableCell>{selectedRecord.fetalHeartRate}</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </TableContainer>
             </>
           )}
         </Box>
