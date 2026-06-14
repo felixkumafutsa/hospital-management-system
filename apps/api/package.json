@@ -38,7 +38,7 @@
     "zod": "^4.4.3"
   },
   "prisma": {
-    "seed": "ts-node prisma/seed/index.ts"
+    "seed": "ts-node prisma/seed.ts"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",

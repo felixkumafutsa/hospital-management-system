@@ -6,13 +6,31 @@ import { ApiError } from './errorHandler';
 export const validate = (schema: ZodSchema) => {
   return (req: Request, _res: Response, next: NextFunction) => {
     try {
-      schema.parse({
-        body: req.body,
-        query: req.query,
-        params: req.params
-      });
+      // Check if schema expects nested structure (legacy pattern: { body, query, params })
+      // Use type assertion to safely check for ZodObject shape
+      const schemaAny = schema as any;
+      const hasNestedProperties = schemaAny.shape && 
+        ('body' in schemaAny.shape || 'query' in schemaAny.shape || 'params' in schemaAny.shape);
+      
+      if (hasNestedProperties) {
+        // Legacy schema format - pass full request structure
+        schema.parse({
+          body: req.body || {},
+          query: req.query || {},
+          params: req.params || {}
+        });
+      } else {
+        // New flat schema format - validate only what's needed for the method
+        if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
+          schema.parse(req.body);
+        } else {
+          // GET requests - validate query parameters
+          schema.parse(req.query || {});
+        }
+      }
       next();
     } catch (error: any) {
+      console.log("[VALIDATE] Error:", error);
       if (error.errors) {
         const details = error.errors.map((err: any) => ({
           field: err.path.join('.'),

@@ -48,6 +48,28 @@ const PrescriptionsPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+   // Fetch all patients from the system
+    const { data: patients } = useQuery({
+      queryKey: ["patients"],
+      queryFn: async () => {
+        const response = await api.get("/patients");
+        return response.data.patients;
+      },
+    });
+  
+    // Fetch all users and filter to only doctors (uses the /users endpoint which returns all system users)
+    const { data: doctors } = useQuery({
+      queryKey: ["doctors"],
+      queryFn: async () => {
+        // The /users endpoint returns all system users from the database
+        const response = await api.get("/users");
+        // Filter to only include users who are doctors (role.name === "DOCTOR")
+        const allStaff = response.data.data || [];
+        return allStaff.filter((staff: any) => staff.role?.name === "DOCTOR");
+      },
+    });
+  
+
   // New prescription form state
   const steps = [
     "Patient & Doctor",
@@ -208,8 +230,11 @@ const PrescriptionsPage = () => {
                 required
                 select
               >
-                <MenuItem value="patient-1">John Doe</MenuItem>
-                <MenuItem value="patient-2">Jane Smith</MenuItem>
+                {patients?.map((patient: any) => (
+                  <MenuItem key={patient.id} value={patient.id}>
+                    {patient.firstName} {patient.lastName}
+                  </MenuItem>
+                ))}
               </TextField>
             </Grid>
             <Grid item xs={12}>
@@ -222,8 +247,11 @@ const PrescriptionsPage = () => {
                 required
                 select
               >
-                <MenuItem value="doctor-1">Dr. James Wilson</MenuItem>
-                <MenuItem value="doctor-2">Dr. Sarah Johnson</MenuItem>
+                {doctors?.map((doctor: any) => (
+                  <MenuItem key={doctor.id} value={doctor.id}>
+                    {doctor.firstName} {doctor.lastName}
+                  </MenuItem>
+                ))}
               </TextField>
             </Grid>
             <Grid item xs={12}>
