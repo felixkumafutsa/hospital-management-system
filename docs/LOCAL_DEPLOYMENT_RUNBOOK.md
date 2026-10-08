@@ -9,7 +9,7 @@ Connect Laptop 1 to the Airtel MiFi. Reserve its DHCP address in the MiFi settin
 From the repository root in PowerShell:
 
 ```powershell
-.\scripts\Initialize-LocalDeployment.ps1
+.\scripts\Initialize-LocalDeployment.ps1 -CorsOrigin https://192.168.0.10
 .\scripts\New-LocalTlsCertificate.ps1 -ServerAddress 192.168.0.10
 ```
 

@@ -5,14 +5,32 @@ const globalForPrisma = global as unknown as {
   prisma: PrismaClient | undefined;
 };
 
+const getDatabaseUrl = (): string | undefined => {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) return undefined;
+
+  const url = new URL(connectionString);
+  const isPooler = url.hostname.includes('-pooler.');
+
+  // Neon and other PgBouncer transaction-pooler URLs need this Prisma mode.
+  if (isPooler) url.searchParams.set('pgbouncer', 'true');
+
+  // Keep serverless instances from opening a large client-side pool each.
+  if (!url.searchParams.has('connection_limit')) {
+    url.searchParams.set('connection_limit', process.env.DATABASE_CONNECTION_LIMIT || (process.env.VERCEL ? '1' : '5'));
+  }
+
+  return url.toString();
+};
+
 // Single Prisma singleton used across all modules.
-// Uses connection pooling params for Supabase PgBouncer compatibility.
+// Reuse a small client pool, including when connected through a PgBouncer pooler.
 export const prisma =
   globalForPrisma.prisma ||
   new PrismaClient({
     datasources: {
       db: {
-        url: process.env.DATABASE_URL,
+        url: getDatabaseUrl(),
       },
     },
     log: [
@@ -60,7 +78,7 @@ const connectDB = async (): Promise<void> => {
     logger.info('Database connection established successfully');
   } catch (error) {
     logger.error('Failed to connect to database:', error);
-    process.exit(1);
+    throw error;
   }
 };
 

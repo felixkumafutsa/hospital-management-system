@@ -72,7 +72,9 @@ Create `.env` from `.env.example` and fill it locally. Compose reads the file fo
 | `PORT` | API container listener | Yes | `4000` | No |
 | `HTTPS_PORT` | Laptop 1 host port for the HTTPS proxy | Optional | `443` | No |
 | `LOG_LEVEL` | API logging threshold | Optional | `info` | No |
-| `CORS_ORIGIN` | Exact allowed browser origins for any cross-origin deployment | Optional | `https://192.168.0.10` | No |
+| `CORS_ORIGIN` | Comma-separated exact browser origins for cross-origin requests; trailing slashes are normalized | Optional for same-origin proxying | `https://192.168.0.10` | No |
+| `VITE_API_URL` | Frontend API base URL, embedded during the Vite build | Optional for the same-origin Nginx proxy | `https://api.example.com/api/v1` | No |
+| `DATABASE_CONNECTION_LIMIT` | Prisma client pool size per API instance | Optional | `5` locally, `1` on Vercel | No |
 
 The API must fail to start if its production signing secret is missing or weak. Do not use demo seed credentials in a live clinic.
 

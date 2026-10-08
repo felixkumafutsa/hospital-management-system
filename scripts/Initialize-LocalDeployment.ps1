@@ -1,3 +1,7 @@
+param(
+    [string] $CorsOrigin = ''
+)
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
@@ -33,7 +37,7 @@ NODE_ENV=production
 PORT=4000
 HTTPS_PORT=443
 LOG_LEVEL=info
-CORS_ORIGIN=
+CORS_ORIGIN=$CorsOrigin
 "@
 
 Set-Content -LiteralPath $envPath -Value $content -Encoding ASCII

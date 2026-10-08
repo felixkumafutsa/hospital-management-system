@@ -29,6 +29,7 @@ import settingsRoutes from './modules/settings/settings.routes';
 import errorHandler from './middleware/errorHandler';
 import { auditLogger } from './middleware/auditLogger';
 import { assertProductionConfiguration } from './config/security';
+import { isCorsOriginAllowed, parseCorsOrigins } from './config/corsOrigins';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -38,15 +39,17 @@ app.set('trust proxy', process.env.NODE_ENV === 'production' ? 1 : false);
 
 // Security middleware
 app.use(helmet());
-const allowedOrigins = new Set(
-  (process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3000'))
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean),
+const allowedOrigins = parseCorsOrigins(
+  process.env.CORS_ORIGIN ||
+    (process.env.VERCEL
+      ? 'https://betterlife-web.vercel.app'
+      : process.env.NODE_ENV === 'production'
+        ? ''
+        : 'http://localhost:3000'),
 );
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.has(origin)) {
+    if (isCorsOriginAllowed(origin, allowedOrigins)) {
       callback(null, true);
       return;
     }

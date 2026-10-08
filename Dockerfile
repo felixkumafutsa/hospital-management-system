@@ -13,6 +13,9 @@ COPY packages/types/package.json packages/types/package.json
 COPY packages/types/index.js packages/types/index.d.ts packages/types/index.ts packages/types/
 RUN npm ci --no-audit --no-fund
 
+ARG VITE_API_URL=
+ENV VITE_API_URL=${VITE_API_URL}
+
 COPY apps/api apps/api
 COPY apps/web apps/web
 COPY packages/types packages/types

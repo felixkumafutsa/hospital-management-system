@@ -11,6 +11,12 @@ const API_BASE_URL = (() => {
   const envUrl = (import.meta as any).env.VITE_API_URL;
   if (envUrl) return envUrl;
 
+  // Keep the production Vercel frontend pointed at its separately deployed API
+  // if the build-time VITE_API_URL variable has not been configured yet.
+  if (import.meta.env.PROD && window.location.hostname === 'betterlife-web.vercel.app') {
+    return 'https://betterlife-api.vercel.app/api/v1';
+  }
+
   // In a deployed SPA, Nginx serves the frontend and proxies API calls on the same origin.
   if (import.meta.env.PROD) return '/api/v1';
 
