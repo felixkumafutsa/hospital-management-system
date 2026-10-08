@@ -26,7 +26,8 @@ export const createAppointment = async (
           email: true,
           role: true
         }
-      }
+      },
+      visit: true
     }
   });
 };
@@ -53,7 +54,8 @@ export const findAppointmentById = async (id: string): Promise<Appointment | nul
           email: true,
           role: true
         }
-      }
+      },
+      visit: true
     }
   });
 };
@@ -114,7 +116,8 @@ export const getAllAppointments = async (
             email: true,
             role: true
           }
-        }
+        },
+        visit: true
       }
     }),
     prisma.appointment.count({ where })
@@ -148,7 +151,8 @@ export const getPatientAppointments = async (patientId: string): Promise<Appoint
           email: true,
           role: true
         }
-      }
+      },
+      visit: true
     }
   });
 };
@@ -156,11 +160,12 @@ export const getPatientAppointments = async (patientId: string): Promise<Appoint
 // Update appointment status
 export const updateAppointmentStatus = async (
   id: string,
-  status: AppointmentStatus
+  status: AppointmentStatus,
+  visitId?: string
 ): Promise<Appointment> => {
   return prisma.appointment.update({
     where: { id },
-    data: { status },
+    data: { status, ...(visitId ? { visit: { connect: { id: visitId } } } : {}) },
     include: {
       patient: {
         select: {
@@ -179,7 +184,8 @@ export const updateAppointmentStatus = async (
           email: true,
           role: true
         }
-      }
+      },
+      visit: true
     }
   });
 };

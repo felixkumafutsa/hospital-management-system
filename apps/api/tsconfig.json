@@ -3,8 +3,6 @@
     "target": "ES2022",
     "lib": ["ES2022"],
     "module": "CommonJS",
-    "moduleResolution": "node",
-    "baseUrl": "./",
     "rootDir": "./src",
     "outDir": "./dist",
     "strict": true,
@@ -26,8 +24,12 @@
     "removeComments": true,
     "paths": {
       "@packages/types": ["../../packages/types/index.d.ts"],
-      "@packages/*": ["../../packages/*"]
+      "@packages/*": ["../../packages/*"],
+      "@prisma/client": ["./node_modules/@prisma/client"]
     }
+  },
+  "ts-node": {
+    "files": true
   },
   "include": ["./src/**/*"],
   "exclude": ["node_modules", "./dist"]

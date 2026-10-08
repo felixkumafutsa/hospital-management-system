@@ -4,6 +4,8 @@ import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import LoginPage from "./pages/auth/LoginPage";
 import { CircularProgress, Box } from "@mui/material";
+import ConsultationDrawer from "./components/ConsultationDrawer";
+import VisitDrawer from "./components/VisitDrawer";
 
 // Critical core pages - eagerly loaded (not lazy) for instant navigation
 import DashboardPage from "./pages/dashboard/DashboardPage";
@@ -24,6 +26,7 @@ const NurseDashboardPage = lazy(
 const PharmacyDashboardPage = lazy(
   () => import("./pages/pharmacy/PharmacyDashboardPage"),
 );
+const PharmacyShopPage = lazy(() => import("./pages/pharmacy/PharmacyShopPage"));
 const LabDashboardPage = lazy(() => import("./pages/lab/LabDashboardPage"));
 const AccountsDashboardPage = lazy(
   () => import("./pages/accounts/AccountsDashboardPage"),
@@ -44,6 +47,9 @@ const ConsultationsPage = lazy(
 const FinanceDashboardPage = lazy(
   () => import("./pages/finance/FinanceDashboardPage"),
 );
+const InvoicesPage = lazy(
+  () => import("./pages/finance/InvoicesPage"),
+);
 const UserManagementPage = lazy(
   () => import("./pages/users/UserManagementPage"),
 );
@@ -58,6 +64,8 @@ const MaternityDashboardPage = lazy(
   () => import("./pages/maternity/MaternityDashboardPage"),
 );
 const SettingsPage = lazy(() => import("./pages/settings/SettingsPage"));
+const DutyRosterPage = lazy(() => import("./pages/duty-roster/DutyRosterPage"));
+const TheaterPage = lazy(() => import("./pages/theater/TheaterPage"));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -79,21 +87,32 @@ function App() {
           {/* Public routes */}
           <Route path="/login" element={<LoginPage />} />
 
-          {/* Protected routes */}
+          <Route path="/" element={<Navigate to="/login" replace />} />
+
+          {/* Admin Dashboard - strictly for ADMINISTRATOR and MD */}
           <Route
             path="/dashboard"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute allowedRoles={["ADMINISTRATOR", "ADMIN", "MD"]}>
                 <DashboardPage />
               </ProtectedRoute>
             }
           />
 
+          {/* Legacy / Alias dashboard routes */}
+          <Route path="/admin/dashboard" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/doctor/dashboard" element={<Navigate to="/doctor" replace />} />
+          <Route path="/nurse/dashboard" element={<Navigate to="/nurse" replace />} />
+          <Route path="/reception/dashboard" element={<Navigate to="/reception" replace />} />
+          <Route path="/pharmacy/dashboard" element={<Navigate to="/pharmacy" replace />} />
+          <Route path="/lab/dashboard" element={<Navigate to="/lab" replace />} />
+          <Route path="/finance/dashboard" element={<Navigate to="/finance" replace />} />
+
           {/* Reception routes */}
           <Route
             path="/reception"
             element={
-              <ProtectedRoute allowedRoles={["RECEPTIONIST", "ADMINISTRATOR"]}>
+              <ProtectedRoute allowedRoles={["RECEPTIONIST", "RECEPTION_CASHIER", "ADMINISTRATOR"]}>
                 <ReceptionDashboardPage />
               </ProtectedRoute>
             }
@@ -128,6 +147,14 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/pharmacy/shop"
+            element={
+              <ProtectedRoute allowedRoles={["PHARMACIST", "RECEPTIONIST", "RECEPTION_CASHIER", "ADMINISTRATOR"]}>
+                <PharmacyShopPage />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Laboratory routes */}
           <Route
@@ -143,7 +170,7 @@ function App() {
           <Route
             path="/accounts"
             element={
-              <ProtectedRoute allowedRoles={["CASHIER", "ADMINISTRATOR"]}>
+              <ProtectedRoute allowedRoles={["RECEPTION_CASHIER", "RECEPTIONIST", "CASHIER", "ADMINISTRATOR"]}>
                 <AccountsDashboardPage />
               </ProtectedRoute>
             }
@@ -157,6 +184,7 @@ function App() {
                 allowedRoles={[
                   "ADMINISTRATOR",
                   "RECEPTIONIST",
+                  "RECEPTION_CASHIER",
                   "DOCTOR",
                   "NURSE",
                 ]}
@@ -179,7 +207,7 @@ function App() {
             path="/patients/register"
             element={
               <ProtectedRoute
-                allowedRoles={["RECEPTIONIST", "ADMINISTRATOR", "DOCTOR"]}
+                allowedRoles={["RECEPTIONIST", "RECEPTION_CASHIER", "ADMINISTRATOR", "DOCTOR"]}
               >
                 <PatientRegistrationPage />
               </ProtectedRoute>
@@ -192,6 +220,7 @@ function App() {
                 allowedRoles={[
                   "ADMINISTRATOR",
                   "RECEPTIONIST",
+                  "RECEPTION_CASHIER",
                   "DOCTOR",
                   "NURSE",
                 ]}
@@ -213,8 +242,16 @@ function App() {
           <Route
             path="/finance"
             element={
-              <ProtectedRoute allowedRoles={["ADMINISTRATOR", "CASHIER"]}>
+              <ProtectedRoute allowedRoles={["ADMINISTRATOR", "RECEPTION_CASHIER", "RECEPTIONIST", "CASHIER"]}>
                 <FinanceDashboardPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/finance/invoices"
+            element={
+              <ProtectedRoute allowedRoles={["ADMINISTRATOR", "RECEPTION_CASHIER", "RECEPTIONIST", "CASHIER"]}>
+                <InvoicesPage />
               </ProtectedRoute>
             }
           />
@@ -231,6 +268,14 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={["ADMINISTRATOR"]}>
                 <UserManagementPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/duty-roster"
+            element={
+              <ProtectedRoute allowedRoles={["ADMINISTRATOR"]}>
+                <DutyRosterPage />
               </ProtectedRoute>
             }
           />
@@ -279,6 +324,14 @@ function App() {
             }
           />
           <Route
+            path="/theater"
+            element={
+              <ProtectedRoute allowedRoles={["ADMINISTRATOR", "DOCTOR", "NURSE", "ANESTHETIST"]}>
+                <TheaterPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/settings"
             element={
               <ProtectedRoute>
@@ -287,10 +340,12 @@ function App() {
             }
           />
 
-          {/* Default redirect */}
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          {/* Default redirect for unmatched routes */}
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
+        {/* Global drawers that can be opened from anywhere */}
+        <ConsultationDrawer />
+        <VisitDrawer />
       </Suspense>
     </AuthProvider>
   );

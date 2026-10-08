@@ -3,6 +3,7 @@ import { seedUsers } from './users';
 import { seedPatients } from './patients';
 import { seedLabTests } from './labTests';
 import { seedSuppliersAndMedicines } from './medicines';
+import { seedWardsAndBeds } from './wards';
 
 const prisma = new PrismaClient();
 
@@ -21,6 +22,9 @@ async function main() {
     
     // Seed suppliers and medicines
     await seedSuppliersAndMedicines();
+
+    // Seed wards and hospital beds
+    await seedWardsAndBeds();
     
     console.log('✅ All seeding completed successfully!');
   } catch (error) {

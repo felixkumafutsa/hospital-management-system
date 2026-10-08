@@ -1,4 +1,29 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
+
+// Helper to decode JWT token to get current user info
+const getCurrentUserId = (): string | null => {
+  const token = localStorage.getItem('accessToken');
+  if (!token) return null;
+  try {
+    // Decode JWT payload
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.id || null;
+  } catch {
+    return null;
+  }
+};
+
+// Helper to check if current user is a doctor
+const isCurrentUserDoctor = (): boolean => {
+  const token = localStorage.getItem('accessToken');
+  if (!token) return false;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.role?.name === 'DOCTOR';
+  } catch {
+    return false;
+  }
+};
 import {
   Box,
   Paper,
@@ -25,7 +50,6 @@ import {
 import {
   Add as AddIcon,
   Visibility,
-  Edit,
   Search,
   Close,
 } from "@mui/icons-material";
@@ -37,6 +61,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 // @ts-ignore - CSS import for react-big-calendar
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import api, { createAppointment } from "../../services/api";
+import AppointmentDrawer from "../../components/AppointmentDrawer";
+import { useAppointmentDrawerStore } from "../../stores/appointmentDrawerStore";
 
 const locales = {
   "en-US": enUS,
@@ -45,8 +71,7 @@ const locales = {
 const localizer = dateFnsLocalizer({
   format,
   parse,
-  startOfWeek: (date: Date) =>
-    startOfWeek(date, { weekStartsOn: 1, locale: enUS }),
+  startOfWeek: (date: Date) => startOfWeek(date, { weekStartsOn: 1 }),
   getDay,
   locales,
 });
@@ -61,11 +86,13 @@ interface Appointment {
     lastName: string;
   };
   doctor: {
+    id: string | null;
     firstName: string;
     lastName: string;
   };
   reason: string;
   status: string;
+  doctorId?: string;
 }
 
 const AppointmentsPage = () => {
@@ -82,9 +109,11 @@ const AppointmentsPage = () => {
     startTime: "",
     endTime: "",
     reason: "",
+    type: "CONSULTATION",
     status: "SCHEDULED",
   });
   const queryClient = useQueryClient();
+  const { openDrawer, selectAppointment } = useAppointmentDrawerStore();
 
   // Fetch all patients from the system
   const { data: patients } = useQuery({
@@ -118,31 +147,42 @@ const AppointmentsPage = () => {
       startTime: "",
       endTime: "",
       reason: "",
+      type: "CONSULTATION",
       status: "SCHEDULED",
     });
   };
 
+  const currentUserId = useMemo(() => getCurrentUserId(), []);
+  const userIsDoctor = useMemo(() => isCurrentUserDoctor(), []);
+
   const { data: appointments, isLoading } = useQuery({
     queryKey: ["appointments"],
     queryFn: async () => {
-      const response = await api.get("/visits");
-      // Transform visits to appointments format for both table and calendar
-      return response.data.visits.map((visit: any) => ({
-        id: visit.id,
-        title: `${visit.patient.firstName} ${visit.patient.lastName} - Patient visit`,
-        start: new Date(visit.visitDate),
-        end: new Date(visit.visitDate),
-        patient: visit.patient,
-        doctor: { firstName: "Doctor", lastName: "Assigned" },
-        reason: "Patient consultation",
-        status: visit.status,
+      const response = await api.get("/appointments");
+      // Transform appointments to calendar format
+      return response.data.appointments.map((apt: any) => ({
+        id: apt.id,
+        title: `${apt.patient.firstName} ${apt.patient.lastName} - ${apt.type || 'Appointment'}`,
+        start: new Date(apt.appointmentDate),
+        end: new Date(apt.appointmentDate),
+        patient: apt.patient,
+        doctor: apt.doctor ? {
+          id: apt.doctor.id,
+          firstName: apt.doctor.firstName,
+          lastName: apt.doctor.lastName
+        } : { id: null, firstName: "Unassigned", lastName: "" },
+        reason: apt.reasonForVisit || apt.notes || "Scheduled appointment",
+        status: apt.status,
+        doctorId: apt.doctorId, // Include raw doctorId for filtering
       })) as Appointment[];
     },
   });
 
-  // Filter appointments based on search term
-  const filteredAppointments =
-    appointments?.filter(
+  // Filter appointments: doctors only see their own appointments, everyone sees all
+  const filteredAppointments = useMemo(() => {
+    if (!appointments) return [];
+
+    let baseFiltered = appointments.filter(
       (apt) =>
         `${apt.patient.firstName} ${apt.patient.lastName}`
           .toLowerCase()
@@ -151,7 +191,15 @@ const AppointmentsPage = () => {
           .toLowerCase()
           .includes(searchTerm.toLowerCase()) ||
         apt.reason?.toLowerCase().includes(searchTerm.toLowerCase()),
-    ) || [];
+    );
+
+    // If current user is a doctor, only show appointments assigned to them
+    if (userIsDoctor && currentUserId) {
+      baseFiltered = baseFiltered.filter(apt => apt.doctorId === currentUserId);
+    }
+
+    return baseFiltered;
+  }, [appointments, searchTerm, userIsDoctor, currentUserId]);
 
   const handleChangePage = (_event: unknown, newPage: number) => {
     setPage(newPage);
@@ -175,18 +223,20 @@ const AppointmentsPage = () => {
   });
 
   const handleCreateAppointment = () => {
-    const startTime = new Date(
-      `${newAppointment.date}T${newAppointment.startTime}`,
-    );
-    const endTime = new Date(
-      `${newAppointment.date}T${newAppointment.endTime}`,
-    );
+    // Format data to match what the backend appointment schema expects
+    const appointmentData = {
+      patientId: newAppointment.patientId,
+      doctorId: newAppointment.doctorId || undefined,
+      appointmentDate: newAppointment.date, // Send as ISO date string, backend will parse it
+      startTime: newAppointment.startTime,
+      endTime: newAppointment.endTime,
+      type: newAppointment.type,
+      notes: newAppointment.reason,
+      // If receptionist creates a direct consultation, handle that status properly
+      status: newAppointment.status === "DIRECT_CONSULTATION" ? "SCHEDULED" : newAppointment.status,
+    };
 
-    createAppointmentMutation.mutate({
-      ...newAppointment,
-      startTime: startTime.toISOString(),
-      endTime: endTime.toISOString(),
-    });
+    createAppointmentMutation.mutate(appointmentData);
   };
 
   const getEventStyle = (event: Appointment) => {
@@ -200,6 +250,7 @@ const AppointmentsPage = () => {
 
   return (
     <Box sx={{ width: "100%", mt: 2 }}>
+      <AppointmentDrawer />
       <Box
         sx={{
           display: "flex",
@@ -307,13 +358,14 @@ const AppointmentsPage = () => {
                     </TableCell>
                     <TableCell>
                       <Tooltip title="View Details">
-                        <IconButton size="small">
+                        <IconButton
+                          size="small"
+                          onClick={() => {
+                            selectAppointment(appointment.id);
+                            openDrawer();
+                          }}
+                        >
                           <Visibility />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Edit">
-                        <IconButton size="small">
-                          <Edit />
                         </IconButton>
                       </Tooltip>
                     </TableCell>
@@ -500,9 +552,31 @@ const AppointmentsPage = () => {
                 label="Status"
               >
                 <MenuItem value="SCHEDULED">Scheduled</MenuItem>
+                <MenuItem value="DIRECT_CONSULTATION">Direct Consultation (Skip Triage)</MenuItem>
                 <MenuItem value="COMPLETED">Completed</MenuItem>
                 <MenuItem value="CANCELLED">Cancelled</MenuItem>
                 <MenuItem value="NO_SHOW">No Show</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={6}>
+            <FormControl fullWidth required>
+              <InputLabel>Appointment Type</InputLabel>
+              <Select
+                name="type"
+                value={newAppointment.type}
+                onChange={(e) =>
+                  setNewAppointment({
+                    ...newAppointment,
+                    type: e.target.value,
+                  })
+                }
+                label="Appointment Type"
+              >
+                <MenuItem value="CONSULTATION">Consultation</MenuItem>
+                <MenuItem value="FOLLOW_UP">Follow Up</MenuItem>
+                <MenuItem value="EMERGENCY">Emergency</MenuItem>
+                <MenuItem value="ROUTINE_CHECKUP">Routine Checkup</MenuItem>
               </Select>
             </FormControl>
           </Grid>

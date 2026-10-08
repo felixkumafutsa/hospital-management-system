@@ -152,7 +152,7 @@ export const notifyAdmission = async (patientName: string, ward: string, bedNumb
 export const notifyDischarge = async (patientName: string, ward: string | null, bedNumber: string | null, visitId: string) => {
   const bedInfo = ward && bedNumber ? `from ${ward}, Bed ${bedNumber}` : '';
   return createRoleNotification(
-    'CASHIER',
+    'RECEPTION_CASHIER',
     'Patient Discharged',
     `Patient ${patientName} has been discharged ${bedInfo}. Final billing needs to be processed. (Visit ID: ${visitId})`,
     NotificationType.ADMISSION_UPDATE,

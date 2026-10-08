@@ -1,27 +1,30 @@
 import { Request, Response, NextFunction } from 'express';
-import { 
+import {
   addAncRecord,
   getAncRecord,
-  getAncRecordsForPatient,
+  getAncRecordsForMaternityProfile,
   listAncRecords,
   updateAnc,
   addDeliveryRecord,
   getDeliveryRecord,
-  getDeliveryRecordsForPatient,
+  getDeliveryRecordsForMaternityProfile,
   listDeliveryRecords,
   addPostnatalRecord,
   getPostnatalRecord,
-  getPostnatalRecordsForPatient,
+  getPostnatalRecordsForMaternityProfile,
   listPostnatalRecords,
-  getMaternityDashboardStats
+  getMaternityDashboardStats,
+  getPatientMaternityRecords,
+  markAncAsDelivered
 } from './maternity.service';
+import { ListMaternityRecordsInput } from './maternity.validator';
 
 // ANC Controllers
 export const createAncController = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.userId;
     const record = await addAncRecord(req.body, userId);
-    
+
     res.status(201).json({
       success: true,
       data: record,
@@ -36,7 +39,7 @@ export const getAncController = async (req: Request<{ id: string }>, res: Respon
   try {
     const { id } = req.params;
     const record = await getAncRecord(id);
-    
+
     res.json({
       success: true,
       data: record
@@ -46,11 +49,11 @@ export const getAncController = async (req: Request<{ id: string }>, res: Respon
   }
 };
 
-export const getAncByPatientController = async (req: Request<{ patientId: string }>, res: Response, next: NextFunction) => {
+export const getAncByMaternityProfileController = async (req: Request<{ patientId: string }>, res: Response, next: NextFunction) => {
   try {
     const { patientId } = req.params;
-    const records = await getAncRecordsForPatient(patientId);
-    
+    const records = await getAncRecordsForMaternityProfile(patientId);
+
     res.json({
       success: true,
       data: records
@@ -60,10 +63,10 @@ export const getAncByPatientController = async (req: Request<{ patientId: string
   }
 };
 
-export const listAncController = async (req: Request, res: Response, next: NextFunction) => {
+export const listAncController = async (req: Request<object, object, object, ListMaternityRecordsInput>, res: Response, next: NextFunction) => {
   try {
-    const result = await listAncRecords(req.query as any);
-    
+    const result = await listAncRecords(req.query);
+
     res.json({
       success: true,
       data: result
@@ -77,7 +80,7 @@ export const updateAncController = async (req: Request<{ id: string }>, res: Res
   try {
     const { id } = req.params;
     const record = await updateAnc(id, req.body);
-    
+
     res.json({
       success: true,
       data: record,
@@ -93,7 +96,7 @@ export const createDeliveryController = async (req: Request, res: Response, next
   try {
     const userId = req.user!.userId;
     const record = await addDeliveryRecord(req.body, userId);
-    
+
     res.status(201).json({
       success: true,
       data: record,
@@ -108,7 +111,7 @@ export const getDeliveryController = async (req: Request<{ id: string }>, res: R
   try {
     const { id } = req.params;
     const record = await getDeliveryRecord(id);
-    
+
     res.json({
       success: true,
       data: record
@@ -118,11 +121,11 @@ export const getDeliveryController = async (req: Request<{ id: string }>, res: R
   }
 };
 
-export const getDeliveryByPatientController = async (req: Request<{ patientId: string }>, res: Response, next: NextFunction) => {
+export const getDeliveryByMaternityProfileController = async (req: Request<{ patientId: string }>, res: Response, next: NextFunction) => {
   try {
     const { patientId } = req.params;
-    const records = await getDeliveryRecordsForPatient(patientId);
-    
+    const records = await getDeliveryRecordsForMaternityProfile(patientId);
+
     res.json({
       success: true,
       data: records
@@ -132,10 +135,10 @@ export const getDeliveryByPatientController = async (req: Request<{ patientId: s
   }
 };
 
-export const listDeliveryController = async (req: Request, res: Response, next: NextFunction) => {
+export const listDeliveryController = async (req: Request<object, object, object, ListMaternityRecordsInput>, res: Response, next: NextFunction) => {
   try {
-    const result = await listDeliveryRecords(req.query as any);
-    
+    const result = await listDeliveryRecords(req.query);
+
     res.json({
       success: true,
       data: result
@@ -150,7 +153,7 @@ export const createPostnatalController = async (req: Request, res: Response, nex
   try {
     const userId = req.user!.userId;
     const record = await addPostnatalRecord(req.body, userId);
-    
+
     res.status(201).json({
       success: true,
       data: record,
@@ -165,7 +168,7 @@ export const getPostnatalController = async (req: Request<{ id: string }>, res: 
   try {
     const { id } = req.params;
     const record = await getPostnatalRecord(id);
-    
+
     res.json({
       success: true,
       data: record
@@ -175,11 +178,11 @@ export const getPostnatalController = async (req: Request<{ id: string }>, res: 
   }
 };
 
-export const getPostnatalByPatientController = async (req: Request<{ patientId: string }>, res: Response, next: NextFunction) => {
+export const getPostnatalByMaternityProfileController = async (req: Request<{ patientId: string }>, res: Response, next: NextFunction) => {
   try {
     const { patientId } = req.params;
-    const records = await getPostnatalRecordsForPatient(patientId);
-    
+    const records = await getPostnatalRecordsForMaternityProfile(patientId);
+
     res.json({
       success: true,
       data: records
@@ -189,10 +192,10 @@ export const getPostnatalByPatientController = async (req: Request<{ patientId: 
   }
 };
 
-export const listPostnatalController = async (req: Request, res: Response, next: NextFunction) => {
+export const listPostnatalController = async (req: Request<object, object, object, ListMaternityRecordsInput>, res: Response, next: NextFunction) => {
   try {
-    const result = await listPostnatalRecords(req.query as any);
-    
+    const result = await listPostnatalRecords(req.query);
+
     res.json({
       success: true,
       data: result
@@ -202,14 +205,41 @@ export const listPostnatalController = async (req: Request, res: Response, next:
   }
 };
 
-// Dashboard stats
-export const getMaternityStatsController = async (_req: Request, res: Response, next: NextFunction) => {
+// Stats Controller
+export const getStatsController = async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const stats = await getMaternityDashboardStats();
-    
+
     res.json({
       success: true,
       data: stats
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getPatientMaternityRecordsController = async (req: Request<{ patientId: string }>, res: Response, next: NextFunction) => {
+  try {
+    const { patientId } = req.params;
+    const records = await getPatientMaternityRecords(patientId);
+    res.status(200).json({ success: true, data: records });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// New controller to mark ANC record as delivered
+export const markAncAsDeliveredController = async (req: Request<{ id: string }>, res: Response, next: NextFunction) => {
+  try {
+    const { id: ancId } = req.params;
+    const userId = req.user!.userId;
+    const result = await markAncAsDelivered(ancId, userId, req.body);
+
+    res.json({
+      success: true,
+      data: result,
+      message: result.message
     });
   } catch (error) {
     next(error);

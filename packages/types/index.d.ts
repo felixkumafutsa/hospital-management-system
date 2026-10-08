@@ -18,6 +18,7 @@ export declare enum VisitType {
     OUTPATIENT = "OUTPATIENT",
     INPATIENT = "INPATIENT",
     ANC = "ANC",
+    DELIVERY = "DELIVERY",
     POSTNATAL = "POSTNATAL",
     EMERGENCY = "EMERGENCY"
 }
@@ -92,6 +93,7 @@ export declare enum RoleType {
     RECEPTIONIST = "RECEPTIONIST",
     LAB_TECH = "LAB_TECH",
     PHARMACIST = "PHARMACIST",
+    ANESTHETIST = "ANESTHETIST",
     CASHIER = "CASHIER"
 }
 export interface BaseEntity {
@@ -173,6 +175,9 @@ export interface AncRecord extends BaseEntity {
 export interface CreateAncInput {
     patientId: string;
     gestationWeeks: number;
+    lastMenstrualPeriod?: string;
+    gravida?: number;
+    parity?: number;
     weightKg?: number;
     bpSystolic?: number;
     bpDiastolic?: number;
@@ -187,6 +192,9 @@ export interface CreateAncInput {
 export declare const CreateAncSchema: z.ZodObject<{
     patientId: z.ZodString;
     gestationWeeks: z.ZodNumber;
+    lastMenstrualPeriod: z.ZodOptional<z.ZodString>;
+    gravida: z.ZodOptional<z.ZodNumber>;
+    parity: z.ZodOptional<z.ZodNumber>;
     weightKg: z.ZodOptional<z.ZodNumber>;
     bpSystolic: z.ZodOptional<z.ZodNumber>;
     bpDiastolic: z.ZodOptional<z.ZodNumber>;

@@ -1,4 +1,6 @@
 import { Request } from 'express';
+import { prisma } from '../../config/database';
+import { VisitStatus, VisitType, TriageLevel } from '@prisma/client';
 import {
   createVisit,
   findVisitById,
@@ -18,7 +20,6 @@ import {
 } from './visit.repository';
 import { findPatientById } from '../patients/patient.repository';
 import { ApiError } from '../../middlewares/errorHandler';
-import { TriageLevel } from '@prisma/client';
 import { CreateVisitInput, UpdateVisitStatusInput } from './visit.validator';
 import { 
   notifyDoctorsOfLabResults, 
@@ -28,8 +29,10 @@ import {
   notifyAdmission,
   notifyDischarge
 } from '../notifications/notifications.service';
+import { findMaternityProfileByPatientId, createMaternityProfile } from '../maternity/maternity.repository';
+import { appendVisitInvoiceItem, createNewInvoice } from '../billing/billing.service';
 
-// Create new visit service - sets status to WAITING_FOR_CONSULTATION after registration
+// A new visit stays registered until nursing records vitals and assigns the consultation queue.
 export const createNewVisit = async (data: CreateVisitInput, userId: string) => {
   // Check if patient exists
   const patient = await findPatientById(data.patientId);
@@ -41,13 +44,20 @@ export const createNewVisit = async (data: CreateVisitInput, userId: string) => 
     data.patientId,
     userId,
     data.visitType,
-    data.referralNote
+    data.referralNote,
+    data.reasonForVisit,
+    data.triageLevel,
+    data.emergencyNotes
   );
 
-  // After registration, patient is waiting for consultation
-  const updatedVisit = await updateVisitStatus(visit.id, 'WAITING_FOR_CONSULTATION');
+  if (data.visitType === 'ANC') {
+    const existingProfile = await findMaternityProfileByPatientId(data.patientId);
+    if (!existingProfile) {
+      await createMaternityProfile({ patientId: data.patientId });
+    }
+  }
 
-  return { success: true, visit: updatedVisit };
+  return { success: true, visit };
 };
 
 // Get visit by ID service
@@ -77,14 +87,15 @@ export const getPatientVisitHistory = async (
 
 // Get all visits with filters service
 export const fetchAllVisits = async (
-  status?: any,
-  visitType?: any,
+  status?: VisitStatus,
+  visitType?: VisitType,
   fromDate?: Date,
   toDate?: Date,
   limit?: number,
-  offset?: number
+  offset?: number,
+  patientId?: string
 ) => {
-  const result = await getAllVisits(status, visitType, fromDate, toDate, limit, offset);
+  const result = await getAllVisits(status, visitType, fromDate, toDate, limit, offset, patientId);
   return { success: true, ...result };
 };
 
@@ -98,13 +109,22 @@ export const updateVisitStatusService = async (
     throw new ApiError(404, 'VISIT_NOT_FOUND', 'Visit not found');
   }
 
-  const updatedVisit = await updateVisitStatus(id, data.status as any);
+  const updatedVisit = await updateVisitStatus(id, data.status);
+
   return { success: true, visit: updatedVisit };
 };
 
 // Get active visits queue service
-export const getVisitQueue = async () => {
-  const visits = await getActiveVisitsQueue();
+export const getVisitQueue = async (userId?: string) => {
+  let doctorId: string | undefined;
+  if (userId) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: { select: { name: true } } },
+    });
+    if (user?.role.name === 'DOCTOR') doctorId = userId;
+  }
+  const visits = await getActiveVisitsQueue(doctorId);
   return { success: true, queue: visits };
 };
 
@@ -394,6 +414,67 @@ export const dischargeExistingPatient = async (id: string, req?: Request) => {
 
   const updatedVisit = await dischargePatient(id);
   
+  // Save discharge summary if provided in request body
+  if (req?.body?.finalDiagnosis) {
+    try {
+      await prisma.dischargeSummary.upsert({
+        where: { visitId: id },
+        update: {
+          dischargeDate: new Date(),
+          dischargeReason: req.body.dischargeReason || 'Treatment completed',
+          finalDiagnosis: req.body.finalDiagnosis,
+          treatmentSummary: req.body.treatmentSummary || 'Inpatient care provided',
+          followUpInstructions: req.body.followUpInstructions || 'Follow up as needed',
+          medicationsOnDischarge: req.body.medicationsOnDischarge || [],
+          patientCondition: req.body.patientCondition || 'Stable',
+          complications: req.body.complications || null,
+          dischargeBy: req.user?.userId || 'system',
+          attendingDoctorId: visit.attendingDoctorId,
+        },
+        create: {
+          visitId: id,
+          patientId: visit.patientId,
+          admissionDate: visit.admissionDate,
+          dischargeDate: new Date(),
+          dischargeReason: req.body.dischargeReason || 'Treatment completed',
+          finalDiagnosis: req.body.finalDiagnosis,
+          treatmentSummary: req.body.treatmentSummary || 'Inpatient care provided',
+          followUpInstructions: req.body.followUpInstructions || 'Follow up as needed',
+          medicationsOnDischarge: req.body.medicationsOnDischarge || [],
+          patientCondition: req.body.patientCondition || 'Stable',
+          complications: req.body.complications || null,
+          dischargeBy: req.user?.userId || 'system',
+          attendingDoctorId: visit.attendingDoctorId,
+        },
+      });
+    } catch (err) {
+      console.warn('Could not create discharge summary:', err);
+    }
+  }
+
+  // Add stay charges to invoice if dailyRate is set
+  if (visit.dailyRate && updatedVisit.stayDuration) {
+    try {
+      const stayCharge = {
+        description: `Inpatient Stay: ${visit.ward || 'Ward'} (${updatedVisit.stayDuration} day${updatedVisit.stayDuration > 1 ? 's' : ''})`,
+        category: 'PROCEDURE' as const,
+        quantity: updatedVisit.stayDuration,
+        unitPrice: Number(visit.dailyRate),
+      };
+      const invoice = await appendVisitInvoiceItem(id, stayCharge);
+      if (!invoice) {
+        await createNewInvoice({
+          patientId: visit.patientId,
+          visitId: id,
+          items: [stayCharge],
+          discount: 0,
+        });
+      }
+    } catch (err) {
+      console.warn('Could not auto-create invoice for inpatient stay:', err);
+    }
+  }
+
   // Notify billing department and ward staff
   const patientName = `${patient.firstName} ${patient.lastName}`;
   await notifyDischarge(patientName, visit.ward, visit.bedNumber, visit.id);
@@ -403,4 +484,16 @@ export const dischargeExistingPatient = async (id: string, req?: Request) => {
     message: `Patient discharged successfully after ${updatedVisit.stayDuration} days, care team and billing notified`, 
     visit: updatedVisit 
   };
+};
+
+// Get ward occupancy list
+export const getWardsWithOccupancy = async () => {
+  const wards = await getWardOccupancy();
+  return { success: true, wards };
+};
+
+// Get current admitted patients list
+export const getAdmissionsList = async () => {
+  const admissions = await getCurrentAdmissions();
+  return { success: true, admissions };
 };

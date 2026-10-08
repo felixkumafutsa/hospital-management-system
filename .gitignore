@@ -20,6 +20,11 @@ build/
 *.env
 **/.env
 
+# Local deployment data and TLS private keys
+/backups/*.dump
+/backups/*.sql
+/deploy/tls/
+
 # Logs
 logs/
 *.log

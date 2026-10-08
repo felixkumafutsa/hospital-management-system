@@ -24,6 +24,7 @@ var VisitType;
     VisitType["OUTPATIENT"] = "OUTPATIENT";
     VisitType["INPATIENT"] = "INPATIENT";
     VisitType["ANC"] = "ANC";
+    VisitType["DELIVERY"] = "DELIVERY";
     VisitType["POSTNATAL"] = "POSTNATAL";
     VisitType["EMERGENCY"] = "EMERGENCY";
 })(VisitType || (exports.VisitType = VisitType = {}));
@@ -108,6 +109,7 @@ var RoleType;
     RoleType["RECEPTIONIST"] = "RECEPTIONIST";
     RoleType["LAB_TECH"] = "LAB_TECH";
     RoleType["PHARMACIST"] = "PHARMACIST";
+    RoleType["ANESTHETIST"] = "ANESTHETIST";
     RoleType["CASHIER"] = "CASHIER";
 })(RoleType || (exports.RoleType = RoleType = {}));
 exports.CreatePatientSchema = zod_1.z.object({
@@ -130,6 +132,9 @@ exports.CreatePatientSchema = zod_1.z.object({
 exports.CreateAncSchema = zod_1.z.object({
     patientId: zod_1.z.string().uuid(),
     gestationWeeks: zod_1.z.number().int().min(4).max(45),
+    lastMenstrualPeriod: zod_1.z.string().datetime().optional(),
+    gravida: zod_1.z.number().int().min(1).optional(),
+    parity: zod_1.z.number().int().min(0).optional(),
     weightKg: zod_1.z.number().optional(),
     bpSystolic: zod_1.z.number().int().optional(),
     bpDiastolic: zod_1.z.number().int().optional(),

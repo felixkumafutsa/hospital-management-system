@@ -25,6 +25,13 @@ import {
   FormControl,
   InputLabel,
   Select,
+  SelectChangeEvent,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Alert,
+  Snackbar,
 } from "@mui/material";
 import {
   Add,
@@ -35,19 +42,76 @@ import {
   FilterList,
 } from "@mui/icons-material";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
-import api,{ createLabRequest, getLabRequests } from "../../services/api";
+import api, {
+  createLabRequest,
+  createLabTest,
+  getLabRequests,
+  getLabTests,
+} from "../../services/api";
+import { formatCurrency } from "../../utils/currency";
+
+const labTestCategories = [
+  "HEMATOLOGY",
+  "BIOCHEMISTRY",
+  "MICROBIOLOGY",
+  "SEROLOGY",
+  "URINALYSIS",
+  "PREGNANCY_TEST",
+  "HIV_TEST",
+  "STI_TEST",
+  "IMAGING",
+  "OTHER",
+] as const;
+
+const getApiErrorMessage = (error: unknown) => {
+  if (error && typeof error === "object" && "response" in error) {
+    const response = error.response;
+    if (response && typeof response === "object" && "data" in response) {
+      const data = response.data;
+      if (data && typeof data === "object" && "error" in data) {
+        const apiError = data.error;
+        if (
+          apiError &&
+          typeof apiError === "object" &&
+          "message" in apiError &&
+          typeof apiError.message === "string"
+        ) {
+          if ("details" in apiError && Array.isArray(apiError.details)) {
+            const messages = apiError.details
+              .map((detail: any) => [detail.field, detail.message].filter(Boolean).join(": "))
+              .filter(Boolean);
+            if (messages.length) return messages.join("; ");
+          }
+          return apiError.message;
+        }
+      }
+      if (
+        data &&
+        typeof data === "object" &&
+        "message" in data &&
+        typeof data.message === "string"
+      ) {
+        return data.message;
+      }
+    }
+  }
+
+  return error instanceof Error
+    ? error.message
+    : "The request could not be completed.";
+};
 
 interface LabTest {
   id: string;
   testNumber: string;
   patientName: string;
-  testType: string;
+  testIds: string[];
   requestedBy: string;
   status: string;
   priority: string;
   collectedAt: string;
   createdAt: string;
+  request: any;
 }
 
 const LabTestsPage = () => {
@@ -55,10 +119,24 @@ const LabTestsPage = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [catalogDialogOpen, setCatalogDialogOpen] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
   const [statusFilter, setStatusFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
-  const navigate = useNavigate();
+  const [mutationError, setMutationError] = useState("");
+  const [selectedRequest, setSelectedRequest] = useState<LabTest | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editStatus, setEditStatus] = useState("PENDING");
+  const [editNotes, setEditNotes] = useState("");
+  const [catalogForm, setCatalogForm] = useState({
+    name: "",
+    code: "",
+    category: "HEMATOLOGY",
+    unit: "",
+    normalRange: "",
+    price: "",
+  });
   const queryClient = useQueryClient();
 
   // Fetch all patients from the system
@@ -70,69 +148,34 @@ const LabTestsPage = () => {
     },
   });
 
-  // Fetch all users and filter to only doctors (uses the /users endpoint which returns all system users)
-  const { data: doctors } = useQuery({
-    queryKey: ["doctors"],
+  // New lab test form state
+  const steps = ["Patient & Test Selection", "Review & Submit"];
+
+  const { data: testTypes } = useQuery({
+    queryKey: ["test-types"],
     queryFn: async () => {
-      // The /users endpoint returns all system users from the database
-      const response = await api.get("/users");
-      // Filter to only include users who are doctors (role.name === "DOCTOR")
-      const allStaff = response.data.data || [];
-      return allStaff.filter((staff: any) => staff.role?.name === "DOCTOR");
+      const response = await getLabTests();
+      return response.data.tests;
     },
   });
 
-  // New lab test form state
-  const steps = [
-    "Patient & Test Selection",
-    "Sample Collection",
-    "Results Entry",
-    "Review & Submit",
-  ];
-
-  const testTypes = [
-    "Complete Blood Count (CBC)",
-    "Blood Glucose",
-    "Lipid Panel",
-    "Liver Function",
-    "Kidney Function",
-    "Urinalysis",
-    "COVID-19 PCR",
-    "X-Ray",
-    "MRI Scan",
-    "CT Scan",
-    "Other",
-  ];
-
-  const statusOptions = [
-    "REQUESTED",
-    "COLLECTED",
-    "PROCESSING",
-    "COMPLETED",
-    "CANCELLED",
-  ];
-  const priorityOptions = ["LOW", "MEDIUM", "HIGH", "URGENT"];
+  const statusOptions = ["PENDING", "PROCESSING", "COMPLETED", "REVIEWED", "CANCELLED"];
+  const priorityOptions = ["ROUTINE", "URGENT", "STAT"];
 
   interface LabTestFormData {
     patientId: string;
-    doctorId: string;
-    testType: string;
+    visitId: string;
+    testIds: string[];
     priority: string;
     notes: string;
-    collectionNotes: string;
-    results: string;
-    status: string;
   }
 
   const initialFormData: LabTestFormData = {
     patientId: "",
-    doctorId: "",
-    testType: "",
-    priority: "MEDIUM",
+    visitId: "",
+    testIds: [],
+    priority: "ROUTINE",
     notes: "",
-    collectionNotes: "",
-    results: "",
-    status: "REQUESTED",
   };
 
   const [formData, setFormData] = useState<LabTestFormData>(initialFormData);
@@ -140,6 +183,20 @@ const LabTestsPage = () => {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSelectChange = (e: SelectChangeEvent<string | string[]>) => {
+    const { name, value } = e.target;
+
+    if (name === "patientId") {
+      setFormData((prev) => ({
+        ...prev,
+        patientId: value as string,
+        visitId: "", // Reset visitId when patient changes
+      }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleNext = () => {
@@ -154,6 +211,18 @@ const LabTestsPage = () => {
     setDrawerOpen(false);
     setActiveStep(0);
     setFormData(initialFormData);
+  };
+
+  const handleCloseCatalogDialog = () => {
+    setCatalogDialogOpen(false);
+    setCatalogForm({
+      name: "",
+      code: "",
+      category: "HEMATOLOGY",
+      unit: "",
+      normalRange: "",
+      price: "",
+    });
   };
 
   const handleOpenAdd = () => {
@@ -174,38 +243,101 @@ const LabTestsPage = () => {
   // Mutation for adding new lab test to real API
   const addTestMutation = useMutation({
     mutationFn: async (data: LabTestFormData) => {
-      const res = await createLabRequest(data);
+      const requestData = {
+        visitId: data.visitId,
+        testIds: data.testIds,
+        priority: data.priority,
+        notes: data.notes,
+      };
+      const res = await createLabRequest(requestData);
       return res.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lab-tests"] });
+      queryClient.invalidateQueries({ queryKey: ["labRequests"] });
+      queryClient.invalidateQueries({ queryKey: ["labDashboardStats"] });
       handleCloseDrawer();
     },
+    onError: (error: unknown) => setMutationError(getApiErrorMessage(error)),
+  });
+
+  const createCatalogTestMutation = useMutation({
+    mutationFn: async () =>
+      createLabTest({
+        ...catalogForm,
+        price: Number(catalogForm.price),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["test-types"] });
+      handleCloseCatalogDialog();
+    },
+    onError: (error: unknown) => setMutationError(getApiErrorMessage(error)),
+  });
+
+  const updateRequestMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedRequest) return;
+      return api.put(`/lab/requests/${selectedRequest.id}/status`, {
+        status: editStatus,
+        notes: editNotes,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["lab-tests"] });
+      queryClient.invalidateQueries({ queryKey: ["labRequests"] });
+      queryClient.invalidateQueries({ queryKey: ["labDashboardStats"] });
+      setEditOpen(false);
+      setSelectedRequest(null);
+    },
+    onError: (error: unknown) => setMutationError(getApiErrorMessage(error)),
   });
 
   const handleSubmit = () => {
     addTestMutation.mutate(formData);
   };
 
-  // Fetch lab tests from real API
-  const { data: labTests, isLoading } = useQuery({
+  const handleCreateCatalogTest = () => {
+    createCatalogTestMutation.mutate();
+  };
+
+  const openRequestDetails = (request: LabTest) => {
+    setSelectedRequest(request);
+    setDetailsOpen(true);
+  };
+
+  const openRequestEdit = (request: LabTest) => {
+    setSelectedRequest(request);
+    setEditStatus(request.status);
+    setEditNotes(request.request.notes || "");
+    setEditOpen(true);
+  };
+
+  const {
+    data: labTests,
+    isLoading,
+    error: labRequestsError,
+    isError: labRequestsFailed,
+  } = useQuery({
     queryKey: ["lab-tests"],
     queryFn: async () => {
-      const res = await getLabRequests();
-      return res.data.requests.map((test: any) => ({
-        id: test.id,
-        testNumber: `LAB-${test.id.slice(0, 8).toUpperCase()}`,
-        patientName:
-          `${test.patient?.firstName || ""} ${test.patient?.lastName || ""}`.trim() ||
-          "Unknown",
-        testType: test.testType,
-        requestedBy: test.doctor
-          ? `${test.doctor.firstName} ${test.doctor.lastName}`
+      const res = await getLabRequests({ limit: 100 });
+      if (!Array.isArray(res.data.data)) {
+        throw new Error("Unexpected response while loading laboratory requests.");
+      }
+
+      return res.data.data.map((request: any) => ({
+        id: request.id,
+        testNumber: `LAB-${request.id.slice(0, 8).toUpperCase()}`,
+        patientName: `${request.visit?.patient?.firstName || ""} ${request.visit?.patient?.lastName || ""}`.trim() || "Unknown",
+        testIds: request.items.map((item: any) => item.test.name),
+        requestedBy: request.requestedBy
+          ? request.requestedBy.slice(0, 8)
           : "Unassigned",
-        status: test.status,
-        priority: test.priority,
-        collectedAt: test.collectedAt,
-        createdAt: test.createdAt,
+        status: request.status,
+        priority: request.priority,
+        collectedAt: request.requestedAt,
+        createdAt: request.requestedAt,
+        request,
       })) as LabTest[];
     },
   });
@@ -219,7 +351,7 @@ const LabTestsPage = () => {
       const matchesSearch =
         test.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         test.testNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        test.testType.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        test.testIds.join(" ").toLowerCase().includes(searchTerm.toLowerCase()) ||
         test.requestedBy.toLowerCase().includes(searchTerm.toLowerCase()) ||
         test.status.toLowerCase().includes(searchTerm.toLowerCase());
 
@@ -237,12 +369,11 @@ const LabTestsPage = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "COMPLETED":
+      case "REVIEWED":
         return "success";
       case "PROCESSING":
         return "primary";
-      case "COLLECTED":
-        return "info";
-      case "REQUESTED":
+      case "PENDING":
         return "warning";
       case "CANCELLED":
         return "error";
@@ -254,13 +385,8 @@ const LabTestsPage = () => {
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case "URGENT":
+      case "STAT":
         return "error";
-      case "HIGH":
-        return "warning";
-      case "MEDIUM":
-        return "primary";
-      case "LOW":
-        return "default";
       default:
         return "default";
     }
@@ -273,56 +399,61 @@ const LabTestsPage = () => {
         return (
           <Grid container spacing={2} sx={{ mt: 2 }}>
             <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Select Patient"
-                name="patientId"
-                value={formData.patientId}
-                onChange={handleInputChange}
-                required
-                select
-              >
-                {patients?.map((patient: any) => (
-                  <MenuItem key={patient.id} value={patient.id}>
-                    {patient.firstName} {patient.lastName} -{" "}
-                    {patient.patientNumber}
-                  </MenuItem>
-                ))}
-              </TextField>
+              <FormControl fullWidth>
+                <InputLabel>Select Patient</InputLabel>
+                <Select
+                  name="patientId"
+                  value={formData.patientId}
+                  onChange={handleSelectChange}
+                  required
+                >
+                  {patients?.map((patient: any) => (
+                    <MenuItem key={patient.id} value={patient.id}>
+                      {patient.firstName} {patient.lastName} -{" "}
+                      {patient.patientNumber}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </Grid>
             <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Requesting Doctor"
-                name="doctorId"
-                value={formData.doctorId}
-                onChange={handleInputChange}
-                required
-                select
-              >
-                {doctors?.map((doctor: any) => (
-                  <MenuItem key={doctor.id} value={doctor.id}>
-                    Dr. {doctor.firstName} {doctor.lastName}
-                  </MenuItem>
-                ))}
-              </TextField>
+              <FormControl fullWidth disabled={!formData.patientId}>
+                <InputLabel>Visit</InputLabel>
+                <Select
+                  name="visitId"
+                  value={formData.visitId}
+                  onChange={handleSelectChange}
+                  required
+                >
+                  {patients
+                    ?.find((p: any) => p.id === formData.patientId)
+                    ?.visits
+                    ?.filter((v: any) => !["COMPLETED", "CANCELLED"].includes(v.status))
+                    .map((v: any) => (
+                      <MenuItem key={v.id} value={v.id}>
+                        {new Date(v.visitDate).toLocaleString()}
+                      </MenuItem>
+                    ))}
+                </Select>
+              </FormControl>
             </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                select
-                label="Test Type"
-                name="testType"
-                value={formData.testType}
-                onChange={handleInputChange}
-                required
-              >
-                {testTypes.map((type) => (
-                  <MenuItem key={type} value={type}>
-                    {type}
-                  </MenuItem>
-                ))}
-              </TextField>
+            <Grid item xs={12}>
+              <FormControl fullWidth>
+                <InputLabel>Tests</InputLabel>
+                <Select
+                  name="testIds"
+                  multiple
+                  value={formData.testIds}
+                  onChange={handleSelectChange}
+                  required
+                >
+                  {testTypes?.map((test: any) => (
+                    <MenuItem key={test.id} value={test.id}>
+                      {test.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
@@ -355,59 +486,7 @@ const LabTestsPage = () => {
           </Grid>
         );
 
-      case 1: // Sample Collection
-        return (
-          <Grid container spacing={2} sx={{ mt: 2 }}>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                multiline
-                rows={3}
-                label="Collection Notes"
-                name="collectionNotes"
-                value={formData.collectionNotes}
-                onChange={handleInputChange}
-                placeholder="Notes about sample collection, quality, any issues encountered"
-              />
-            </Grid>
-          </Grid>
-        );
-
-      case 2: // Results Entry
-        return (
-          <Grid container spacing={2} sx={{ mt: 2 }}>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                multiline
-                rows={6}
-                label="Test Results"
-                name="results"
-                value={formData.results}
-                onChange={handleInputChange}
-                placeholder="Enter detailed lab test results"
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                select
-                label="Status"
-                name="status"
-                value={formData.status}
-                onChange={handleInputChange}
-              >
-                {statusOptions.map((status) => (
-                  <MenuItem key={status} value={status}>
-                    {status}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Grid>
-          </Grid>
-        );
-
-      case 3: // Review & Submit
+      case 1: // Review & Submit
         return (
           <Grid container spacing={2} sx={{ mt: 2 }}>
             <Grid item xs={12}>
@@ -424,13 +503,16 @@ const LabTestsPage = () => {
                   </Grid>
                   <Grid item xs={6}>
                     <Typography>
-                      <strong>Doctor:</strong>{" "}
-                      {formData.doctorId || "Not selected"}
+                      <strong>Visit:</strong> {formData.visitId || "Not selected"}
                     </Typography>
                   </Grid>
                   <Grid item xs={6}>
                     <Typography>
-                      <strong>Test Type:</strong> {formData.testType}
+                      <strong>Tests:</strong>{" "}
+                      {testTypes
+                        ?.filter((test: any) => formData.testIds.includes(test.id))
+                        .map((test: any) => test.name)
+                        .join(", ")}
                     </Typography>
                   </Grid>
                   <Grid item xs={6}>
@@ -438,21 +520,19 @@ const LabTestsPage = () => {
                       <strong>Priority:</strong> {formData.priority}
                     </Typography>
                   </Grid>
-                  <Grid item xs={6}>
-                    <Typography>
-                      <strong>Status:</strong> {formData.status}
-                    </Typography>
-                  </Grid>
                   <Grid item xs={12}>
                     <Typography>
-                      <strong>Results:</strong>{" "}
-                      {formData.results || "Not yet entered"}
+                      <strong>Clinical Notes:</strong>{" "}
+                      {formData.notes || "None"}
                     </Typography>
                   </Grid>
                 </Grid>
               </Paper>
             </Grid>
             <Box sx={{ mt: 3, display: "flex", gap: 2 }}>
+              <Button onClick={handleBack} disabled={addTestMutation.isPending}>
+                Back
+              </Button>
               <Button
                 variant="contained"
                 onClick={handleSubmit}
@@ -462,7 +542,7 @@ const LabTestsPage = () => {
                 {addTestMutation.isPending ? (
                   <CircularProgress size={24} color="inherit" />
                 ) : (
-                  "Create Lab Test Request"
+                  "Create Request"
                 )}
               </Button>
             </Box>
@@ -500,9 +580,18 @@ const LabTestsPage = () => {
             Manage lab test requests, samples, and results
           </Typography>
         </Box>
-        <Button variant="contained" startIcon={<Add />} onClick={handleOpenAdd}>
-          New Lab Test
-        </Button>
+        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+          <Button
+            variant="outlined"
+            startIcon={<Add />}
+            onClick={() => setCatalogDialogOpen(true)}
+          >
+            Add Catalogue Test
+          </Button>
+          <Button variant="contained" startIcon={<Add />} onClick={handleOpenAdd}>
+            New Lab Request
+          </Button>
+        </Box>
       </Box>
 
       {/* Statistics Cards */}
@@ -688,7 +777,15 @@ const LabTestsPage = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {filteredTests
+                  {labRequestsFailed ? (
+                    <TableRow>
+                      <TableCell colSpan={7}>
+                        <Alert severity="error">
+                          {getApiErrorMessage(labRequestsError)}
+                        </Alert>
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredTests
                     .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                     .map((test) => (
                       <TableRow key={test.id} hover>
@@ -696,13 +793,7 @@ const LabTestsPage = () => {
                           {test.testNumber}
                         </TableCell>
                         <TableCell>{test.patientName}</TableCell>
-                        <TableCell>
-                          <Typography variant="body2">
-                            {test.testType.length > 20
-                              ? `${test.testType.substring(0, 20)}...`
-                              : test.testType}
-                          </Typography>
-                        </TableCell>
+                        <TableCell>{test.testIds.join(", ")}</TableCell>
                         <TableCell>{test.requestedBy}</TableCell>
                         <TableCell>
                           <Chip
@@ -722,20 +813,23 @@ const LabTestsPage = () => {
                           <Tooltip title="View Details">
                             <IconButton
                               size="small"
-                              onClick={() => navigate(`/lab-tests/${test.id}`)}
+                              onClick={() => openRequestDetails(test)}
                             >
                               <Visibility />
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Edit">
-                            <IconButton size="small">
+                            <IconButton
+                              size="small"
+                              onClick={() => openRequestEdit(test)}
+                            >
                               <Edit />
                             </IconButton>
                           </Tooltip>
                         </TableCell>
                       </TableRow>
                     ))}
-                  {filteredTests.length === 0 && (
+                  {!labRequestsFailed && filteredTests.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
                         <Typography color="text.secondary">
@@ -764,7 +858,7 @@ const LabTestsPage = () => {
         )}
       </Paper>
 
-      {/* Add Lab Test Drawer */}
+      {/* Create a request against an existing catalog test. */}
       <Drawer
         anchor="right"
         open={drawerOpen}
@@ -775,10 +869,10 @@ const LabTestsPage = () => {
       >
         <Box sx={{ mb: 4 }}>
           <Typography variant="h5" sx={{ mb: 1, fontWeight: 600 }}>
-            Request New Lab Test
+            Request Laboratory Tests
           </Typography>
           <Typography color="text.secondary">
-            Create a new laboratory test request
+            Select a patient, visit, and tests for the laboratory queue.
           </Typography>
         </Box>
         <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
@@ -789,36 +883,6 @@ const LabTestsPage = () => {
           ))}
         </Stepper>
         {renderStepContent()}
-        {activeStep > 0 && activeStep < steps.length - 1 && (
-          <Box
-            sx={{
-              mt: 2,
-              display: "flex",
-              gap: 2,
-              justifyContent: "flex-end",
-            }}
-          >
-            <Button onClick={handleBack}>Back</Button>
-            <Button variant="contained" onClick={handleNext}>
-              Next
-            </Button>
-          </Box>
-        )}
-        {activeStep === steps.length - 2 && (
-          <Box
-            sx={{
-              mt: 2,
-              display: "flex",
-              gap: 2,
-              justifyContent: "flex-end",
-            }}
-          >
-            <Button onClick={handleBack}>Back</Button>
-            <Button variant="contained" onClick={handleNext}>
-              Review
-            </Button>
-          </Box>
-        )}
         {activeStep === 0 && (
           <Box
             sx={{
@@ -833,7 +897,9 @@ const LabTestsPage = () => {
               variant="contained"
               onClick={handleNext}
               disabled={
-                !formData.patientId || !formData.doctorId || !formData.testType
+                !formData.patientId ||
+                !formData.visitId ||
+                !formData.testIds.length
               }
             >
               Next
@@ -841,6 +907,168 @@ const LabTestsPage = () => {
           </Box>
         )}
       </Drawer>
+
+      <Dialog open={detailsOpen} onClose={() => setDetailsOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Laboratory Request Details</DialogTitle>
+        <DialogContent dividers>
+          {selectedRequest && (
+            <Box sx={{ display: "grid", gap: 1.5 }}>
+              <Typography><strong>Request:</strong> {selectedRequest.testNumber}</Typography>
+              <Typography><strong>Patient:</strong> {selectedRequest.patientName}</Typography>
+              <Typography><strong>Patient number:</strong> {selectedRequest.request.visit?.patient?.patientNumber || "N/A"}</Typography>
+              <Typography><strong>Requested:</strong> {new Date(selectedRequest.createdAt).toLocaleString()}</Typography>
+              <Typography><strong>Requested by:</strong> {selectedRequest.requestedBy}</Typography>
+              <Typography><strong>Priority:</strong> {selectedRequest.priority}</Typography>
+              <Typography><strong>Status:</strong> {selectedRequest.status}</Typography>
+              <Typography><strong>Clinical notes:</strong> {selectedRequest.request.notes || "None"}</Typography>
+              <Typography variant="subtitle2" sx={{ mt: 1 }}>Tests</Typography>
+              {(selectedRequest.request.items || []).map((item: any) => (
+                <Paper key={item.id} variant="outlined" sx={{ p: 1.5 }}>
+                  <Typography fontWeight={600}>{item.test?.name || "Laboratory test"}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {item.test?.code || ""}{item.test?.category ? ` · ${item.test.category.replace(/_/g, " ")}` : ""}
+                    {item.test?.price !== undefined ? ` · ${formatCurrency(Number(item.test.price))}` : ""}
+                  </Typography>
+                </Paper>
+              ))}
+              {(selectedRequest.request.results || []).length > 0 && (
+                <>
+                  <Typography variant="subtitle2" sx={{ mt: 1 }}>Results</Typography>
+                  {selectedRequest.request.results.map((result: any) => (
+                    <Typography key={result.id} variant="body2">
+                      {result.test?.name || "Test"}: {result.value}{result.unit ? ` ${result.unit}` : ""}
+                      {result.interpretation ? ` · ${result.interpretation}` : ""}
+                    </Typography>
+                  ))}
+                </>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDetailsOpen(false)}>Close</Button>
+          {selectedRequest && <Button onClick={() => { setDetailsOpen(false); openRequestEdit(selectedRequest); }}>Edit Request</Button>}
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={editOpen} onClose={() => setEditOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Edit Laboratory Request</DialogTitle>
+        <DialogContent sx={{ display: "grid", gap: 2, pt: "12px !important" }}>
+          <TextField select label="Status" value={editStatus} onChange={(event) => setEditStatus(event.target.value)}>
+            {statusOptions.map((status) => <MenuItem key={status} value={status}>{status}</MenuItem>)}
+          </TextField>
+          <TextField label="Clinical notes" multiline rows={3} value={editNotes} onChange={(event) => setEditNotes(event.target.value)} />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={() => updateRequestMutation.mutate()} disabled={updateRequestMutation.isPending}>
+            {updateRequestMutation.isPending ? <CircularProgress size={20} /> : "Save Changes"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={catalogDialogOpen}
+        onClose={handleCloseCatalogDialog}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Add Laboratory Test to Catalogue</DialogTitle>
+        <DialogContent sx={{ display: "grid", gap: 2, pt: "12px !important" }}>
+          <TextField
+            required
+            label="Test name"
+            value={catalogForm.name}
+            onChange={(event) =>
+              setCatalogForm((current) => ({ ...current, name: event.target.value }))
+            }
+          />
+          <TextField
+            required
+            label="Test code"
+            value={catalogForm.code}
+            onChange={(event) =>
+              setCatalogForm((current) => ({ ...current, code: event.target.value }))
+            }
+          />
+          <TextField
+            select
+            required
+            label="Category"
+            value={catalogForm.category}
+            onChange={(event) =>
+              setCatalogForm((current) => ({
+                ...current,
+                category: event.target.value,
+              }))
+            }
+          >
+            {labTestCategories.map((category) => (
+              <MenuItem key={category} value={category}>
+                {category.replace(/_/g, " ")}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            type="number"
+            required
+            label="Price"
+            value={catalogForm.price}
+            inputProps={{ min: 0.01, step: 0.01 }}
+            onChange={(event) =>
+              setCatalogForm((current) => ({ ...current, price: event.target.value }))
+            }
+          />
+          <TextField
+            label="Unit"
+            value={catalogForm.unit}
+            onChange={(event) =>
+              setCatalogForm((current) => ({ ...current, unit: event.target.value }))
+            }
+          />
+          <TextField
+            label="Normal range"
+            value={catalogForm.normalRange}
+            onChange={(event) =>
+              setCatalogForm((current) => ({
+                ...current,
+                normalRange: event.target.value,
+              }))
+            }
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseCatalogDialog}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleCreateCatalogTest}
+            disabled={
+              createCatalogTestMutation.isPending ||
+              !catalogForm.name.trim() ||
+              !catalogForm.code.trim() ||
+              !catalogForm.price ||
+              Number(catalogForm.price) <= 0
+            }
+          >
+            {createCatalogTestMutation.isPending ? (
+              <CircularProgress size={22} color="inherit" />
+            ) : (
+              "Save Test"
+            )}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Snackbar
+        open={Boolean(mutationError)}
+        autoHideDuration={6000}
+        onClose={() => setMutationError("")}
+      >
+        <Alert severity="error" onClose={() => setMutationError("")}>
+          {mutationError}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

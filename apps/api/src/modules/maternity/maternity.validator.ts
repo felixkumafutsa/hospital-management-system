@@ -14,6 +14,12 @@ export const UpdateAncSchema = CreateAncSchema.partial();
 // Schema for updating delivery records
 export const UpdateDeliverySchema = CreateDeliverySchema.partial();
 
+// Schema for marking ANC as delivered - only require deliveryDate and deliveryMethod
+export const MarkAncAsDeliveredSchema = CreateDeliverySchema.pick({
+  deliveryDate: true,
+  deliveryMethod: true
+});
+
 // Schema for updating postnatal records
 export const UpdatePostnatalSchema = CreatePostnatalSchema.partial();
 

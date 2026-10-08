@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 
 // Audit log entry data
@@ -7,17 +8,8 @@ interface AuditLogData {
   resource: string;
   module?: string;
   resourceId?: string;
-  before?: any;
-  after?: any;
-}
-
-// Extend Express Request to include audit log method
-declare global {
-  namespace Express {
-    interface Request {
-      createAuditLog: (data: AuditLogData) => Promise<void>;
-    }
-  }
+  before?: Prisma.InputJsonValue | null;
+  after?: Prisma.InputJsonValue | null;
 }
 
 // Audit logging middleware
@@ -36,8 +28,8 @@ export const auditLogger = (req: Request, _res: Response, next: NextFunction) =>
             resourceId: data.resourceId,
             ipAddress: req.ip || req.socket.remoteAddress,
             userAgent: req.get('user-agent'),
-            before: data.before,
-            after: data.after,
+            before: data.before === null ? Prisma.JsonNull : data.before,
+            after: data.after === null ? Prisma.JsonNull : data.after,
           },
         });
       }

@@ -16,12 +16,11 @@ import {
   Button,
 } from "@mui/material";
 import {
-  TrendingUp,
-  TrendingDown,
   Receipt,
   AttachMoney,
   ShoppingCart,
-  Science,
+  AccountBalance,
+  AccountBalanceWallet,
 } from "@mui/icons-material";
 import {
   LineChart,
@@ -36,44 +35,103 @@ import {
 } from "recharts";
 import { useQuery } from "@tanstack/react-query";
 import api from "../../services/api";
+import { formatCurrency } from "../../utils/currency";
 
-interface RevenueData {
-  month: string;
-  revenue: number;
-  expenses: number;
-}
+// Interfaces kept for future use (TypeScript requires they be used or removed)
+// interface RevenueData {
+//   month: string;
+//   revenue: number;
+//   expenses: number;
+// }
 
-interface Invoice {
-  id: string;
-  patientName: string;
-  date: string;
-  amount: number;
-  status: "PAID" | "UNPAID" | "OVERDUE";
-  type: string;
-}
+// interface Invoice {
+//   id: string;
+//   patientName: string;
+//   date: string;
+//   amount: number;
+//   status: "PAID" | "UNPAID" | "OVERDUE";
+//   type: string;
+// }
 
 const FinanceDashboardPage = () => {
-  const { data: revenueData, isLoading: revenueLoading } = useQuery({
+  const { data: revenueData = [], isLoading: revenueLoading } = useQuery({
     queryKey: ["revenue-data"],
     queryFn: async () => {
-      const res = await api.get("/finance/revenue");
-      return res.data.data as RevenueData[];
+      try {
+        const res = await api.get("/finance/revenue");
+        const data = res.data?.data ?? res.data;
+        return Array.isArray(data) ? data : [];
+      } catch (error) {
+        console.error("Error fetching revenue data:", error);
+        return [];
+      }
     },
   });
 
-  const { data: recentInvoices, isLoading: invoicesLoading } = useQuery({
+  const { data: recentInvoices = [], isLoading: invoicesLoading } = useQuery({
     queryKey: ["recent-invoices"],
     queryFn: async () => {
-      const res = await api.get("/finance/invoices/recent");
-      return res.data.invoices as Invoice[];
+      try {
+        const res = await api.get("/finance/invoices/recent");
+        const invoices = Array.isArray(res.data)
+          ? res.data
+          : res.data?.data?.invoices ??
+            res.data?.data ??
+            res.data?.invoices ??
+            [];
+        return invoices.map((invoice: any) => ({
+          id: invoice.id,
+          patientName: `${invoice.patient?.firstName || ""} ${invoice.patient?.lastName || ""}`.trim() || "Unknown patient",
+          date: invoice.createdAt,
+          amount: Number(invoice.total ?? 0),
+          status: invoice.status,
+          type: [...new Set((invoice.items || []).map((item: any) => item.category))].join(", ") || "General",
+        }));
+      } catch (error) {
+        console.error("Error fetching recent invoices:", error);
+        return [];
+      }
     },
   });
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["finance-stats"],
     queryFn: async () => {
-      const res = await api.get("/finance/stats");
-      return res.data;
+      try {
+        const res = await api.get("/finance/stats");
+        const data =
+          res.data?.data?.stats ??
+          res.data?.data ??
+          res.data?.stats ??
+          res.data;
+        if (!data || typeof data !== "object") return null;
+
+        const amount = (value: unknown) => {
+          const numericValue = Number(value ?? 0);
+          return Number.isFinite(numericValue) ? numericValue : 0;
+        };
+        const hasStats = [
+          "totalRevenue",
+          "monthlyRevenue",
+          "totalBilled",
+          "totalPaid",
+          "totalOutstanding",
+        ].some((key) => key in data);
+        if (!hasStats) return null;
+
+        return {
+          totalRevenue: amount(data.totalRevenue),
+          monthlyRevenue: amount(data.monthlyRevenue),
+          unpaidInvoicesCount: amount(data.unpaidInvoicesCount),
+          totalInvoices: amount(data.totalInvoices),
+          totalBilled: amount(data.totalBilled),
+          totalPaid: amount(data.totalPaid),
+          totalOutstanding: amount(data.totalOutstanding),
+        };
+      } catch (error) {
+        console.error("Error fetching finance stats:", error);
+        return null;
+      }
     },
   });
 
@@ -82,9 +140,13 @@ const FinanceDashboardPage = () => {
     queryKey: ["department-revenue"],
     queryFn: async () => {
       try {
-        const invoicesRes = await api.get("/finance/invoices");
+        const invoicesRes = await api.get("/finance/invoices", { params: { limit: 100 } });
 
-        const invoices = invoicesRes.data.invoices || [];
+        const invoices =
+          invoicesRes.data?.data?.invoices ??
+          invoicesRes.data?.data ??
+          invoicesRes.data?.invoices ??
+          [];
 
         // Group invoices by category to get department revenue
         const deptMap = new Map<string, number>();
@@ -94,7 +156,7 @@ const FinanceDashboardPage = () => {
             const category = item.category || "Other Services";
             deptMap.set(
               category,
-              (deptMap.get(category) || 0) + item.unitPrice * item.quantity,
+              (deptMap.get(category) || 0) + Number(item.unitPrice || 0) * Number(item.quantity || 0),
             );
           });
         });
@@ -148,8 +210,7 @@ const FinanceDashboardPage = () => {
     title,
     value,
     icon: Icon,
-    trend,
-    trendValue,
+    description,
     color,
   }: any) => (
     <Card elevation={2} sx={{ minWidth: 200, flex: 1, position: "relative" }}>
@@ -177,36 +238,9 @@ const FinanceDashboardPage = () => {
           <Typography variant="h4" sx={{ fontWeight: 600, mb: 1 }}>
             {value}
           </Typography>
-          <Box
-            sx={{ display: "flex", alignItems: "center", whiteSpace: "nowrap" }}
-          >
-            {trend === "up" ? (
-              <TrendingUp
-                sx={{
-                  color: "success.main",
-                  fontSize: 16,
-                  mr: 0.5,
-                  flexShrink: 0,
-                }}
-              />
-            ) : (
-              <TrendingDown
-                sx={{
-                  color: "error.main",
-                  fontSize: 16,
-                  mr: 0.5,
-                  flexShrink: 0,
-                }}
-              />
-            )}
-            <Typography
-              variant="body2"
-              color="text.secondary"
-              sx={{ whiteSpace: "nowrap" }}
-            >
-              {trendValue} from last month
-            </Typography>
-          </Box>
+          <Typography variant="body2" color="text.secondary">
+            {description}
+          </Typography>
         </Box>
       </CardContent>
     </Card>
@@ -250,41 +284,48 @@ const FinanceDashboardPage = () => {
           >
             <CircularProgress />
           </Box>
-        ) : (
+        ) : stats ? (
           <>
             <StatCard
               title="Total Revenue"
-              value={`$${stats?.totalRevenue?.toLocaleString() || "0"}`}
+              value={formatCurrency(stats.totalRevenue)}
               icon={AttachMoney}
-              trend="up"
-              trendValue="+12.5%"
+              description="Payments received"
               color="#1976d2"
             />
             <StatCard
-              title="Consultations"
-              value={stats?.totalConsultations || 0}
+              title="Revenue This Month"
+              value={formatCurrency(stats.monthlyRevenue)}
               icon={Receipt}
-              trend="up"
-              trendValue="+8.2%"
+              description="Payments received this month"
               color="#2e7d32"
             />
             <StatCard
-              title="Pharmacy Sales"
-              value={`$${stats?.pharmacyRevenue?.toLocaleString() || "0"}`}
+              title="Total Billed"
+              value={formatCurrency(stats.totalBilled)}
               icon={ShoppingCart}
-              trend="up"
-              trendValue="+15.3%"
+              description={`${Number(stats.totalInvoices) || 0} invoices`}
               color="#ed6c02"
             />
             <StatCard
-              title="Lab Tests"
-              value={stats?.labTestsCompleted || 0}
-              icon={Science}
-              trend="up"
-              trendValue="+10.1%"
+              title="Total Paid"
+              value={formatCurrency(stats.totalPaid)}
+              icon={AccountBalanceWallet}
+              description="Applied to invoices"
+              color="#0288d1"
+            />
+            <StatCard
+              title="Outstanding Balance"
+              value={formatCurrency(stats.totalOutstanding)}
+              icon={AccountBalance}
+              description={`${Number(stats.unpaidInvoicesCount) || 0} unpaid invoices`}
               color="#9c27b0"
             />
           </>
+        ) : (
+          <Typography color="error" sx={{ p: 2 }}>
+            Finance statistics could not be loaded.
+          </Typography>
         )}
       </Box>
 
@@ -378,7 +419,7 @@ const FinanceDashboardPage = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {recentInvoices?.map((invoice) => (
+                {recentInvoices?.map((invoice: { id: string; patientName: string; date: string; amount: number; status: "PAID" | "UNPAID" | "OVERDUE"; type: string }) => (
                   <TableRow key={invoice.id} hover>
                     <TableCell sx={{ fontFamily: "monospace" }}>
                       {invoice.id.slice(0, 8)}
@@ -389,7 +430,7 @@ const FinanceDashboardPage = () => {
                     </TableCell>
                     <TableCell>{invoice.type}</TableCell>
                     <TableCell sx={{ fontWeight: 500 }}>
-                      ${invoice.amount.toFixed(2)}
+                      {formatCurrency(invoice.amount)}
                     </TableCell>
                     <TableCell>
                       <Chip

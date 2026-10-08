@@ -3,6 +3,7 @@ import {
   createNewInvoice,
   getInvoice,
   getPatientInvoices,
+  getVisitInvoice,
   listAllInvoices,
   recordNewPayment,
   getFinanceStats,
@@ -12,20 +13,28 @@ import {
 import { CreateInvoiceInput, CreatePaymentInput } from './billing.validator';
 
 export const createInvoiceController = async (
-  req: Request<{}, {}, CreateInvoiceInput>,
+  req: Request<Record<string, never>, unknown, CreateInvoiceInput>,
   res: Response,
   next: NextFunction
 ) => {
   try {
     const result = await createNewInvoice(req.body);
     res.status(201).json(result);
-  } catch (error) {
-    next(error);
+  } catch (error: unknown) {
+    // Handle unique constraint violation (P2002) - visit already has an invoice
+    const prismaError = error as { code?: string; meta?: { target?: string[] } };
+    if (prismaError.code === 'P2002' && prismaError.meta?.target?.includes('visitId')) {
+      return res.status(409).json({
+        success: false,
+        error: 'An invoice already exists for this visit. Each visit can only have one invoice.'
+      });
+    }
+    return next(error);
   }
 };
 
 export const getInvoiceController = async (
-  req: Request<{ id: string }>,
+  req: Request<{ id: string }, unknown, unknown>,
   res: Response,
   next: NextFunction
 ) => {
@@ -38,7 +47,7 @@ export const getInvoiceController = async (
 };
 
 export const getPatientInvoicesController = async (
-  req: Request<{ patientId: string }, {}, {}, { limit?: string; offset?: string }>,
+  req: Request<{ patientId: string }, unknown, unknown, { limit?: string; offset?: string }>,
   res: Response,
   next: NextFunction
 ) => {
@@ -52,8 +61,21 @@ export const getPatientInvoicesController = async (
   }
 };
 
+export const getVisitInvoiceController = async (
+  req: Request<{ visitId: string }, unknown, unknown>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const result = await getVisitInvoice(req.params.visitId);
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getAllInvoicesController = async (
-  req: Request<{}, {}, {}, { status?: string; limit?: string; offset?: string }>,
+  req: Request<Record<string, never>, unknown, unknown, { status?: string; limit?: string; offset?: string }>,
   res: Response,
   next: NextFunction
 ) => {
@@ -68,7 +90,7 @@ export const getAllInvoicesController = async (
 };
 
 export const recordPaymentController = async (
-  req: Request<{ invoiceId: string }, {}, CreatePaymentInput>,
+  req: Request<{ invoiceId: string }, unknown, CreatePaymentInput>,
   res: Response,
   next: NextFunction
 ) => {
@@ -81,7 +103,7 @@ export const recordPaymentController = async (
 };
 
 export const getFinanceStatsController = async (
-  _req: Request,
+  _req: Request<Record<string, never>, unknown, unknown>,
   res: Response,
   next: NextFunction
 ) => {
@@ -94,7 +116,7 @@ export const getFinanceStatsController = async (
 };
 
 export const getRevenueController = async (
-  _req: Request,
+  _req: Request<Record<string, never>, unknown, unknown>,
   res: Response,
   next: NextFunction
 ) => {
@@ -102,12 +124,12 @@ export const getRevenueController = async (
     const result = await getMonthlyRevenue();
     res.status(200).json(result);
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
 export const getRecentInvoicesController = async (
-  _req: Request,
+  _req: Request<Record<string, never>, unknown, unknown>,
   res: Response,
   next: NextFunction
 ) => {
@@ -115,6 +137,6 @@ export const getRecentInvoicesController = async (
     const result = await getLatestInvoices();
     res.status(200).json(result);
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };

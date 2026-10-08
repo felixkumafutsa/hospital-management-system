@@ -22,6 +22,8 @@ import {
   StepLabel,
   TextField,
   MenuItem,
+  Checkbox,
+  FormControlLabel,
 } from "@mui/material";
 import {
   Add,
@@ -34,18 +36,21 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
+import { formatCurrency } from "../../utils/currency";
 
 interface InventoryItem {
   id: string;
   sku: string;
   name: string;
-  category: string;
+  form: string;
   quantity: number;
+  expiredQuantity: number;
   minStock: number;
   unitPrice: number;
   supplier: string;
   expiryDate: string;
   status: string;
+  isOtc: boolean;
   location: string;
   createdAt: string;
 }
@@ -67,22 +72,31 @@ const PharmacyInventoryPage = () => {
     "Review & Submit",
   ];
 
-  const categoryOptions = [
-    "Pharmaceuticals",
-    "Medical Supplies",
-    "Equipment",
-    "Disposables",
-    "Vaccines",
-    "Other",
+  const formOptions = [
+    "TABLET",
+    "CAPSULE",
+    "SYRUP",
+    "INJECTION",
+    "CREAM",
+    "OINTMENT",
+    "DROPS",
+    "INHALER",
+    "SUPPOSITORY",
+    "OTHER",
   ];
 
   interface InventoryFormData {
     name: string;
     sku: string;
-    category: string;
+    form: string; // Changed from category
+    unit: string; // Added unit
     quantity: number;
     minStock: number;
     unitPrice: number;
+    costPrice: number;
+    genericName: string;
+    strength: string;
+    isOtc: boolean;
     supplier: string;
     expiryDate: string;
     location: string;
@@ -93,10 +107,15 @@ const PharmacyInventoryPage = () => {
   const initialFormData: InventoryFormData = {
     name: "",
     sku: "",
-    category: "",
+    form: "", // Changed from category
+    unit: "", // Added unit
     quantity: 0,
     minStock: 10,
     unitPrice: 0,
+    costPrice: 0,
+    genericName: "",
+    strength: "",
+    isOtc: false,
     supplier: "",
     expiryDate: "",
     location: "",
@@ -108,7 +127,12 @@ const PharmacyInventoryPage = () => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const numberFields = ["quantity", "minStock", "unitPrice", "costPrice"];
+    if (numberFields.includes(name)) {
+      setFormData((prev) => ({ ...prev, [name]: parseFloat(value) || 0 }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleNext = () => {
@@ -143,7 +167,21 @@ const PharmacyInventoryPage = () => {
   // Mutation for adding new inventory item
   const addItemMutation = useMutation({
     mutationFn: async (data: InventoryFormData) => {
-      const res = await api.post("/inventory", data);
+      const res = await api.post("/pharmacy/stock/receive", {
+        name: data.name,
+        genericName: data.genericName || undefined,
+        strength: data.strength || undefined,
+        isOtc: data.isOtc,
+        form: data.form,
+        unit: data.unit,
+        reorderLevel: data.minStock,
+        batchNumber: data.sku,
+        quantity: data.quantity,
+        costPrice: data.costPrice,
+        sellingPrice: data.unitPrice,
+        supplierName: data.supplier,
+        expiresAt: new Date(data.expiryDate).toISOString(),
+      });
       return res.data;
     },
     onSuccess: () => {
@@ -161,29 +199,57 @@ const PharmacyInventoryPage = () => {
     queryKey: ["inventory"],
     queryFn: async () => {
       const res = await api.get("/pharmacy/medicines");
-      return res.data.items as InventoryItem[];
+      return (res.data.data || []).map((medicine: any) => {
+        const batches = medicine.batches || [];
+        const now = new Date();
+        const usableBatches = batches.filter((batch: any) => new Date(batch.expiresAt) > now);
+        const currentBatch = usableBatches[0] || batches[0];
+        return {
+          id: medicine.id,
+          sku: currentBatch?.batchNumber || "No batch",
+          name: medicine.name,
+          form: medicine.form,
+          isOtc: medicine.isOtc,
+          quantity: usableBatches.reduce((sum: number, batch: any) => sum + batch.quantityLeft, 0),
+          expiredQuantity: batches
+            .filter((batch: any) => new Date(batch.expiresAt) <= now)
+            .reduce((sum: number, batch: any) => sum + batch.quantityLeft, 0),
+          minStock: medicine.reorderLevel,
+          unitPrice: Number(currentBatch?.sellingPrice || 0),
+          supplier: currentBatch?.supplier?.name || "No active stock",
+          expiryDate: currentBatch?.expiresAt || "",
+          status: "IN_STOCK",
+          location: "",
+          createdAt: medicine.createdAt,
+        } as InventoryItem;
+      }) as InventoryItem[];
     },
+    // Use placeholderData to keep previous data while refetching
+    placeholderData: (previousData) => previousData,
   });
 
   // Filter inventory items based on search term
   const filteredItems =
-    inventoryItems?.filter(
+    (inventoryItems || [])?.filter(
       (item) =>
         item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.form.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.supplier.toLowerCase().includes(searchTerm.toLowerCase()),
     ) || [];
 
   const getStatusColor = (item: InventoryItem) => {
-    if (item.quantity <= 0) return "error";
+    if (item.quantity <= 0) return item.expiredQuantity > 0 ? "error" : "default";
     if (item.quantity < item.minStock) return "warning";
+    if (item.expiryDate && new Date(item.expiryDate).getTime() <= Date.now() + 30 * 24 * 60 * 60 * 1000) return "warning";
     return "success";
   };
 
   const getStatusLabel = (item: InventoryItem) => {
+    if (item.quantity <= 0 && item.expiredQuantity > 0) return "Expired Stock";
     if (item.quantity <= 0) return "Out of Stock";
     if (item.quantity < item.minStock) return "Low Stock";
+    if (item.expiryDate && new Date(item.expiryDate).getTime() <= Date.now() + 30 * 24 * 60 * 60 * 1000) return "Expiring Soon";
     return "In Stock";
   };
 
@@ -206,9 +272,36 @@ const PharmacyInventoryPage = () => {
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
-                label="SKU"
+                label="Batch Number"
                 name="sku"
                 value={formData.sku}
+                onChange={handleInputChange}
+                required
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                select
+                label="Form"
+                name="form"
+                value={formData.form}
+                onChange={handleInputChange}
+                required
+              >
+                {formOptions.map((form) => (
+                  <MenuItem key={form} value={form}>
+                    {form}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Unit (e.g., mg, ml)"
+                name="unit"
+                value={formData.unit}
                 onChange={handleInputChange}
                 required
               />
@@ -216,30 +309,21 @@ const PharmacyInventoryPage = () => {
             <Grid item xs={12}>
               <TextField
                 fullWidth
-                select
-                label="Category"
-                name="category"
-                value={formData.category}
-                onChange={handleInputChange}
-                required
-              >
-                {categoryOptions.map((category) => (
-                  <MenuItem key={category} value={category}>
-                    {category}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
                 multiline
                 rows={2}
-                label="Notes"
-                name="notes"
-                value={formData.notes}
+                label="Generic Name (Optional)"
+                name="genericName"
+                value={formData.genericName}
                 onChange={handleInputChange}
-                placeholder="Additional notes about this medication"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Strength (Optional)"
+                name="strength"
+                value={formData.strength}
+                onChange={handleInputChange}
               />
             </Grid>
           </Grid>
@@ -272,7 +356,18 @@ const PharmacyInventoryPage = () => {
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
-                label="Unit Price ($)"
+                label="Cost Price (MWK)"
+                name="costPrice"
+                type="number"
+                value={formData.costPrice}
+                onChange={handleInputChange}
+                required
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Selling Price (MWK)"
                 name="unitPrice"
                 type="number"
                 value={formData.unitPrice}
@@ -289,6 +384,18 @@ const PharmacyInventoryPage = () => {
                 value={formData.expiryDate}
                 onChange={handleInputChange}
                 InputLabelProps={{ shrink: true }}
+                required
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={formData.isOtc}
+                    onChange={(event) => setFormData((current) => ({ ...current, isOtc: event.target.checked }))}
+                  />
+                }
+                label="Available for over-the-counter purchase"
               />
             </Grid>
           </Grid>
@@ -336,12 +443,17 @@ const PharmacyInventoryPage = () => {
                   </Grid>
                   <Grid item xs={6}>
                     <Typography>
-                      <strong>SKU:</strong> {formData.sku}
+                      <strong>Batch:</strong> {formData.sku}
                     </Typography>
                   </Grid>
                   <Grid item xs={6}>
                     <Typography>
-                      <strong>Category:</strong> {formData.category}
+                      <strong>Form:</strong> {formData.form}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography>
+                      <strong>Unit:</strong> {formData.unit}
                     </Typography>
                   </Grid>
                   <Grid item xs={6}>
@@ -351,8 +463,12 @@ const PharmacyInventoryPage = () => {
                   </Grid>
                   <Grid item xs={6}>
                     <Typography>
-                      <strong>Unit Price:</strong> $
-                      {formData.unitPrice.toFixed(2)}
+                      <strong>Cost Price:</strong> {formatCurrency(formData.costPrice)}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography>
+                      <strong>Selling Price:</strong> {formatCurrency(formData.unitPrice)}
                     </Typography>
                   </Grid>
                   <Grid item xs={6}>
@@ -375,20 +491,6 @@ const PharmacyInventoryPage = () => {
                 </Grid>
               </Paper>
             </Grid>
-            <Box sx={{ mt: 3, display: "flex", gap: 2 }}>
-              <Button
-                variant="contained"
-                onClick={handleSubmit}
-                disabled={addItemMutation.isPending}
-                sx={{ bgcolor: "#0EA5A4", "&:hover": { bgcolor: "#0c8c8b" } }}
-              >
-                {addItemMutation.isPending ? (
-                  <CircularProgress size={24} color="inherit" />
-                ) : (
-                  "Add to Inventory"
-                )}
-              </Button>
-            </Box>
           </Grid>
         );
 
@@ -513,16 +615,10 @@ const PharmacyInventoryPage = () => {
                   Total Value
                 </Typography>
                 <Typography variant="h5" fontWeight={600}>
-                  $
-                  {inventoryItems
-                    ?.reduce(
-                      (acc, item) => acc + item.quantity * item.unitPrice,
-                      0,
-                    )
-                    .toLocaleString() || "0"}
+                  {formatCurrency(inventoryItems?.reduce((acc, item) => acc + item.quantity * item.unitPrice, 0) || 0)}
                 </Typography>
               </Box>
-              <Box sx={{ fontSize: 40, color: "#0EA5A4", opacity: 0.5 }}>$</Box>
+              <Box sx={{ fontSize: 24, color: "#0EA5A4", opacity: 0.7 }}>MWK</Box>
             </Box>
           </Paper>
         </Grid>
@@ -532,7 +628,7 @@ const PharmacyInventoryPage = () => {
       <Paper elevation={2} sx={{ p: 2, mb: 3 }}>
         <TextField
           fullWidth
-          placeholder="Search inventory by name, SKU, category, or supplier..."
+          placeholder="Search inventory by name, SKU, form, or supplier..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           variant="standard"
@@ -555,12 +651,13 @@ const PharmacyInventoryPage = () => {
               <Table>
                 <TableHead sx={{ backgroundColor: "#f5f5f5" }}>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: "bold" }}>SKU</TableCell>
+                    <TableCell sx={{ fontWeight: "bold" }}>Batch</TableCell>
                     <TableCell sx={{ fontWeight: "bold" }}>Item Name</TableCell>
-                    <TableCell sx={{ fontWeight: "bold" }}>Category</TableCell>
+                    <TableCell sx={{ fontWeight: "bold" }}>Form</TableCell>
                     <TableCell sx={{ fontWeight: "bold" }}>In Stock</TableCell>
+                    <TableCell sx={{ fontWeight: "bold" }}>Expiry</TableCell>
                     <TableCell sx={{ fontWeight: "bold" }}>
-                      Unit Price
+                      Selling Price
                     </TableCell>
                     <TableCell sx={{ fontWeight: "bold" }}>Status</TableCell>
                     <TableCell sx={{ fontWeight: "bold" }}>Actions</TableCell>
@@ -579,10 +676,11 @@ const PharmacyInventoryPage = () => {
                           <Typography variant="body2" color="text.secondary">
                             {item.supplier}
                           </Typography>
+                          {item.isOtc && <Chip label="OTC" size="small" color="success" sx={{ mt: 0.5 }} />}
                         </TableCell>
                         <TableCell>
                           <Chip
-                            label={item.category}
+                            label={item.form}
                             size="small"
                             variant="outlined"
                           />
@@ -594,8 +692,16 @@ const PharmacyInventoryPage = () => {
                           <Typography variant="body2" color="text.secondary">
                             Min: {item.minStock}
                           </Typography>
+                          {!!item.expiredQuantity && (
+                            <Typography variant="body2" color="error.main">
+                              Expired: {item.expiredQuantity}
+                            </Typography>
+                          )}
                         </TableCell>
-                        <TableCell>${item.unitPrice.toFixed(2)}</TableCell>
+                        <TableCell>
+                          {item.expiryDate ? new Date(item.expiryDate).toLocaleDateString() : "N/A"}
+                        </TableCell>
+                        <TableCell>{formatCurrency(item.unitPrice)}</TableCell>
                         <TableCell>
                           <Chip
                             label={getStatusLabel(item)}
@@ -627,7 +733,7 @@ const PharmacyInventoryPage = () => {
                     ))}
                   {filteredItems.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
+                      <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
                         <Typography color="text.secondary">
                           No inventory items found matching your search
                         </Typography>
@@ -674,56 +780,42 @@ const PharmacyInventoryPage = () => {
             </Step>
           ))}
         </Stepper>
-        {renderStepContent()}
-        {activeStep > 0 && activeStep < steps.length - 1 && (
-          <Box
-            sx={{
-              mt: 2,
-              display: "flex",
-              gap: 2,
-              justifyContent: "flex-end",
-            }}
+        <Box sx={{ flexGrow: 1, overflowY: "auto", p: 0.5 }}>
+          {renderStepContent()}
+        </Box>
+        <Box sx={{ mt: 3, display: "flex", justifyContent: "space-between" }}>
+          <Button
+            onClick={activeStep === 0 ? handleCloseDrawer : handleBack}
           >
-            <Button onClick={handleBack}>Back</Button>
-            <Button variant="contained" onClick={handleNext}>
-              Next
+            {activeStep === 0 ? "Cancel" : "Back"}
+          </Button>
+          {activeStep === steps.length - 1 ? (
+            <Button
+              variant="contained"
+              onClick={handleSubmit}
+              disabled={addItemMutation.isPending || !formData.name || !formData.sku || !formData.form || !formData.unit || formData.quantity <= 0 || formData.costPrice <= 0 || formData.unitPrice <= 0 || !formData.supplier || !formData.expiryDate}
+              sx={{ bgcolor: "#0EA5A4", "&:hover": { bgcolor: "#0c8c8b" } }}
+            >
+              {addItemMutation.isPending ? (
+                <CircularProgress size={24} color="inherit" />
+              ) : (
+                "Add to Inventory"
+              )}
             </Button>
-          </Box>
-        )}
-        {activeStep === steps.length - 2 && (
-          <Box
-            sx={{
-              mt: 2,
-              display: "flex",
-              gap: 2,
-              justifyContent: "flex-end",
-            }}
-          >
-            <Button onClick={handleBack}>Back</Button>
-            <Button variant="contained" onClick={handleNext}>
-              Review
-            </Button>
-          </Box>
-        )}
-        {activeStep === 0 && (
-          <Box
-            sx={{
-              mt: 2,
-              display: "flex",
-              gap: 2,
-              justifyContent: "flex-end",
-            }}
-          >
-            <Button onClick={handleCloseDrawer}>Cancel</Button>
+          ) : (
             <Button
               variant="contained"
               onClick={handleNext}
-              disabled={!formData.name || !formData.sku || !formData.category}
+              disabled={
+                (activeStep === 0 && (!formData.name || !formData.sku || !formData.form || !formData.unit)) ||
+                (activeStep === 1 && (formData.quantity <= 0 || formData.costPrice <= 0 || formData.unitPrice <= 0 || !formData.expiryDate)) ||
+                (activeStep === 2 && !formData.supplier)
+              }
             >
-              Next
+              {activeStep === steps.length - 2 ? "Review" : "Next"}
             </Button>
-          </Box>
-        )}
+          )}
+        </Box>
       </Drawer>
     </Box>
   );

@@ -1,25 +1,22 @@
 import { z } from 'zod';
-import { VisitType } from '@prisma/client';
+import { VisitType, TriageLevel, VisitStatus } from '@prisma/client';
 
 // Create visit schema
 export const createVisitSchema = z.object({
   body: z.object({
     patientId: z.string().uuid(),
-    visitType: z.enum([
-      VisitType.OUTPATIENT,
-      VisitType.INPATIENT,
-      VisitType.ANC,
-      VisitType.POSTNATAL,
-      VisitType.EMERGENCY
-    ]).optional().default(VisitType.OUTPATIENT),
-    referralNote: z.string().optional()
+    visitType: z.nativeEnum(VisitType).optional().default(VisitType.OUTPATIENT),
+    referralNote: z.string().optional(),
+    reasonForVisit: z.string().optional(),
+    triageLevel: z.nativeEnum(TriageLevel).optional(),
+    emergencyNotes: z.string().optional()
   })
 });
 
 // Update visit status schema
 export const updateVisitStatusSchema = z.object({
   body: z.object({
-    status: z.string()
+    status: z.nativeEnum(VisitStatus)
   }),
   params: z.object({
     id: z.string().uuid()
@@ -29,6 +26,7 @@ export const updateVisitStatusSchema = z.object({
 // Get visits filter schema
 export const getVisitsSchema = z.object({
   query: z.object({
+    patientId: z.string().uuid().optional(),
     status: z.string().optional(),
     visitType: z.string().optional(),
     fromDate: z.coerce.date().optional(),

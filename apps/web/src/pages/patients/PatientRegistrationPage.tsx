@@ -17,6 +17,8 @@ import {
 } from "@mui/material";
 import { ArrowBack, ArrowForward } from "@mui/icons-material";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../contexts/AuthContext";
 import api from "../../services/api";
 import Swal from "sweetalert2";
 
@@ -71,7 +73,9 @@ const PatientRegistrationPage = () => {
   const [activeStep, setActiveStep] = useState(0);
   const [formData, setFormData] = useState<PatientFormData>(initialFormData);
   const [newAllergy, setNewAllergy] = useState("");
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const createPatientMutation = useMutation({
     mutationFn: async (data: Partial<PatientFormData>) => {
@@ -80,6 +84,19 @@ const PatientRegistrationPage = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["patients"] });
+    },
+  });
+
+  const createVisitMutation = useMutation({
+    mutationFn: async (patientId: string) => {
+      if (!user?.id) throw new Error("User not authenticated");
+      const response = await api.post("/visits", { patientId, createdBy: user.id });
+      return response.data;
+    },
+    onSuccess: (_response, patientId) => {
+      queryClient.invalidateQueries({ queryKey: ["visits"] });
+      queryClient.invalidateQueries({ queryKey: ["nurseTriageQueue"] });
+      navigate(`/patients/${patientId}`);
     },
   });
 
@@ -121,15 +138,43 @@ const PatientRegistrationPage = () => {
 
   const handleSubmit = async () => {
     try {
-      await createPatientMutation.mutateAsync(formData);
+      const response = await createPatientMutation.mutateAsync(formData);
+      const newPatient = response.patient || response.data || response;
       setActiveStep(0);
       setFormData(initialFormData);
-      await Swal.fire({
+
+      const result = await Swal.fire({
         icon: "success",
-        title: "Success!",
-        text: "Patient registered successfully!",
+        title: "Patient Registered!",
+        text: `${newPatient.firstName || 'Patient'} ${newPatient.lastName || ''} (${newPatient.patientNumber || ''}) registered successfully.`,
+        showDenyButton: true,
+        showCancelButton: true,
         confirmButtonColor: "#0EA5A4",
+        denyButtonColor: "#343a40",
+        cancelButtonColor: "#6c757d",
+        confirmButtonText: "Start Visit and View Patient",
+        denyButtonText: "View Patient Profile",
+        cancelButtonText: "Register Another Patient",
+
       });
+
+      if (result.isConfirmed) {
+        try {
+          await createVisitMutation.mutateAsync(newPatient.id);
+        } catch (visitError: any) {
+          console.error("Patient was registered, but check-in failed:", visitError);
+          const viewPatient = await Swal.fire({
+            icon: "warning",
+            title: "Patient registered, but visit was not started",
+            text: visitError?.response?.data?.message || "Open the patient profile to review the record and create a visit.",
+            confirmButtonColor: "#0EA5A4",
+            confirmButtonText: "View Patient Profile",
+          });
+          if (viewPatient.isConfirmed) navigate(`/patients/${newPatient.id}`);
+        }
+      } else if (result.isDenied) {
+        navigate(`/patients/${newPatient.id}`);
+      }
     } catch (error) {
       console.error("Error registering patient:", error);
       await Swal.fire({

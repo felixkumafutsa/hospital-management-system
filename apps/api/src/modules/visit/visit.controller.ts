@@ -14,7 +14,9 @@ import {
   labResultsAvailable,
   sendToPharmacy,
   completeVisit,
-  getDashboardStats
+  getDashboardStats,
+  getWardsWithOccupancy,
+  getAdmissionsList,
 } from './visit.service';
 import { CreateVisitInput, UpdateVisitStatusInput, AdmitPatientInput } from './visit.validator';
 import { TriageLevel } from '@prisma/client';
@@ -65,7 +67,7 @@ export const getPatientVisitsController = async (
 
 // Get all visits with filters
 export const getAllVisitsController = async (
-  req: Request<{}, {}, {}, { status?: string; visitType?: string; fromDate?: string; toDate?: string; limit?: string; offset?: string }>,
+  req: Request<{}, {}, {}, { patientId?: string; status?: string; visitType?: string; fromDate?: string; toDate?: string; limit?: string; offset?: string }>,
   res: Response,
   next: NextFunction
 ) => {
@@ -81,7 +83,8 @@ export const getAllVisitsController = async (
       fromDate,
       toDate,
       limit,
-      offset
+      offset,
+      req.query.patientId
     );
     res.status(200).json(result);
   } catch (error) {
@@ -105,12 +108,12 @@ export const updateVisitStatusController = async (
 
 // Get active visit queue
 export const getVisitQueueController = async (
-  _req: Request,
+  req: Request,
   res: Response,
   next: NextFunction
 ) => {
   try {
-    const result = await getVisitQueue();
+    const result = await getVisitQueue(req.user?.userId);
     res.status(200).json(result);
   } catch (error) {
     next(error);
@@ -251,6 +254,34 @@ export const getDashboardStatsController = async (
 ) => {
   try {
     const result = await getDashboardStats();
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get wards with bed occupancy
+export const getWardsWithOccupancyController = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const result = await getWardsWithOccupancy();
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get currently admitted patients
+export const getCurrentAdmissionsController = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const result = await getAdmissionsList();
     res.status(200).json(result);
   } catch (error) {
     next(error);

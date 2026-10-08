@@ -17,22 +17,22 @@ const router = Router();
 router.use(authenticate);
 
 // Create follow-up
-router.post('/', authorize(['DOCTOR', 'ADMINISTRATOR', 'RECEPTIONIST']), createFollowUp);
+router.post('/', authorize(['DOCTOR', 'ADMINISTRATOR', 'RECEPTION_CASHIER', 'RECEPTIONIST']), createFollowUp);
 
 // Get all follow-ups (with optional status filter)
-router.get('/', authorize(['DOCTOR', 'ADMINISTRATOR', 'RECEPTIONIST']), getAllFollowUps);
+router.get('/', authorize(['DOCTOR', 'ADMINISTRATOR', 'RECEPTION_CASHIER', 'RECEPTIONIST']), getAllFollowUps);
 
 // Get upcoming follow-ups — must be before /:id
-router.get('/upcoming', authorize(['DOCTOR', 'ADMINISTRATOR', 'RECEPTIONIST']), getUpcomingFollowUps);
+router.get('/upcoming', authorize(['DOCTOR', 'ADMINISTRATOR', 'RECEPTION_CASHIER', 'RECEPTIONIST']), getUpcomingFollowUps);
 
 // Get patient follow-ups — must be before /:id
-router.get('/patient/:patientId', authorize(['DOCTOR', 'ADMINISTRATOR', 'RECEPTIONIST']), getPatientFollowUps);
+router.get('/patient/:patientId', authorize(['DOCTOR', 'ADMINISTRATOR', 'RECEPTION_CASHIER', 'RECEPTIONIST']), getPatientFollowUps);
 
 // Get doctor follow-ups — must be before /:id
 router.get('/doctor/:doctorId', authorize(['DOCTOR', 'ADMINISTRATOR']), getDoctorFollowUps);
 
 // Get follow-up by ID
-router.get('/:id', authorize(['DOCTOR', 'ADMINISTRATOR', 'RECEPTIONIST']), getFollowUpById);
+router.get('/:id', authorize(['DOCTOR', 'ADMINISTRATOR', 'RECEPTION_CASHIER', 'RECEPTIONIST']), getFollowUpById);
 
 // Update follow-up
 router.put('/:id', authorize(['DOCTOR', 'ADMINISTRATOR']), updateFollowUp);

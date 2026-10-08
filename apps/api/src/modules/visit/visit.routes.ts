@@ -32,7 +32,7 @@ router.use(authenticate);
 // Create visit
 router.post(
   '/',
-  authorize(['RECEPTIONIST', 'ADMINISTRATOR', 'NURSE', 'DOCTOR']),
+  authorize(['RECEPTION_CASHIER', 'RECEPTIONIST', 'ADMINISTRATOR', 'NURSE', 'DOCTOR']),
   validate(createVisitSchema),
   createVisitController
 );
@@ -70,7 +70,7 @@ router.get(
 
 router.put(
   '/:id/status',
-  authorize(['NURSE', 'DOCTOR', 'ADMINISTRATOR', 'RECEPTIONIST']),
+  authorize(['NURSE', 'DOCTOR', 'ADMINISTRATOR', 'RECEPTION_CASHIER', 'RECEPTIONIST']),
   validate(updateVisitStatusSchema),
   updateVisitStatusController
 );
@@ -92,7 +92,7 @@ router.put(
 // Mark as emergency
 router.put(
   '/:id/emergency',
-  authorize(['NURSE', 'DOCTOR', 'ADMINISTRATOR', 'RECEPTIONIST']),
+  authorize(['NURSE', 'DOCTOR', 'ADMINISTRATOR', 'RECEPTION_CASHIER', 'RECEPTIONIST']),
   setPatientEmergencyController
 );
 
@@ -127,7 +127,7 @@ router.put(
 // Complete visit
 router.put(
   '/:id/complete',
-  authorize(['PHARMACIST', 'ADMINISTRATOR', 'CASHIER']),
+  authorize(['PHARMACIST', 'ADMINISTRATOR', 'RECEPTION_CASHIER', 'CASHIER']),
   completeVisitController
 );
 

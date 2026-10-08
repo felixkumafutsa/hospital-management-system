@@ -6,6 +6,7 @@ import {
   createLabRequestSchema,
   updateLabRequestStatusSchema,
   addLabResultSchema,
+  updateLabTestPriceSchema,
 } from './lab.validator';
 import {
   createLabTestController,
@@ -14,18 +15,29 @@ import {
   createLabRequestController,
   getLabRequestController,
   getPatientLabRequestsController,
+  getVisitLabRequestsController,
   getAllLabRequestsController,
   updateLabRequestStatusController,
   addLabResultController,
+  updateLabTestPriceController,
+  getLabDashboardStatsController,
 } from './lab.controller';
 
 const router = express.Router();
+
+router.put(
+  '/tests/:id/price',
+  authenticate,
+  authorize(['ADMINISTRATOR']),
+  validate(updateLabTestPriceSchema),
+  updateLabTestPriceController
+);
 
 // Lab Tests
 router.post(
   '/tests',
   authenticate,
-  authorize(['LAB_TECH', 'ADMINISTRATOR']),
+  authorize(['DOCTOR', 'LAB_TECH', 'ADMINISTRATOR']),
   validate(createLabTestSchema),
   createLabTestController
 );
@@ -33,12 +45,14 @@ router.post(
 router.get(
   '/tests/:id',
   authenticate,
+  authorize(['DOCTOR', 'NURSE', 'LAB_TECH', 'ADMINISTRATOR']),
   getLabTestController
 );
 
 router.get(
   '/tests',
   authenticate,
+  authorize(['DOCTOR', 'NURSE', 'LAB_TECH', 'ADMINISTRATOR']),
   getAllLabTestsController
 );
 
@@ -46,33 +60,50 @@ router.get(
 router.post(
   '/requests',
   authenticate,
-  authorize(['DOCTOR', 'NURSE', 'ADMINISTRATOR']),
+  authorize(['DOCTOR', 'LAB_TECH', 'ADMINISTRATOR']),
   validate(createLabRequestSchema),
   createLabRequestController
 );
 
 router.get(
+  '/requests/visit/:visitId',
+  authenticate,
+  authorize(['DOCTOR', 'NURSE', 'LAB_TECH', 'ADMINISTRATOR']),
+  getVisitLabRequestsController
+);
+
+router.get(
+  '/requests/stats',
+  authenticate,
+  authorize(['LAB_TECH', 'ADMINISTRATOR']),
+  getLabDashboardStatsController
+);
+
+router.get(
   '/requests/:id',
   authenticate,
+  authorize(['DOCTOR', 'NURSE', 'LAB_TECH', 'ADMINISTRATOR']),
   getLabRequestController
 );
 
 router.get(
   '/requests',
   authenticate,
+  authorize(['LAB_TECH', 'ADMINISTRATOR']),
   getAllLabRequestsController
 );
 
 router.get(
   '/patient/:patientId/requests',
   authenticate,
+  authorize(['DOCTOR', 'NURSE', 'LAB_TECH', 'ADMINISTRATOR']),
   getPatientLabRequestsController
 );
 
 router.put(
   '/requests/:id/status',
   authenticate,
-  authorize(['LAB_TECH', 'DOCTOR', 'ADMINISTRATOR']),
+  authorize(['LAB_TECH', 'ADMINISTRATOR']),
   validate(updateLabRequestStatusSchema),
   updateLabRequestStatusController
 );
@@ -81,7 +112,7 @@ router.put(
 router.post(
   '/requests/:requestId/results',
   authenticate,
-  authorize(['LAB_TECH', 'ADMINISTRATOR']),
+  authorize(['LAB_TECH']),
   validate(addLabResultSchema),
   addLabResultController
 );

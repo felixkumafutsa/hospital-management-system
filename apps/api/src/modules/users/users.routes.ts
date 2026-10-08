@@ -17,10 +17,11 @@ import {
 
 const router = express.Router();
 
-// Test route in users module
-router.get('/test', (_req, res) => {
-  res.status(200).json({ success: true, message: 'Users module test route works!' });
-});
+if (process.env.NODE_ENV !== 'production') {
+  router.get('/test', (_req, res) => {
+    res.status(200).json({ success: true, message: 'Users module test route works!' });
+  });
+}
 
 // All routes require authentication
 router.use(authenticate);

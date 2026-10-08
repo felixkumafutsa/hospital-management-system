@@ -1,176 +1,75 @@
-import logger from '../../config/logger';
-import * as labRepository from './lab.repository';
 import {
-  CreateLabTestInput,
-  CreateLabRequestInput,
-  UpdateLabRequestStatusInput,
+  createLabTest as createLabTestRepo,
+  updateLabTestPrice as updateLabTestPriceRepo,
+  getLabTestById as getLabTestByIdRepo,
+  getAllLabTests as getAllLabTestsRepo,
+  createLabRequest as createLabRequestRepo,
+  getLabRequestById as getLabRequestByIdRepo,
+  getLabRequestsByPatient as getLabRequestsByPatientRepo,
+  getLabRequestsByVisit as getLabRequestsByVisitRepo,
+  getAllLabRequests as listAllLabRequestsRepo,
+  updateLabRequestStatus as updateLabRequestStatusRepo,
+  addLabResult as addLabResultRepo,
+  getLabDashboardStats as getLabDashboardStatsRepo,
+} from './lab.repository';
+import type {
   AddLabResultInput,
+  CreateLabRequestInput,
+  CreateLabTestInput,
+  UpdateLabRequestStatusInput,
 } from './lab.validator';
 
 export const createNewLabTest = async (data: CreateLabTestInput) => {
-  try {
-    const labTest = await labRepository.createLabTest(data);
+  return createLabTestRepo(data);
+};
 
-    return {
-      success: true,
-      data: labTest,
-    };
-  } catch (error: any) {
-    logger.error(`Service error creating lab test: ${error.message}`);
-    throw {
-      statusCode: error.statusCode || 500,
-      message: error.message || 'Failed to create lab test',
-    };
-  }
+export const updateLabTestPrice = async (id: string, price: number) => {
+  return updateLabTestPriceRepo(id, price);
 };
 
 export const getLabTest = async (id: string) => {
-  try {
-    const labTest = await labRepository.getLabTestById(id);
-
-    return {
-      success: true,
-      data: labTest,
-    };
-  } catch (error: any) {
-    logger.error(`Service error fetching lab test: ${error.message}`);
-    throw {
-      statusCode: error.statusCode || 500,
-      message: error.message || 'Failed to fetch lab test',
-    };
-  }
+  return getLabTestByIdRepo(id);
 };
 
 export const listAllLabTests = async (limit?: number, offset?: number) => {
-  try {
-    const result = await labRepository.getAllLabTests(limit, offset);
-
-    return {
-      success: true,
-      data: result.data,
-      pagination: {
-        limit: result.limit,
-        offset: result.offset,
-        total: result.total,
-      },
-    };
-  } catch (error: any) {
-    logger.error(`Service error listing lab tests: ${error.message}`);
-    throw {
-      statusCode: error.statusCode || 500,
-      message: error.message || 'Failed to list lab tests',
-    };
-  }
+  return getAllLabTestsRepo(limit, offset);
 };
 
-export const createNewLabRequest = async (data: CreateLabRequestInput) => {
-  try {
-    const labRequest = await labRepository.createLabRequest(data);
-
-    return {
-      success: true,
-      data: labRequest,
-    };
-  } catch (error: any) {
-    logger.error(`Service error creating lab request: ${error.message}`);
-    throw {
-      statusCode: error.statusCode || 500,
-      message: error.message || 'Failed to create lab request',
-    };
-  }
+export const createNewLabRequest = async (
+  data: CreateLabRequestInput & { requestedBy: string }
+) => {
+  return createLabRequestRepo(data);
 };
 
 export const getLabRequest = async (id: string) => {
-  try {
-    const labRequest = await labRepository.getLabRequestById(id);
-
-    return {
-      success: true,
-      data: labRequest,
-    };
-  } catch (error: any) {
-    logger.error(`Service error fetching lab request: ${error.message}`);
-    throw {
-      statusCode: error.statusCode || 500,
-      message: error.message || 'Failed to fetch lab request',
-    };
-  }
+  return getLabRequestByIdRepo(id);
 };
 
 export const getPatientLabRequests = async (patientId: string, limit?: number, offset?: number) => {
-  try {
-    const result = await labRepository.getLabRequestsByPatient(patientId, limit, offset);
+  return getLabRequestsByPatientRepo(patientId, limit, offset);
+};
 
-    return {
-      success: true,
-      data: result.data,
-      pagination: {
-        limit: result.limit,
-        offset: result.offset,
-        total: result.total,
-      },
-    };
-  } catch (error: any) {
-    logger.error(`Service error fetching patient lab requests: ${error.message}`);
-    throw {
-      statusCode: error.statusCode || 500,
-      message: error.message || 'Failed to fetch patient lab requests',
-    };
-  }
+export const getVisitLabRequests = async (visitId: string, limit?: number, offset?: number) => {
+  return getLabRequestsByVisitRepo(visitId, limit, offset);
 };
 
 export const listAllLabRequests = async (status?: string, limit?: number, offset?: number) => {
-  try {
-    const result = await labRepository.getAllLabRequests(status, limit, offset);
-
-    return {
-      success: true,
-      data: result.data,
-      pagination: {
-        limit: result.limit,
-        offset: result.offset,
-        total: result.total,
-      },
-    };
-  } catch (error: any) {
-    logger.error(`Service error listing lab requests: ${error.message}`);
-    throw {
-      statusCode: error.statusCode || 500,
-      message: error.message || 'Failed to list lab requests',
-    };
-  }
+  return listAllLabRequestsRepo(status, limit, offset);
 };
 
-export const updateLabRequestStatusService = async (id: string, data: UpdateLabRequestStatusInput) => {
-  try {
-    const labRequest = await labRepository.updateLabRequestStatus(id, data.status, data.notes);
+export const getLabDashboardStats = async () => getLabDashboardStatsRepo();
 
-    return {
-      success: true,
-      data: labRequest,
-    };
-  } catch (error: any) {
-    logger.error(`Service error updating lab request: ${error.message}`);
-    throw {
-      statusCode: error.statusCode || 500,
-      message: error.message || 'Failed to update lab request',
-    };
-  }
+export const updateLabRequestStatusService = async (
+  id: string,
+  { status, notes }: UpdateLabRequestStatusInput
+) => {
+  return updateLabRequestStatusRepo(id, status, notes);
 };
 
-export const addLabResultService = async (requestId: string, data: AddLabResultInput) => {
-  try {
-    const labResult = await labRepository.addLabResult(requestId, data.testId, data);
-
-    return {
-      success: true,
-      data: labResult,
-    };
-  } catch (error: any) {
-    logger.error(`Service error adding lab result: ${error.message}`);
-    throw {
-      statusCode: error.statusCode || 500,
-      message: error.message || 'Failed to add lab result',
-    };
-  }
+export const addLabResultService = async (
+  requestId: string,
+  testId: string,
+  results: Omit<AddLabResultInput, 'testId'>
+) => {
+  return addLabResultRepo(requestId, testId, results);
 };

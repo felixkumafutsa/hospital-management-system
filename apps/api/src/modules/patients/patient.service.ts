@@ -14,7 +14,6 @@ import { CreatePatientInput, UpdatePatientInput } from './patient.validator';
 // Create new patient service
 export const createNewPatient = async (data: CreatePatientInput) => {
   try {
-    console.log('🏥 Processing patient creation in service:', JSON.stringify(data, null, 2));
     
     // Check if national ID already exists if provided
     if (data.nationalId && data.nationalId.trim() !== '') {
@@ -40,13 +39,10 @@ export const createNewPatient = async (data: CreatePatientInput) => {
       photoUrl: data.photoUrl && data.photoUrl.trim() !== '' ? data.photoUrl : null
     };
     
-    console.log('📦 Cleaned patient data for Prisma:', JSON.stringify(patientData, null, 2));
-    
     const patient = await createPatient(patientData);
-    console.log('✅ Patient created successfully:', patient.id);
     return { success: true, patient };
   } catch (error) {
-    console.error('❌ Error in createNewPatient service:', error);
+    console.error('Patient creation service failed');
     throw error;
   }
 };

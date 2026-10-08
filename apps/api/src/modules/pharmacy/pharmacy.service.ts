@@ -1,23 +1,32 @@
 import logger from '../../config/logger';
 import * as pharmacyRepository from './pharmacy.repository';
+import { TransactionType } from '@prisma/client';
 import {
   CreateMedicineInput,
   CreateMedicineBatchInput,
+  ReceiveStockInput,
+  OtcSaleInput,
 } from './pharmacy.validator';
 
 export const createNewMedicine = async (data: CreateMedicineInput) => {
   try {
-    const medicine = await pharmacyRepository.createMedicine(data);
+    const medicineData = {
+      ...data,
+      genericName: data.genericName || '',
+      strength: data.strength || '',
+    };
+    const medicine = await pharmacyRepository.createMedicine(medicineData);
 
     return {
       success: true,
       data: medicine,
     };
-  } catch (error: any) {
-    logger.error(`Service error creating medicine: ${error.message}`);
+  } catch (error: unknown) {
+    const err = error as Error;
+    logger.error(`Service error creating medicine: ${err.message}`);
     throw {
-      statusCode: error.statusCode || 500,
-      message: error.message || 'Failed to create medicine',
+      statusCode: 500,
+      message: err.message || 'Failed to create medicine',
     };
   }
 };
@@ -30,11 +39,12 @@ export const getMedicine = async (id: string) => {
       success: true,
       data: medicine,
     };
-  } catch (error: any) {
-    logger.error(`Service error fetching medicine: ${error.message}`);
+  } catch (error: unknown) {
+    const err = error as Error;
+    logger.error(`Service error fetching medicine: ${err.message}`);
     throw {
-      statusCode: error.statusCode || 500,
-      message: error.message || 'Failed to fetch medicine',
+      statusCode: 500,
+      message: err.message || 'Failed to fetch medicine',
     };
   }
 };
@@ -52,11 +62,12 @@ export const listAllMedicines = async (limit?: number, offset?: number) => {
         total: result.total,
       },
     };
-  } catch (error: any) {
-    logger.error(`Service error listing medicines: ${error.message}`);
+  } catch (error: unknown) {
+    const err = error as Error;
+    logger.error(`Service error listing medicines: ${err.message}`);
     throw {
-      statusCode: error.statusCode || 500,
-      message: error.message || 'Failed to list medicines',
+      statusCode: 500,
+      message: err.message || 'Failed to list medicines',
     };
   }
 };
@@ -79,11 +90,12 @@ export const searchMedicineService = async (
         total: result.total,
       },
     };
-  } catch (error: any) {
-    logger.error(`Service error searching medicines: ${error.message}`);
+  } catch (error: unknown) {
+    const err = error as Error;
+    logger.error(`Service error searching medicines: ${err.message}`);
     throw {
-      statusCode: error.statusCode || 500,
-      message: error.message || 'Failed to search medicines',
+      statusCode: 500,
+      message: err.message || 'Failed to search medicines',
     };
   }
 };
@@ -96,11 +108,12 @@ export const createNewMedicineBatch = async (data: CreateMedicineBatchInput) => 
       success: true,
       data: batch,
     };
-  } catch (error: any) {
-    logger.error(`Service error creating medicine batch: ${error.message}`);
+  } catch (error: unknown) {
+    const err = error as Error;
+    logger.error(`Service error creating medicine batch: ${err.message}`);
     throw {
-      statusCode: error.statusCode || 500,
-      message: error.message || 'Failed to create medicine batch',
+      statusCode: 500,
+      message: err.message || 'Failed to create medicine batch',
     };
   }
 };
@@ -113,11 +126,12 @@ export const getMedicineBatch = async (id: string) => {
       success: true,
       data: batch,
     };
-  } catch (error: any) {
-    logger.error(`Service error fetching medicine batch: ${error.message}`);
+  } catch (error: unknown) {
+    const err = error as Error;
+    logger.error(`Service error fetching medicine batch: ${err.message}`);
     throw {
-      statusCode: error.statusCode || 500,
-      message: error.message || 'Failed to fetch medicine batch',
+      statusCode: 500,
+      message: err.message || 'Failed to fetch medicine batch',
     };
   }
 };
@@ -130,11 +144,12 @@ export const getLowStock = async () => {
       success: true,
       data: items,
     };
-  } catch (error: any) {
-    logger.error(`Service error fetching low stock items: ${error.message}`);
+  } catch (error: unknown) {
+    const err = error as Error;
+    logger.error(`Service error fetching low stock items: ${err.message}`);
     throw {
-      statusCode: error.statusCode || 500,
-      message: error.message || 'Failed to fetch low stock items',
+      statusCode: 500,
+      message: err.message || 'Failed to fetch low stock items',
     };
   }
 };
@@ -152,16 +167,28 @@ export const getTransactions = async (limit?: number, offset?: number) => {
         total: result.total,
       },
     };
-  } catch (error: any) {
-    logger.error(`Service error fetching transactions: ${error.message}`);
+  } catch (error: unknown) {
+    const err = error as Error;
+    logger.error(`Service error fetching transactions: ${err.message}`);
     throw {
-      statusCode: error.statusCode || 500,
-      message: error.message || 'Failed to fetch transactions',
+      statusCode: 500,
+      message: err.message || 'Failed to fetch transactions',
     };
   }
 };
 
-export const recordTransaction = async (data: any) => {
+interface TransactionData {
+  medicineId: string;
+  batchId: string;
+  transactionType: 'IN' | 'OUT';
+  quantity: number;
+  unitPrice: number;
+  notes?: string;
+  type: TransactionType;
+  performedBy: string;
+}
+
+export const recordTransaction = async (data: TransactionData) => {
   try {
     const transaction = await pharmacyRepository.recordInventoryTransaction(data);
 
@@ -169,11 +196,27 @@ export const recordTransaction = async (data: any) => {
       success: true,
       data: transaction,
     };
-  } catch (error: any) {
-    logger.error(`Service error recording transaction: ${error.message}`);
+  } catch (error: unknown) {
+    const err = error as Error;
+    logger.error(`Service error recording transaction: ${err.message}`);
     throw {
-      statusCode: error.statusCode || 500,
-      message: error.message || 'Failed to record transaction',
+      statusCode: 500,
+      message: err.message || 'Failed to record transaction',
     };
   }
+};
+
+export const receiveNewMedicineStock = async (data: ReceiveStockInput) => {
+  const medicine = await pharmacyRepository.receiveMedicineStock(data);
+  return { success: true, data: medicine };
+};
+
+export const createOtcPharmacySale = async (data: OtcSaleInput, userId: string) => {
+  const sale = await pharmacyRepository.createOtcSale({ ...data, userId });
+  return { success: true, data: sale };
+};
+
+export const getPharmacyDashboard = async () => {
+  const stats = await pharmacyRepository.getPharmacyDashboardStats();
+  return { success: true, data: stats };
 };

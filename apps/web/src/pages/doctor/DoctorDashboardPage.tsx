@@ -13,15 +13,20 @@ import {
   Button,
   Card,
   CardContent,
+  Tabs,
+  Tab,
+  Badge,
 } from "@mui/material";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
   MedicalServices,
   Schedule,
   Person,
-  TrendingUp,
   Visibility,
+  Science,
+  Biotech as LabTestIcon,
 } from "@mui/icons-material";
 import api from "../../services/api";
 
@@ -36,6 +41,9 @@ interface ConsultationQueueItem {
   visitType: string;
   status: string;
   triageNotes?: string;
+  appointments?: Array<{
+    doctor: { firstName: string; lastName: string } | null;
+  }>;
 }
 
 const DoctorDashboardPage = () => {
@@ -44,8 +52,9 @@ const DoctorDashboardPage = () => {
   const { data: consultationQueue, isLoading: queueLoading } = useQuery({
     queryKey: ["doctorConsultations"],
     queryFn: async () => {
-      const response = await api.get("/consultations/queue");
-      return response.data.queue as ConsultationQueueItem[];
+      const response = await api.get("/visits/queue");
+      const queue = response.data.queue ?? response.data.data ?? [];
+      return queue as ConsultationQueueItem[];
     },
   });
 
@@ -53,10 +62,10 @@ const DoctorDashboardPage = () => {
     queryKey: ["todayConsultations"],
     queryFn: async () => {
       const today = new Date().toISOString().split("T")[0];
-      const response = await api.get("/consultations", {
+      const response = await api.get("/visits", {
         params: { fromDate: today, toDate: today },
       });
-      return response.data.total as number;
+      return (response.data.total ?? response.data.visits?.length ?? 0) as number;
     },
   });
 
@@ -64,11 +73,16 @@ const DoctorDashboardPage = () => {
     switch (status) {
       case "COMPLETED":
         return "success";
-      case "IN_PROGRESS":
+      case "CONSULTING":
+      case "AWAITING_LABORATORY":
+      case "RESULTS_AVAILABLE":
+      case "AWAITING_PHARMACY":
         return "info";
-      case "WAITING":
+      case "WAITING_FOR_CONSULTATION":
+      case "TRIAGED":
         return "warning";
-      case "PRESCRIBED":
+      case "EMERGENCY":
+      case "ADMITTED":
         return "primary";
       default:
         return "default";
@@ -111,6 +125,21 @@ const DoctorDashboardPage = () => {
     </Card>
   );
 
+  const [selectedTab, setSelectedTab] = useState(0);
+
+  const resultsReadyCount = consultationQueue?.filter((v) => v.status === "RESULTS_AVAILABLE").length || 0;
+  const waitingCount = consultationQueue?.filter((v) =>
+    ["WAITING_FOR_CONSULTATION", "TRIAGED"].includes(v.status)
+  ).length || 0;
+  const inLabCount = consultationQueue?.filter((v) => v.status === "AWAITING_LABORATORY").length || 0;
+
+  const filteredQueue = consultationQueue?.filter((item) => {
+    if (selectedTab === 0) return ["WAITING_FOR_CONSULTATION", "TRIAGED", "CONSULTING"].includes(item.status);
+    if (selectedTab === 1) return item.status === "RESULTS_AVAILABLE";
+    if (selectedTab === 2) return item.status === "AWAITING_LABORATORY";
+    return true; // All active
+  }) || [];
+
   return (
       <Box sx={{ width: "100%", mt: 4 }}>
         <Box
@@ -144,43 +173,46 @@ const DoctorDashboardPage = () => {
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <StatCard
-              title="Waiting"
-              value={
-                consultationQueue?.filter((v) => v.status === "WAITING")
-                  .length || 0
-              }
+              title="Waiting for Consultation"
+              value={waitingCount}
               icon={Schedule}
               color="#ed6c02"
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <StatCard
-              title="In Progress"
-              value={
-                consultationQueue?.filter((v) => v.status === "IN_PROGRESS")
-                  .length || 0
-              }
-              icon={Person}
-              color="#2e7d32"
+              title="Lab Results Ready"
+              value={resultsReadyCount}
+              icon={Science}
+              color="#0288d1"
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <StatCard
-              title="Completed"
-              value={
-                consultationQueue?.filter((v) => v.status === "COMPLETED")
-                  .length || 0
-              }
-              icon={TrendingUp}
+              title="Under Testing in Lab"
+              value={inLabCount}
+              icon={LabTestIcon}
               color="#9c27b0"
             />
           </Grid>
         </Grid>
 
         <Paper sx={{ p: 4 }}>
-          <Typography variant="h6" gutterBottom>
-            Patients Waiting for Consultation
-          </Typography>
+          <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
+            <Tabs value={selectedTab} onChange={(_, val) => setSelectedTab(val)}>
+              <Tab label={`Waiting (${waitingCount})`} />
+              <Tab
+                label={
+                  <Badge badgeContent={resultsReadyCount} color="primary">
+                    Lab Results Ready&nbsp;&nbsp;
+                  </Badge>
+                }
+              />
+              <Tab label={`At Laboratory (${inLabCount})`} />
+              <Tab label="All Active" />
+            </Tabs>
+          </Box>
+
           <TableContainer>
             <Table>
               <TableHead>
@@ -188,6 +220,7 @@ const DoctorDashboardPage = () => {
                   <TableCell>Patient</TableCell>
                   <TableCell>Patient Number</TableCell>
                   <TableCell>Visit Type</TableCell>
+                  <TableCell>Assigned Doctor</TableCell>
                   <TableCell>Triage Notes</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Actions</TableCell>
@@ -196,24 +229,29 @@ const DoctorDashboardPage = () => {
               <TableBody>
                 {queueLoading ? (
                   <TableRow>
-                    <TableCell colSpan={6} align="center">
+                    <TableCell colSpan={7} align="center">
                       Loading queue...
                     </TableCell>
                   </TableRow>
-                ) : !consultationQueue || consultationQueue.length === 0 ? (
+                ) : filteredQueue.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} align="center">
-                      No patients waiting for consultation
+                    <TableCell colSpan={7} align="center">
+                      No patients in this queue
                     </TableCell>
                   </TableRow>
                 ) : (
-                  consultationQueue.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>
+                  filteredQueue.map((item) => (
+                    <TableRow key={item.id} sx={item.status === 'RESULTS_AVAILABLE' ? { bgcolor: '#f0f9ff' } : {}}>
+                      <TableCell sx={{ fontWeight: item.status === 'RESULTS_AVAILABLE' ? 'bold' : 'normal' }}>
                         {item.patient.firstName} {item.patient.lastName}
                       </TableCell>
                       <TableCell>{item.patient.patientNumber}</TableCell>
                       <TableCell>{item.visitType}</TableCell>
+                      <TableCell>
+                        {item.appointments?.find((appointment) => appointment.doctor)?.doctor
+                          ? `Dr. ${item.appointments.find((appointment) => appointment.doctor)?.doctor?.firstName} ${item.appointments.find((appointment) => appointment.doctor)?.doctor?.lastName}`
+                          : item.status === "EMERGENCY" ? "Emergency queue" : "Unassigned"}
+                      </TableCell>
                       <TableCell>{item.triageNotes || "N/A"}</TableCell>
                       <TableCell>
                         <Chip
@@ -223,15 +261,29 @@ const DoctorDashboardPage = () => {
                         />
                       </TableCell>
                       <TableCell>
-                        <Button
-                          size="small"
-                          startIcon={<Visibility />}
-                          onClick={() =>
-                            navigate(`/patients/${item.patient.id}`)
-                          }
-                        >
-                          Start Consultation
-                        </Button>
+                        {item.status === 'RESULTS_AVAILABLE' ? (
+                          <Button
+                            size="small"
+                            variant="contained"
+                            color="info"
+                            startIcon={<Science />}
+                            onClick={() =>
+                              navigate(`/patients/${item.patient.id}`)
+                            }
+                          >
+                            Review & Prescribe
+                          </Button>
+                        ) : (
+                          <Button
+                            size="small"
+                            startIcon={<Visibility />}
+                            onClick={() =>
+                              navigate(`/patients/${item.patient.id}`)
+                            }
+                          >
+                            Start Consultation
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))

@@ -17,7 +17,7 @@ export const createPrescriptionSchema = z.object({
 });
 
 export const updatePrescriptionStatusSchema = z.object({
-  status: z.enum(['PENDING', 'PARTIAL', 'DISPENSED', 'CANCELLED']),
+  status: z.enum(['PENDING', 'PARTIAL', 'CANCELLED']),
   dispensedBy: z.string().uuid('Invalid pharmacist ID').optional(),
   notes: z.string().optional(),
 });

@@ -16,6 +16,7 @@ import {
   ReceiptLong,
 } from "@mui/icons-material";
 import MainLayout from "../../components/layout/MainLayout";
+import { formatCurrency } from "../../utils/currency";
 
 const FinanceDashboardPage = () => {
   const recentTransactions = [
@@ -59,13 +60,13 @@ const FinanceDashboardPage = () => {
           {[
             {
               title: "Today's Revenue",
-              val: "$1,245.00",
+              val: formatCurrency(1245.00),
               icon: <AttachMoney />,
               color: "#2e7d32",
             },
             {
               title: "Monthly Earnings",
-              val: "$42,890.00",
+              val: formatCurrency(42890.00),
               icon: <AccountBalanceWallet />,
               color: "#0EA5A4",
             },
@@ -129,7 +130,7 @@ const FinanceDashboardPage = () => {
                   <TableRow key={tx.id} hover>
                     <TableCell sx={{ fontWeight: 600 }}>{tx.id}</TableCell>
                     <TableCell>{tx.patient}</TableCell>
-                    <TableCell>${tx.amount.toFixed(2)}</TableCell>
+                    <TableCell>{formatCurrency(tx.amount)}</TableCell>
                     <TableCell>{tx.method}</TableCell>
                     <TableCell>
                       <Typography

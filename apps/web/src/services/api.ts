@@ -10,13 +10,11 @@ import {
 const API_BASE_URL = (() => {
   const envUrl = (import.meta as any).env.VITE_API_URL;
   if (envUrl) return envUrl;
-  
-  // If no env var is set and we're in production, use your API domain
-  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-    return 'https://hospital-management-system-api-felixkumafutsas-projects.vercel.app/api/v1';
-  }
-  
-  // Default to localhost for development
+
+  // In a deployed SPA, Nginx serves the frontend and proxies API calls on the same origin.
+  if (import.meta.env.PROD) return '/api/v1';
+
+  // Vite development server proxies this local API path.
   return 'http://localhost:4000/api/v1';
 })();
 
@@ -53,11 +51,13 @@ api.interceptors.response.use(
       
       try {
         const refreshToken = localStorage.getItem('refreshToken');
-        const response = await axios.post(`${API_BASE_URL}/auth/refresh-token`, {
-          refreshToken,
-        });
+        const response = await axios.post(
+          `${API_BASE_URL}/auth/refresh-token`,
+          { refreshToken },
+          { withCredentials: true },
+        );
         
-        const { accessToken } = response.data;
+        const { accessToken } = response.data.data;
         localStorage.setItem('accessToken', accessToken);
         
         // Retry the original request with the new token
@@ -159,22 +159,23 @@ export const createMedicine = (medicineData: any) => api.post('/pharmacy/medicin
 export const getMedicines = (params?: any) => api.get('/pharmacy/medicines', { params });
 export const getMedicine = (id: string) => api.get(`/pharmacy/medicines/${id}`);
 export const searchMedicines = (query: string) => api.get('/pharmacy/medicines/search', { params: { q: query } });
-export const getLowStockMedicines = () => api.get('/pharmacy/lowstock');
-export const createMedicineBatch = (batchData: any) => api.post('/pharmacy/medicines/batches', batchData);
-export const getMedicineBatch = (id: string) => api.get(`/pharmacy/medicines/batches/${id}`);
+export const getLowStockMedicines = () => api.get('/pharmacy/low-stock');
+export const createMedicineBatch = (batchData: any) => api.post('/pharmacy/batches', batchData);
+export const getMedicineBatch = (id: string) => api.get(`/pharmacy/batches/${id}`);
 export const recordTransaction = (transactionData: any) => api.post('/pharmacy/transactions', transactionData);
 export const getTransactions = (params?: any) => api.get('/pharmacy/transactions', { params });
 
 // Laboratory API calls
 export const createLabTest = (labTestData: any) => api.post('/lab/tests', labTestData);
-export const getLabTests = (params?: any) => api.get('/lab/tests', { params });
+export const getLabTests = (params?: any) =>
+  api.get('/lab/tests', { params: { limit: 100, ...params } });
 export const getLabTest = (id: string) => api.get(`/lab/tests/${id}`);
 export const createLabRequest = (labRequestData: any) => api.post('/lab/requests', labRequestData);
 export const getLabRequests = (params?: any) => api.get('/lab/requests', { params });
 export const getLabRequest = (id: string) => api.get(`/lab/requests/${id}`);
-export const getPatientLabRequests = (patientId: string) => api.get(`/lab/requests/patient/${patientId}`);
+export const getPatientLabRequests = (patientId: string) => api.get(`/lab/patient/${patientId}/requests`);
 export const updateLabRequestStatus = (id: string, status: string) => api.put(`/lab/requests/${id}/status`, { status });
-export const addLabResult = (id: string, resultData: any) => api.put(`/lab/requests/${id}/result`, resultData);
+export const addLabResult = (id: string, resultData: any) => api.post(`/lab/requests/${id}/results`, resultData);
 
 // User Management API calls
 export const createUser = (userData: any) => api.post('/users', userData);

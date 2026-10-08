@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Grid,
@@ -25,11 +25,13 @@ import {
 } from "@mui/material";
 import { Add, Edit, Visibility, Search } from "@mui/icons-material";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
+import ConsultationDetails from '../../components/ConsultationDetails';
+import { formatCurrency } from "../../utils/currency";
 
 interface Consultation {
   id: string;
+  consultationId?: string;
   consultationNumber: string;
   patientName: string;
   doctorName: string;
@@ -37,7 +39,7 @@ interface Consultation {
   status: "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
   symptoms: string;
   diagnosis: string;
-  fee: number;
+  fee: number | null;
   createdAt: string;
 }
 
@@ -46,9 +48,14 @@ const ConsultationsPage = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selectedConsultationId, setSelectedConsultationId] = useState<string | null>(null);
   const [activeStep, setActiveStep] = useState(0);
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { data: pricingSettings } = useQuery({
+    queryKey: ["system-pricing"],
+    queryFn: async () => (await api.get("/settings/pricing")).data.settings,
+  });
+  const configuredConsultationFee = Number(pricingSettings?.consultationFee || 0);
 
   // New consultation form state
   const steps = [
@@ -78,16 +85,23 @@ const ConsultationsPage = () => {
     symptoms: "",
     diagnosis: "",
     notes: "",
-    fee: 50,
+    fee: 0,
     status: "PENDING",
   };
 
   const [formData, setFormData] =
     useState<ConsultationFormData>(initialFormData);
 
+  useEffect(() => {
+    setFormData((current) => ({ ...current, fee: configuredConsultationFee }));
+  }, [configuredConsultationFee]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({
+      ...prev,
+      [name]: name === 'fee' ? Number(value) : value,
+    }));
   };
 
   const handleNext = () => {
@@ -164,21 +178,23 @@ const ConsultationsPage = () => {
     queryKey: ["consultations"],
     queryFn: async () => {
       const res = await api.get("/visits");
-      // Map visits to consultations format
-      return res.data.visits.map((visit: any) => ({
+      return res.data.visits.filter((visit: any) => visit.consultation).map((visit: any) => ({
         id: visit.id,
+        consultationId: visit.consultation?.id,
         consultationNumber: `CON-${visit.id.slice(0, 8).toUpperCase()}`,
         patientName:
           `${visit.patient?.firstName || ""} ${visit.patient?.lastName || ""}`.trim() ||
           "Unknown",
-        doctorName: visit.doctor
-          ? `${visit.doctor.firstName} ${visit.doctor.lastName}`
+        doctorName: visit.consultation?.doctor
+          ? `${visit.consultation.doctor.firstName} ${visit.consultation.doctor.lastName}`
           : "Unassigned",
         date: visit.visitDate,
         status: visit.status,
-        symptoms: visit.consultation?.symptoms || "N/A",
-        diagnosis: visit.consultation?.diagnosis || "N/A",
-        fee: visit.consultation?.fee || 0,
+        symptoms: visit.consultation?.chiefComplaint || "N/A",
+        diagnosis: visit.consultation?.diagnoses?.map((item: any) => item.icd10Desc).join(", ") || "N/A",
+        fee: visit.consultation?.consultationFee == null
+          ? null
+          : Number(visit.consultation.consultationFee),
         createdAt: visit.createdAt,
       })) as Consultation[];
     },
@@ -317,10 +333,8 @@ const ConsultationsPage = () => {
               <TextField
                 fullWidth
                 label="Consultation Fee"
-                name="fee"
-                type="number"
-                value={formData.fee}
-                onChange={handleInputChange}
+                value={configuredConsultationFee > 0 ? formatCurrency(configuredConsultationFee) : "Not configured"}
+                InputProps={{ readOnly: true }}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -380,7 +394,7 @@ const ConsultationsPage = () => {
                   </Grid>
                   <Grid item xs={6}>
                     <Typography>
-                      <strong>Fee:</strong> ${formData.fee.toFixed(2)}
+                      <strong>Fee:</strong> {formatCurrency(configuredConsultationFee)}
                     </Typography>
                   </Grid>
                   <Grid item xs={12}>
@@ -428,6 +442,7 @@ const ConsultationsPage = () => {
         boxSizing: "border-box",
       }}
     >
+
       <Box
         sx={{
           mb: 4,
@@ -515,17 +530,22 @@ const ConsultationsPage = () => {
                             size="small"
                           />
                         </TableCell>
-                        <TableCell>${consultation.fee.toFixed(2)}</TableCell>
+                        <TableCell>{consultation.fee == null ? "Not recorded" : formatCurrency(consultation.fee)}</TableCell>
                         <TableCell>
-                          <Tooltip title="View Details">
-                            <IconButton
-                              size="small"
-                              onClick={() =>
-                                navigate(`/visits/${consultation.id}`)
-                              }
-                            >
-                              <Visibility />
-                            </IconButton>
+                          <Tooltip title={consultation.consultationId ? "View Details" : "No consultation created for this visit"}>
+                            <span>
+                              <IconButton
+                                size="small"
+                                disabled={!consultation.consultationId}
+                                onClick={() => {
+                                  if (consultation.consultationId) {
+                                    setSelectedConsultationId(consultation.consultationId);
+                                  }
+                                }}
+                              >
+                                <Visibility />
+                              </IconButton>
+                            </span>
                           </Tooltip>
                           <Tooltip title="Edit">
                             <IconButton size="small">
@@ -559,6 +579,23 @@ const ConsultationsPage = () => {
           </>
         )}
       </Paper>
+
+      {/* Consultation Details Drawer */}
+      <Drawer
+        anchor="right"
+        open={!!selectedConsultationId}
+        onClose={() => setSelectedConsultationId(null)}
+        PaperProps={{
+          sx: { width: { xs: "100%", md: "500px" }, p: 2 },
+        }}
+      >
+        {selectedConsultationId && (
+          <ConsultationDetails
+            consultationId={selectedConsultationId}
+            onClose={() => setSelectedConsultationId(null)}
+          />
+        )}
+      </Drawer>
 
       {/* Add Consultation Drawer */}
       <Drawer
@@ -633,6 +670,23 @@ const ConsultationsPage = () => {
               Next
             </Button>
           </Box>
+        )}
+      </Drawer>
+
+      {/* Consultation Details Drawer */}
+      <Drawer
+        anchor="right"
+        open={!!selectedConsultationId}
+        onClose={() => setSelectedConsultationId(null)}
+        PaperProps={{
+          sx: { width: { xs: "100%", md: "500px" }, p: 2 },
+        }}
+      >
+        {selectedConsultationId && (
+          <ConsultationDetails
+            consultationId={selectedConsultationId}
+            onClose={() => setSelectedConsultationId(null)}
+          />
         )}
       </Drawer>
     </Box>

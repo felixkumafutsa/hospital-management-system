@@ -25,6 +25,7 @@ export enum VisitType {
   OUTPATIENT = 'OUTPATIENT',
   INPATIENT = 'INPATIENT',
   ANC = 'ANC',
+  DELIVERY = 'DELIVERY',
   POSTNATAL = 'POSTNATAL',
   EMERGENCY = 'EMERGENCY',
 }
@@ -110,6 +111,7 @@ export enum RoleType {
   RECEPTIONIST = 'RECEPTIONIST',
   LAB_TECH = 'LAB_TECH',
   PHARMACIST = 'PHARMACIST',
+  ANESTHETIST = 'ANESTHETIST',
   CASHIER = 'CASHIER',
 }
 
@@ -201,6 +203,9 @@ export interface AncRecord extends BaseEntity {
 export interface CreateAncInput {
   patientId: string;
   gestationWeeks: number;
+  lastMenstrualPeriod?: string;
+  gravida?: number;
+  parity?: number;
   weightKg?: number;
   bpSystolic?: number;
   bpDiastolic?: number;
@@ -216,16 +221,19 @@ export interface CreateAncInput {
 export const CreateAncSchema = z.object({
   patientId: z.string().uuid(),
   gestationWeeks: z.number().int().min(4).max(45),
-  weightKg: z.number().optional(),
-  bpSystolic: z.number().int().optional(),
-  bpDiastolic: z.number().int().optional(),
-  fetalHeartRate: z.number().int().optional(),
-  fundusHeight: z.number().optional(),
-  presentation: z.string().optional(),
-  ultrasoundNotes: z.string().optional(),
-  riskFactors: z.array(z.string()).optional(),
-  notes: z.string().optional(),
-  nextVisitDate: z.string().optional(),
+  lastMenstrualPeriod: z.string().datetime().optional(),
+  gravida: z.number().int().min(1).optional(),
+  parity: z.number().int().min(0).optional(),
+  weightKg: z.number().optional().nullable(),
+  bpSystolic: z.number().int().optional().nullable(),
+  bpDiastolic: z.number().int().optional().nullable(),
+  fetalHeartRate: z.number().int().optional().nullable(),
+  fundusHeight: z.number().optional().nullable(),
+  presentation: z.string().optional().nullable(),
+  ultrasoundNotes: z.string().optional().nullable(),
+  riskFactors: z.array(z.string()).optional().nullable(),
+  notes: z.string().optional().nullable(),
+  nextVisitDate: z.string().optional().nullable(),
 });
 
 export interface DeliveryRecord extends BaseEntity {

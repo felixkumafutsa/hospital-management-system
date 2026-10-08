@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import logger from './logger';
 
 const globalForPrisma = global as unknown as {
@@ -10,6 +10,11 @@ const globalForPrisma = global as unknown as {
 export const prisma =
   globalForPrisma.prisma ||
   new PrismaClient({
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL,
+      },
+    },
     log: [
       { emit: 'event', level: 'error' },
       { emit: 'event', level: 'warn' },
@@ -25,19 +30,19 @@ if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma;
 }
 
-// @ts-ignore — Prisma event types
-prisma.$on('error', (e: any) => {
+// @ts-expect-error — Prisma event types
+prisma.$on('error', (e: Prisma.LogEntry) => {
   logger.error(`Database error: ${e.message}`);
 });
 
-// @ts-ignore
-prisma.$on('warn', (e: any) => {
+// @ts-expect-error
+prisma.$on('warn', (e: Prisma.LogEntry) => {
   logger.warn(`Database warning: ${e.message}`);
 });
 
 if (process.env.NODE_ENV === 'development') {
-  // @ts-ignore
-  prisma.$on('query', (e: any) => {
+  // @ts-expect-error
+  prisma.$on('query', (e: Prisma.QueryEvent) => {
     logger.debug(`Query: ${e.query} | Duration: ${e.duration}ms`);
   });
 }

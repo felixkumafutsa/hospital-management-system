@@ -81,7 +81,7 @@ const UserManagementPage = () => {
     { value: "ADMIN", label: "Administrator", icon: <AdminPanelSettings /> },
     { value: "DOCTOR", label: "Doctor", icon: <MedicalServices /> },
     { value: "NURSE", label: "Nurse", icon: <SupervisorAccount /> },
-    { value: "RECEPTIONIST", label: "Receptionist", icon: <MeetingRoom /> },
+    { value: "RECEPTION_CASHIER", label: "Reception & Cashier (combined role)", icon: <MeetingRoom /> },
     { value: "LAB_TECHNICIAN", label: "Lab Technician", icon: <Science /> },
     { value: "PHARMACIST", label: "Pharmacist", icon: <LocalPharmacy /> },
   ];

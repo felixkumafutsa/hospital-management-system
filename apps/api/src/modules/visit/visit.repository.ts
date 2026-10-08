@@ -1,12 +1,30 @@
 import { prisma } from '../../config/database';
-import { Visit, VisitType, VisitStatus, TriageLevel } from '@prisma/client';
+import { Visit, VisitType, VisitStatus, TriageLevel, Ward, Bed } from '@prisma/client';
+import { randomUUID } from 'crypto';
+
+
+
+
+// Prisma query filter for visits
+interface VisitWhereInput {
+  patientId?: string;
+  status?: VisitStatus;
+  visitType?: VisitType;
+  visitDate?: {
+    gte?: Date;
+    lte?: Date;
+  };
+}
 
 // Create new visit
 export const createVisit = async (
   patientId: string,
   createdBy: string,
   visitType?: VisitType,
-  referralNote?: string
+  referralNote?: string,
+  reasonForVisit?: string,
+  triageLevel?: TriageLevel,
+  emergencyNotes?: string
 ): Promise<Visit> => {
   return prisma.visit.create({
     data: {
@@ -14,7 +32,21 @@ export const createVisit = async (
       createdBy,
       visitType: visitType || VisitType.OUTPATIENT,
       status: VisitStatus.REGISTERED,
-      referralNote
+      referralNote,
+      reasonForVisit,
+      triageLevel,
+      emergencyNotes,
+      invoice: {
+        create: {
+          invoiceNo: `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${randomUUID()}`,
+          patient: { connect: { id: patientId } },
+          subtotal: 0,
+          discount: 0,
+          total: 0,
+          balance: 0,
+          paidAmount: 0,
+        },
+      },
     },
     include: {
       patient: {
@@ -62,6 +94,11 @@ export const getPatientVisits = async (
             lastName: true,
             patientNumber: true
           }
+        },
+        consultation: {
+          include: {
+            doctor: { select: { firstName: true, lastName: true } },
+          },
         }
       }
     }),
@@ -78,10 +115,12 @@ export const getAllVisits = async (
   fromDate?: Date,
   toDate?: Date,
   limit: number = 50,
-  offset: number = 0
+  offset: number = 0,
+  patientId?: string
 ): Promise<{ visits: Visit[]; total: number }> => {
-  const where: any = {};
+  const where: VisitWhereInput = {};
   
+  if (patientId) where.patientId = patientId;
   if (status) where.status = status;
   if (visitType) where.visitType = visitType;
   if (fromDate || toDate) {
@@ -103,6 +142,11 @@ export const getAllVisits = async (
             lastName: true,
             patientNumber: true
           }
+        },
+        consultation: {
+          include: {
+            doctor: { select: { firstName: true, lastName: true } },
+          },
         }
       }
     }),
@@ -133,21 +177,27 @@ export const admitPatient = async (
   dailyRate: number
 ): Promise<Visit> => {
   // Mark bed as occupied
-  await prisma.bed.updateMany({
-    where: { wardId: ward, bedNumber: bedNumber, isOccupied: false },
-    data: { isOccupied: true, status: 'OCCUPIED' }
+  const wardRecord = await prisma.ward.findFirst({
+    where: { OR: [{ id: ward }, { name: ward }] },
   });
+  if (wardRecord) {
+    await prisma.bed.updateMany({
+      where: { wardId: wardRecord.id, bedNumber: bedNumber },
+      data: { isOccupied: true, status: 'OCCUPIED' }
+    });
+  }
 
   return prisma.visit.update({
     where: { id },
     data: {
       admissionDate: new Date(),
-      ward,
+      ward: wardRecord?.name || ward,
       bedNumber,
       attendingDoctorId,
       expectedDischargeDate,
       dailyRate,
-      status: VisitStatus.ADMITTED
+      status: VisitStatus.ADMITTED,
+      visitType: VisitType.INPATIENT,
     }
   });
 };
@@ -162,16 +212,21 @@ export const dischargePatient = async (id: string): Promise<Visit> => {
 
   // Free up the bed
   if (visit.ward && visit.bedNumber) {
-    await prisma.bed.updateMany({
-      where: { wardId: visit.ward, bedNumber: visit.bedNumber },
-      data: { isOccupied: false, status: 'AVAILABLE' }
+    const wardRecord = await prisma.ward.findFirst({
+      where: { OR: [{ id: visit.ward }, { name: visit.ward }] },
     });
+    if (wardRecord) {
+      await prisma.bed.updateMany({
+        where: { wardId: wardRecord.id, bedNumber: visit.bedNumber },
+        data: { isOccupied: false, status: 'AVAILABLE' }
+      });
+    }
   }
 
-  // Calculate stay duration in days
+  // Calculate stay duration in days (minimum 1 day)
   const admission = new Date(visit.admissionDate);
   const discharge = new Date();
-  const stayDuration = Math.ceil((discharge.getTime() - admission.getTime()) / (1000 * 60 * 60 * 24));
+  const stayDuration = Math.max(1, Math.ceil((discharge.getTime() - admission.getTime()) / (1000 * 60 * 60 * 24)));
 
   return prisma.visit.update({
     where: { id },
@@ -183,28 +238,66 @@ export const dischargePatient = async (id: string): Promise<Visit> => {
   });
 };
 
-// Get active visits queue
-export const getActiveVisitsQueue = async (): Promise<Visit[]> => {
-  return prisma.visit.findMany({
+// Find active (non-completed) visit for a patient
+export const findActiveVisitByPatientId = async (patientId: string): Promise<Visit | null> => {
+  return prisma.visit.findFirst({
     where: {
+      patientId,
       status: {
         notIn: [VisitStatus.COMPLETED, VisitStatus.CANCELLED]
       }
     },
-    orderBy: [
-      // Emergency cases first
-      { status: 'asc' },
-      { visitDate: 'asc' }
-    ],
+    orderBy: { visitDate: 'desc' },
+    include: {
+      patient: true
+    }
+  });
+};
+
+// Get active visits queue
+export const getActiveVisitsQueue = async (doctorId?: string): Promise<Visit[]> => {
+  const visits = await prisma.visit.findMany({
+    where: {
+      status: {
+        notIn: [VisitStatus.COMPLETED, VisitStatus.CANCELLED]
+      },
+      ...(doctorId && {
+        OR: [
+          { appointments: { some: { doctorId } } },
+          { status: VisitStatus.EMERGENCY },
+        ],
+      }),
+    },
+    orderBy: { visitDate: 'asc' },
     include: {
       patient: {
         select: {
+          id: true,
           firstName: true,
           lastName: true,
           patientNumber: true
         }
-      }
+      },
+      appointments: {
+        include: {
+          doctor: { select: { id: true, firstName: true, lastName: true } },
+        },
+      },
     }
+  });
+  const triageOrder: Record<string, number> = {
+    CRITICAL: 0,
+    HIGH: 1,
+    MEDIUM: 2,
+    LOW: 3,
+  };
+  return visits.sort((left, right) => {
+    if (left.status === VisitStatus.EMERGENCY && right.status !== VisitStatus.EMERGENCY) return -1;
+    if (right.status === VisitStatus.EMERGENCY && left.status !== VisitStatus.EMERGENCY) return 1;
+    const priorityDifference =
+      (left.triageLevel ? triageOrder[left.triageLevel] : 4) -
+      (right.triageLevel ? triageOrder[right.triageLevel] : 4);
+    return priorityDifference || left.visitDate.getTime() - right.visitDate.getTime();
   });
 };
 
@@ -244,10 +337,10 @@ export const getWardOccupancy = async () => {
     }
   });
 
-  return wards.map((ward: any) => ({
+  return wards.map((ward: Ward & { beds: Bed[] }) => ({
     ...ward,
-    occupiedBeds: ward.beds.filter((bed: any) => bed.isOccupied).length,
-    availableBeds: ward.beds.filter((bed: any) => bed.status === 'AVAILABLE').length,
+    occupiedBeds: ward.beds.filter((bed: Bed) => bed.isOccupied).length,
+    availableBeds: ward.beds.filter((bed: Bed) => bed.status === 'AVAILABLE').length,
     totalBeds: ward.totalBeds
   }));
 };
@@ -302,14 +395,60 @@ export const getPendingPrescriptions = async (): Promise<Visit[]> => {
   });
 };
 
-// Get current admissions
-export const getCurrentAdmissions = async (): Promise<Visit[]> => {
-  return prisma.visit.findMany({
+export const getCurrentAdmissions = async () => {
+  const admissions = await prisma.visit.findMany({
     where: {
       status: VisitStatus.ADMITTED
     },
+    orderBy: { admissionDate: 'desc' },
     include: {
-      patient: true
+      patient: true,
+      vitals: {
+        orderBy: { recordedAt: 'desc' },
+        take: 1
+      }
     }
+  });
+
+  const [wards] = await Promise.all([
+    prisma.ward.findMany({ include: { beds: true } }),
+  ]);
+
+  const wardMap = new Map(wards.map(w => [w.id, w]));
+
+  const doctorIds = Array.from(new Set(admissions.map(a => a.attendingDoctorId).filter(Boolean))) as string[];
+  const doctors = doctorIds.length > 0
+    ? await prisma.user.findMany({
+        where: { id: { in: doctorIds } },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          role: { select: { displayName: true } }
+        }
+      })
+    : [];
+  const doctorMap = new Map(doctors.map(d => [d.id, { ...d, specialty: d.role.displayName }]));
+
+  const now = new Date();
+
+  return admissions.map(a => {
+    const admissionDate = a.admissionDate ? new Date(a.admissionDate) : now;
+    const daysAdmitted = Math.max(1, Math.ceil((now.getTime() - admissionDate.getTime()) / (1000 * 60 * 60 * 24)));
+    const doc = a.attendingDoctorId ? doctorMap.get(a.attendingDoctorId) : null;
+
+    const wardDetails = a.ward ? wardMap.get(a.ward) || null : null;
+    const bedDetails = a.bedNumber && wardDetails
+      ? wardDetails.beds.find(b => b.bedNumber === a.bedNumber) || null
+      : null;
+
+    return {
+      ...a,
+      daysAdmitted,
+      attendingDoctor: doc ? `Dr. ${doc.firstName} ${doc.lastName}` : 'Unassigned',
+      attendingDoctorObj: doc,
+      wardDetails,
+      bedDetails,
+    };
   });
 };

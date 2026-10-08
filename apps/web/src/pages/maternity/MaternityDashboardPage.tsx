@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Box,
   Grid,
@@ -22,10 +22,26 @@ import {
   MenuItem,
   IconButton,
   Tooltip,
+  Tabs,
+  Tab,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from "@mui/material";
-import { Add as AddIcon, Visibility, Edit } from "@mui/icons-material";
+import { Add as AddIcon, Visibility, Edit, Notes } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
 import Swal from "sweetalert2";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 import api from "../../services/api";
 
 /*interface MaternityRecord {
@@ -52,7 +68,7 @@ const MaternityDashboardPage = () => {
   const [activeStep, setActiveStep] = useState(0);
   const [selectedPatient, setSelectedPatient] = useState("");
   const [lmp, setLmp] = useState("");
-  const [gravida, setGravida] = useState<number>(0);
+  const [gravida, setGravida] = useState<number>(1);
   const [parity, setParity] = useState<number>(0);
   const [weightKg, setWeightKg] = useState<number | "">("");
   const [bpSystolic, setBpSystolic] = useState<number | "">("");
@@ -70,6 +86,17 @@ const MaternityDashboardPage = () => {
   const [newPresentation, setNewPresentation] = useState("");
   const [newNotes, setNewNotes] = useState("");
   const [newNextVisitDate, setNewNextVisitDate] = useState("");
+  const [activeTab, setActiveTab] = useState(0);
+  const [deliveryMethod, setDeliveryMethod] = useState("VAGINAL");
+  const [theaterRequestOpen, setTheaterRequestOpen] = useState(false);
+  const [selectedProcedureId, setSelectedProcedureId] = useState("");
+  const [plannedProcedureDate, setPlannedProcedureDate] = useState(() => {
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    return new Date(tomorrow.getTime() - tomorrow.getTimezoneOffset() * 60_000)
+      .toISOString()
+      .slice(0, 16);
+  });
+  const [theaterRequestNotes, setTheaterRequestNotes] = useState("");
 
   // Fetch all patients for the form
   const { data: patients } = useQuery({
@@ -89,9 +116,88 @@ const MaternityDashboardPage = () => {
       const responseData = response.data.data;
       const records = responseData.records || [];
       // Guarantee we always return an array to prevent filter errors
+      if (!Array.isArray(records)) return [];
+      const latestRecordByProfile = new Map<string, any>();
+      for (const record of records) {
+        if (record.maternityProfile?.status === "ACTIVE" && !latestRecordByProfile.has(record.maternityProfileId)) {
+          latestRecordByProfile.set(record.maternityProfileId, record);
+        }
+      }
+      return Array.from(latestRecordByProfile.values());
+    },
+  });
+
+  const { data: deliveries = [], refetch: refetchDeliveries } = useQuery({
+    queryKey: ["deliveries"],
+    queryFn: async () => {
+      const response = await api.get("/maternity/deliveries");
+      const responseData = response.data.data;
+      // Ensure the returned value is always an array
+      return Array.isArray(responseData) ? responseData : [];
+    },
+  });
+
+  const { data: postnatalRecords = [] } = useQuery({
+    queryKey: ["maternity-postnatal"],
+    queryFn: async () => {
+      const response = await api.get("/maternity/postnatal");
+      const records = response.data.data?.records || [];
       return Array.isArray(records) ? records : [];
     },
   });
+
+  const { data: procedureCatalog = [] } = useQuery({
+    queryKey: ["theater-procedure-catalog"],
+    queryFn: async () => {
+      const response = await api.get("/theater/catalog");
+      return Array.isArray(response.data) ? response.data : [];
+    },
+  });
+
+  const selectedProfileId = selectedRecord?.maternityProfileId;
+  const selectedPatientId = selectedRecord?.maternityProfile?.patientId;
+  const { data: selectedAncHistory = [] } = useQuery({
+    queryKey: ["maternity-anc-history", selectedProfileId],
+    queryFn: async () => {
+      if (!selectedProfileId || !selectedPatientId) {
+        throw new Error("A selected pregnancy profile is required to load its visit history");
+      }
+      const response = await api.get(
+        `/maternity/anc/patient/${selectedPatientId}`,
+      );
+      if (!Array.isArray(response.data.data)) {
+        throw new Error("The ANC visit history response was invalid");
+      }
+      return response.data.data.filter(
+        (record: any) => record.maternityProfileId === selectedProfileId,
+      );
+    },
+    enabled: detailsDrawerOpen && Boolean(selectedProfileId && selectedPatientId),
+  });
+
+  const deliveryDataForChart = useMemo(() => {
+    const monthlyDeliveries: { [key: string]: number } = {};
+    deliveries.forEach((delivery: any) => {
+      const month = new Date(delivery.deliveryDate).toLocaleString("default", {
+        month: "short",
+        year: "numeric",
+      });
+      if (monthlyDeliveries[month]) {
+        monthlyDeliveries[month]++;
+      } else {
+        monthlyDeliveries[month] = 1;
+      }
+    });
+
+    return Object.keys(monthlyDeliveries).map((month) => ({
+      month,
+      deliveries: monthlyDeliveries[month],
+    }));
+  }, [deliveries]);
+
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
+    setActiveTab(newValue);
+  };
 
   const calculateGestationWeeks = (lmpDate: string): number => {
     if (!lmpDate) return 0;
@@ -141,28 +247,32 @@ const MaternityDashboardPage = () => {
   // Add new visit/consultation
   const addNewVisit = async () => {
     if (!selectedRecord) return;
-    
+
     try {
-      // Calculate new gestation weeks
-      const today = new Date();
-      const lastVisit = new Date(selectedRecord.visitDate);
-      const diffWeeks = Math.floor((today.getTime() - lastVisit.getTime()) / (7 * 24 * 60 * 60 * 1000));
-      const newGestationWeeks = selectedRecord.gestationWeeks + (diffWeeks || 2); // Default to 2 weeks if same day
-      
-      // Submit new visit record
-      await api.put(`/maternity/anc/${selectedRecord.id}`, {
-        weightKg: newWeightKg !== "" ? newWeightKg : selectedRecord.weightKg,
-        bpSystolic: newBpSystolic !== "" ? newBpSystolic : selectedRecord.bpSystolic,
-        bpDiastolic: newBpDiastolic !== "" ? newBpDiastolic : selectedRecord.bpDiastolic,
-        fetalHeartRate: newFetalHeartRate !== "" ? newFetalHeartRate : selectedRecord.fetalHeartRate,
-        fundusHeight: newFundusHeight !== "" ? newFundusHeight : selectedRecord.fundusHeight,
-        presentation: newPresentation || selectedRecord.presentation,
-        notes: newNotes || selectedRecord.notes,
-        nextVisitDate: newNextVisitDate ? new Date(newNextVisitDate).toISOString() : selectedRecord.nextVisitDate,
-        gestationWeeks: newGestationWeeks,
-        visitDate: new Date().toISOString()
+      const lmpDate = selectedRecord.maternityProfile?.lastMenstrualPeriod
+        ? new Date(selectedRecord.maternityProfile.lastMenstrualPeriod)
+        : null;
+      const weeksSinceLastVisit = Math.floor(
+        (Date.now() - new Date(selectedRecord.visitDate).getTime()) / (7 * 24 * 60 * 60 * 1000),
+      );
+      const gestationWeeks = lmpDate
+        ? Math.floor((Date.now() - lmpDate.getTime()) / (7 * 24 * 60 * 60 * 1000))
+        : selectedRecord.gestationWeeks + weeksSinceLastVisit;
+      await api.post("/maternity/anc", {
+        patientId: selectedRecord.maternityProfile.patientId,
+        gestationWeeks,
+        weightKg: newWeightKg !== "" ? newWeightKg : undefined,
+        bpSystolic: newBpSystolic !== "" ? newBpSystolic : undefined,
+        bpDiastolic: newBpDiastolic !== "" ? newBpDiastolic : undefined,
+        fetalHeartRate: newFetalHeartRate !== "" ? newFetalHeartRate : undefined,
+        fundusHeight: newFundusHeight !== "" ? newFundusHeight : undefined,
+        presentation: newPresentation || undefined,
+        notes: newNotes || undefined,
+        nextVisitDate: newNextVisitDate
+          ? new Date(newNextVisitDate).toISOString()
+          : undefined,
       });
-      
+
       // Reset form
       setNewWeightKg("");
       setNewBpSystolic("");
@@ -173,8 +283,8 @@ const MaternityDashboardPage = () => {
       setNewNotes("");
       setNewNextVisitDate("");
       setNewVisitFormOpen(false);
-      
-      Swal.fire("Success", "New visit/consultation recorded successfully", "success");
+
+      Swal.fire("Success", "New antenatal visit recorded successfully", "success");
       refetch();
     } catch (error) {
       console.error("Error adding new visit:", error);
@@ -184,16 +294,43 @@ const MaternityDashboardPage = () => {
 
   const markAsDelivered = async () => {
     if (!selectedRecord) return;
-    
+
     try {
-      // Update record status to DELIVERED
-      await api.put(`/maternity/anc/${selectedRecord.id}/deliver`, {});
+      // Update record status to DELIVERED - use correct POST endpoint with valid enum value
+      await api.post(`/maternity/anc/${selectedRecord.id}/deliver`, {
+        patientId: selectedRecord.maternityProfile.patient.id,
+        deliveryDate: new Date().toISOString(),
+        deliveryMethod
+      });
       Swal.fire("Success", "Pregnancy marked as delivered", "success");
       handleCloseDetailsDrawer();
       refetch();
+      refetchDeliveries();
     } catch (error) {
       console.error("Error updating record:", error);
       Swal.fire("Error", "Failed to update record", "error");
+    }
+  };
+
+  const requestCesareanTheaterCase = async () => {
+    if (!selectedRecord?.maternityProfileId || !selectedProcedureId || !plannedProcedureDate) {
+      Swal.fire("Warning", "Select a procedure and planned date before submitting", "warning");
+      return;
+    }
+    try {
+      await api.post("/theater/requests/maternity", {
+        maternityProfileId: selectedRecord.maternityProfileId,
+        catalogId: selectedProcedureId,
+        procedureDate: new Date(plannedProcedureDate).toISOString(),
+        notes: theaterRequestNotes || undefined,
+      });
+      setTheaterRequestOpen(false);
+      setDeliveryMethod("CAESAREAN");
+      setTheaterRequestNotes("");
+      Swal.fire("Success", "Theater request sent for review and scheduling", "success");
+    } catch (error) {
+      console.error("Unable to create maternity theater request:", error);
+      Swal.fire("Error", "Unable to create the theater request", "error");
     }
   };
 
@@ -212,51 +349,199 @@ const MaternityDashboardPage = () => {
         </Button>
       </Box>
 
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Patient</TableCell>
-              <TableCell>Gestation Weeks</TableCell>
-              <TableCell>Last Visit</TableCell>
-              <TableCell>Next Visit</TableCell>
-              <TableCell>Weight (kg)</TableCell>
-              <TableCell>BP</TableCell>
-              <TableCell>Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {(maternityRecords || []).map((record: any) => {
-              // Find the patient for this record to get their full name
-              const patient = patients?.find((p: any) => p.id === record.patientId);
-              const patientName = patient ? `${patient.firstName} ${patient.lastName}` : 'Unknown Patient';
-              
-              return (
-                <TableRow key={record.id}>
-                  <TableCell>{patientName}</TableCell>
-                  <TableCell>{record.gestationWeeks || 'N/A'}</TableCell>
-                  <TableCell>{record.visitDate ? new Date(record.visitDate).toLocaleDateString() : 'N/A'}</TableCell>
-                  <TableCell>{record.nextVisitDate ? new Date(record.nextVisitDate).toLocaleDateString() : 'N/A'}</TableCell>
-                  <TableCell>{record.weightKg || 'N/A'}</TableCell>
-                  <TableCell>{record.bpSystolic && record.bpDiastolic ? `${record.bpSystolic}/${record.bpDiastolic}` : 'N/A'}</TableCell>
-                  <TableCell>
-                    <Tooltip title="View Details">
-                      <IconButton size="small" onClick={() => handleViewDetails(record)}>
-                        <Visibility />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Edit">
-                      <IconButton size="small" onClick={() => handleEditRecord()}>
-                        <Edit />
-                      </IconButton>
-                    </Tooltip>
-                  </TableCell>
+
+      <Paper sx={{ mb: 3, p: 2 }}>
+        <Typography variant="h6" gutterBottom>
+          Deliveries Over Time
+        </Typography>
+        <ResponsiveContainer width="100%" height={300}>
+          <LineChart data={deliveryDataForChart}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="month" />
+            <YAxis />
+            <RechartsTooltip />
+            <Legend />
+            <Line
+              type="monotone"
+              dataKey="deliveries"
+              stroke="#8884d8"
+              activeDot={{ r: 8 }}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </Paper>
+
+      <Paper>
+        <Tabs
+          value={activeTab}
+          onChange={handleTabChange}
+          indicatorColor="primary"
+          textColor="primary"
+          variant="fullWidth"
+        >
+          <Tab label="Pregnant Patients" />
+          <Tab label="Deliveries" />
+          <Tab label="Postnatal" />
+        </Tabs>
+        {activeTab === 0 && (
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Patient</TableCell>
+                  <TableCell>Gestation Weeks</TableCell>
+                  <TableCell>Last Visit</TableCell>
+                  <TableCell>Next Visit</TableCell>
+                  <TableCell>Weight (kg)</TableCell>
+                  <TableCell>BP</TableCell>
+                  <TableCell>Visit Notes</TableCell>
+                  <TableCell>Actions</TableCell>
                 </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </TableContainer>
+              </TableHead>
+              <TableBody>
+                {(maternityRecords || []).map((record: any) => {
+                  const patient = record.maternityProfile?.patient;
+                  const patientName = patient
+                    ? `${patient.firstName} ${patient.lastName}`
+                    : "Unknown Patient";
+
+                  return (
+                    <TableRow key={record.id}>
+                      <TableCell>{patientName}</TableCell>
+                      <TableCell>{record.gestationWeeks || "N/A"}</TableCell>
+                      <TableCell>
+                        {record.visitDate
+                          ? new Date(record.visitDate).toLocaleDateString()
+                          : "N/A"}
+                      </TableCell>
+                      <TableCell>
+                        {record.nextVisitDate
+                          ? new Date(record.nextVisitDate).toLocaleDateString()
+                          : "N/A"}
+                      </TableCell>
+                      <TableCell>{record.weightKg || "N/A"}</TableCell>
+                      <TableCell>
+                        {record.bpSystolic && record.bpDiastolic
+                          ? `${record.bpSystolic}/${record.bpDiastolic}`
+                          : "N/A"}
+                      </TableCell>
+                      <TableCell>
+                        <Tooltip title={record.notes || record.ultrasoundNotes || "No visit notes recorded"} arrow>
+                          <IconButton size="small" aria-label="View antenatal visit notes">
+                            <Notes fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
+                      <TableCell>
+                        <Tooltip title="View Details">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleViewDetails(record)}
+                          >
+                            <Visibility />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Edit">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleEditRecord()}
+                          >
+                            <Edit />
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+        {activeTab === 1 && (
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Patient</TableCell>
+                  <TableCell>Delivery Date</TableCell>
+                  <TableCell>Delivery Method</TableCell>
+                  <TableCell>Outcome</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {(deliveries || []).map((delivery: any) => (
+                  <TableRow key={delivery.id}>
+                    <TableCell>
+                      {delivery.maternityProfile?.patient
+                        ? `${delivery.maternityProfile.patient.firstName} ${delivery.maternityProfile.patient.lastName}`
+                        : "Unknown Patient"}
+                    </TableCell>
+                    <TableCell>
+                      {new Date(delivery.deliveryDate).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>{delivery.deliveryMethod}</TableCell>
+                    <TableCell>
+                      <Tooltip title={delivery.notes || delivery.complications || "No delivery notes recorded"} arrow>
+                        <IconButton size="small" aria-label="View delivery notes">
+                          <Notes fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+        {activeTab === 2 && (
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Patient</TableCell>
+                  <TableCell>Visit Date</TableCell>
+                  <TableCell>Mother Status</TableCell>
+                  <TableCell>Baby Status</TableCell>
+                  <TableCell>Next Visit</TableCell>
+                  <TableCell>Visit Notes</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {postnatalRecords.map((record: any) => (
+                  <TableRow key={record.id}>
+                    <TableCell>
+                      {record.maternityProfile?.patient
+                        ? `${record.maternityProfile.patient.firstName} ${record.maternityProfile.patient.lastName}`
+                        : "Unknown Patient"}
+                    </TableCell>
+                    <TableCell>{new Date(record.visitDate).toLocaleDateString()}</TableCell>
+                    <TableCell>{record.motherStatus || "Not recorded"}</TableCell>
+                    <TableCell>{record.babyStatus || "Not recorded"}</TableCell>
+                    <TableCell>
+                      {record.nextVisitDate
+                        ? new Date(record.nextVisitDate).toLocaleDateString()
+                        : "Not scheduled"}
+                    </TableCell>
+                    <TableCell>
+                      <Tooltip title={record.notes || "No visit notes recorded"} arrow>
+                        <IconButton size="small" aria-label="View postnatal visit notes">
+                          <Notes fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {postnatalRecords.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} align="center">No postnatal visits recorded</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+      </Paper>
+
 
       <Drawer anchor="right" open={drawerOpen} onClose={handleCloseDrawer}>
         <Box sx={{ width: 500, p: 3 }}>
@@ -400,6 +685,14 @@ const MaternityDashboardPage = () => {
                 <TextField
                   fullWidth
                   disabled
+                  label="Estimated Due Date"
+                  value={calculateEDD(lmp)}
+                />
+              </Grid>
+              <Grid item xs={6}>
+                <TextField
+                  fullWidth
+                  disabled
                   label="Gravida"
                   value={gravida}
                 />
@@ -466,21 +759,19 @@ const MaternityDashboardPage = () => {
                     await api.post("/maternity/anc", {
                       patientId: selectedPatient,
                       gestationWeeks,
+                      lastMenstrualPeriod: new Date(lmp).toISOString(),
                       gravida,
                       parity,
                       weightKg: weightKg !== "" ? weightKg : undefined,
                       bpSystolic: bpSystolic !== "" ? bpSystolic : undefined,
                       bpDiastolic: bpDiastolic !== "" ? bpDiastolic : undefined,
-                      visitDate: new Date().toISOString(),
-                      edd: calculateEDD(lmp),
-                      status: "ACTIVE",
                       nextVisitDate: nextVisit.toISOString()
                     });
                     handleCloseDrawer();
                     // Reset form
                     setSelectedPatient("");
                     setLmp("");
-                    setGravida(0);
+                    setGravida(1);
                     setParity(0);
                     setWeightKg("");
                     setBpSystolic("");
@@ -525,7 +816,7 @@ const MaternityDashboardPage = () => {
           <Typography variant="h6" sx={{ mb: 3 }}>
             Patient Record & Consultations
           </Typography>
-          
+
           {selectedRecord && (
             <>
               {/* Patient Summary Card */}
@@ -554,16 +845,40 @@ const MaternityDashboardPage = () => {
               </Paper>
 
               {!newVisitFormOpen && (
-                <Box sx={{ mb: 3, display: 'flex', gap: 2 }}>
-                  <Button 
-                    variant="contained" 
+                <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <Button
+                    variant="contained"
                     onClick={() => setNewVisitFormOpen(true)}
                     startIcon={<AddIcon />}
                   >
                     Add New Visit
                   </Button>
-                  <Button 
-                    variant="outlined" 
+                  <FormControl size="small" sx={{ minWidth: 180 }}>
+                    <InputLabel id="delivery-method-label">Delivery method</InputLabel>
+                    <Select
+                      labelId="delivery-method-label"
+                      value={deliveryMethod}
+                      label="Delivery method"
+                      onChange={(event) => setDeliveryMethod(event.target.value)}
+                    >
+                      <MenuItem value="VAGINAL">Vaginal</MenuItem>
+                      <MenuItem value="CAESAREAN">Caesarean</MenuItem>
+                      <MenuItem value="VACUUM">Vacuum</MenuItem>
+                      <MenuItem value="FORCEPS">Forceps</MenuItem>
+                      <MenuItem value="OTHER">Other</MenuItem>
+                    </Select>
+                  </FormControl>
+                  {deliveryMethod === "CAESAREAN" && (
+                    <Button
+                      variant="outlined"
+                      onClick={() => setTheaterRequestOpen(true)}
+                      disabled={!procedureCatalog.some((item: { isMaternityDelivery: boolean }) => item.isMaternityDelivery)}
+                    >
+                      Request C-section theater case
+                    </Button>
+                  )}
+                  <Button
+                    variant="outlined"
                     color="success"
                     onClick={markAsDelivered}
                   >
@@ -681,12 +996,21 @@ const MaternityDashboardPage = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    <TableRow key={selectedRecord.id}>
-                      <TableCell>{new Date(selectedRecord.visitDate).toLocaleDateString()}</TableCell>
-                      <TableCell>{selectedRecord.weightKg}</TableCell>
-                      <TableCell>{selectedRecord.bpSystolic}/{selectedRecord.bpDiastolic}</TableCell>
-                      <TableCell>{selectedRecord.fetalHeartRate}</TableCell>
-                    </TableRow>
+                    {selectedAncHistory.map((record: any) => (
+                      <TableRow key={record.id}>
+                        <TableCell>{new Date(record.visitDate).toLocaleDateString()}</TableCell>
+                        <TableCell>{record.weightKg ?? "—"}</TableCell>
+                        <TableCell>
+                          {record.bpSystolic && record.bpDiastolic
+                            ? `${record.bpSystolic}/${record.bpDiastolic}`
+                            : "—"}
+                        </TableCell>
+                        <TableCell>{record.fetalHeartRate ?? "—"}</TableCell>
+                      </TableRow>
+                    ))}
+                    {selectedAncHistory.length === 0 && (
+                      <TableRow><TableCell colSpan={4} align="center">No prior visits recorded</TableCell></TableRow>
+                    )}
                   </TableBody>
                 </Table>
               </TableContainer>
@@ -694,6 +1018,56 @@ const MaternityDashboardPage = () => {
           )}
         </Box>
       </Drawer>
+      <Dialog
+        open={theaterRequestOpen}
+        onClose={() => setTheaterRequestOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Request Caesarean Theater Case</DialogTitle>
+        <DialogContent sx={{ display: "grid", gap: 2, pt: 2 }}>
+          <Typography variant="body2" color="text.secondary">
+            This creates a delivery encounter and sends the case to theater for review. The theater team will assign staff and a room.
+          </Typography>
+          <FormControl fullWidth>
+            <InputLabel id="procedure-catalog-label">Procedure</InputLabel>
+            <Select
+              labelId="procedure-catalog-label"
+              value={selectedProcedureId}
+              label="Procedure"
+              onChange={(event) => setSelectedProcedureId(event.target.value)}
+            >
+              {procedureCatalog
+                .filter((item: { isMaternityDelivery: boolean }) => item.isMaternityDelivery)
+                .map((item: { id: string; name: string; price: number | string }) => (
+                <MenuItem key={item.id} value={item.id}>
+                  {item.name} — {Number(item.price).toLocaleString()}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <TextField
+            label="Requested date and time"
+            type="datetime-local"
+            value={plannedProcedureDate}
+            onChange={(event) => setPlannedProcedureDate(event.target.value)}
+            InputLabelProps={{ shrink: true }}
+          />
+          <TextField
+            label="Clinical notes"
+            multiline
+            minRows={3}
+            value={theaterRequestNotes}
+            onChange={(event) => setTheaterRequestNotes(event.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setTheaterRequestOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={requestCesareanTheaterCase}>
+            Send to Theater
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

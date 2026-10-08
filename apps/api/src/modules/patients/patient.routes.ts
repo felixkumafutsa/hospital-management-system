@@ -25,7 +25,7 @@ router.use(authenticate);
 // Create patient - only reception, admin, doctor can create
 router.post(
   '/',
-  authorize(['RECEPTIONIST', 'ADMINISTRATOR', 'DOCTOR']),
+  authorize(['RECEPTION_CASHIER', 'RECEPTIONIST', 'ADMINISTRATOR', 'DOCTOR']),
   validate(createPatientSchema),
   createPatientController
 );
@@ -58,7 +58,7 @@ router.get(
 
 router.put(
   '/:id',
-  authorize(['RECEPTIONIST', 'ADMINISTRATOR', 'DOCTOR']),
+  authorize(['RECEPTION_CASHIER', 'RECEPTIONIST', 'ADMINISTRATOR', 'DOCTOR']),
   validate(updatePatientSchema),
   updatePatientController
 );

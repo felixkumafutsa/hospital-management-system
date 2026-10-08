@@ -14,14 +14,13 @@ import {
   Card,
   CardContent,
 } from "@mui/material";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
   Science,
   UploadFile,
   TrendingUp,
   CheckCircle,
-  Edit,
 } from "@mui/icons-material";
 import api from "../../services/api";
 
@@ -32,51 +31,44 @@ interface LabRequestItem {
     lastName: string;
     patientNumber: string;
   };
-  doctor: {
-    firstName: string;
-    lastName: string;
-  };
+  requestedBy: string;
   testTypes: string[];
   status: string;
   requestedAt: string;
+  priority: string;
 }
 
 const LabDashboardPage = () => {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
 
   const { data: labRequests, isLoading: requestsLoading } = useQuery({
     queryKey: ["labRequests"],
     queryFn: async () => {
-      const response = await api.get("/lab/requests");
-      // Filter pending requests
-      const allRequests = response.data.requests || [];
-      return allRequests.filter(
-        (req: any) => req.status === "REQUESTED" || req.status === "COLLECTED",
-      ) as LabRequestItem[];
+      const response = await api.get("/lab/requests", { params: { limit: 100 } });
+      const allRequests = response.data?.data ?? response.data?.requests ?? [];
+      return allRequests
+        .filter((request: any) => ["PENDING", "PROCESSING"].includes(request.status))
+        .map((request: any) => ({
+          id: request.id,
+          patient: {
+            firstName: request.visit?.patient?.firstName || "Unknown",
+            lastName: request.visit?.patient?.lastName || "Patient",
+            patientNumber: request.visit?.patient?.patientNumber || "N/A",
+          },
+          requestedBy: request.requestedBy || "Unassigned",
+          testTypes: (request.items || []).map((item: any) => item.test?.name).filter(Boolean),
+          status: request.status,
+          requestedAt: request.requestedAt,
+          priority: request.priority,
+        })) as LabRequestItem[];
     },
   });
 
-  const { data: todayCompleted } = useQuery({
-    queryKey: ["todayLabCompleted"],
+  const { data: stats } = useQuery({
+    queryKey: ["labDashboardStats"],
     queryFn: async () => {
-      const today = new Date().toISOString().split("T")[0];
-      const response = await api.get("/lab/requests", {
-        params: { fromDate: today, toDate: today, status: "COMPLETED" },
-      });
-      return response.data.requests?.length || 0;
-    },
-  });
-
-  const completeTestMutation = useMutation({
-    mutationFn: async (requestId: string) => {
-      await api.put(`/lab/requests/${requestId}/status`, {
-        status: "COMPLETED",
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["labRequests"] });
-      queryClient.invalidateQueries({ queryKey: ["todayLabCompleted"] });
+      const response = await api.get("/lab/requests/stats");
+      return response.data;
     },
   });
 
@@ -86,7 +78,7 @@ const LabDashboardPage = () => {
         return "success";
       case "PENDING":
         return "warning";
-      case "IN_PROGRESS":
+      case "PROCESSING":
         return "info";
       default:
         return "default";
@@ -144,7 +136,7 @@ const LabDashboardPage = () => {
           <Button
             variant="outlined"
             startIcon={<Science />}
-            onClick={() => navigate("/laboratory/all")}
+            onClick={() => navigate("/lab-tests")}
           >
             View All Tests
           </Button>
@@ -155,9 +147,7 @@ const LabDashboardPage = () => {
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Pending Tests"
-            value={
-              labRequests?.filter((r) => r.status === "PENDING").length || 0
-            }
+            value={stats?.pending ?? 0}
             icon={Science}
             color="#ed6c02"
           />
@@ -165,9 +155,7 @@ const LabDashboardPage = () => {
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="In Progress"
-            value={
-              labRequests?.filter((r) => r.status === "IN_PROGRESS").length || 0
-            }
+            value={stats?.processing ?? 0}
             icon={UploadFile}
             color="#1976d2"
           />
@@ -175,7 +163,7 @@ const LabDashboardPage = () => {
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Completed Today"
-            value={todayCompleted || 0}
+            value={stats?.completedToday ?? 0}
             icon={CheckCircle}
             color="#2e7d32"
           />
@@ -185,14 +173,14 @@ const LabDashboardPage = () => {
             title="Completion Rate"
             icon={TrendingUp}
             color="#9c27b0"
-            value="95%"
+            value={`${stats?.completionRate ?? 0}%`}
           />
         </Grid>
       </Grid>
 
       <Paper sx={{ p: 4 }}>
         <Typography variant="h6" gutterBottom>
-          Pending Laboratory Requests
+          Active Laboratory Requests
         </Typography>
         <TableContainer>
           <Table>
@@ -200,7 +188,7 @@ const LabDashboardPage = () => {
               <TableRow>
                 <TableCell>Patient</TableCell>
                 <TableCell>Patient Number</TableCell>
-                <TableCell>Requesting Doctor</TableCell>
+                <TableCell>Requested By</TableCell>
                 <TableCell>Tests Requested</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell>Actions</TableCell>
@@ -226,9 +214,7 @@ const LabDashboardPage = () => {
                       {request.patient.firstName} {request.patient.lastName}
                     </TableCell>
                     <TableCell>{request.patient.patientNumber}</TableCell>
-                    <TableCell>
-                      Dr. {request.doctor.firstName} {request.doctor.lastName}
-                    </TableCell>
+                    <TableCell>{request.requestedBy.slice(0, 8)}</TableCell>
                     <TableCell>{request.testTypes.join(", ")}</TableCell>
                     <TableCell>
                       <Chip
@@ -240,14 +226,11 @@ const LabDashboardPage = () => {
                     <TableCell>
                       <Button
                         size="small"
-                        startIcon={<Edit />}
-                        variant="contained"
-                        onClick={() =>
-                          navigate(`/laboratory/requests/${request.id}`)
-                        }
-                        disabled={completeTestMutation.isPending}
+                        startIcon={<CheckCircle />}
+                        variant="outlined"
+                        onClick={() => navigate("/lab-tests")}
                       >
-                        Upload Results
+                        Open Request
                       </Button>
                     </TableCell>
                   </TableRow>

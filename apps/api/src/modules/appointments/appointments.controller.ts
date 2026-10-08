@@ -11,7 +11,7 @@ import { CreateAppointmentInput, UpdateAppointmentInput } from './appointments.v
 
 // Create new appointment
 export const createAppointmentController = async (
-  req: Request<{}, {}, CreateAppointmentInput>,
+  req: Request<object, object, CreateAppointmentInput>,
   res: Response,
   next: NextFunction
 ) => {
@@ -55,8 +55,8 @@ export const getPatientAppointmentsController = async (
 
 // Get all appointments
 export const getAllAppointmentsController = async (
-  req: Request<{}, {}, {}, { 
-    limit?: string; 
+  req: Request<object, object, object, {
+    limit?: string;
     offset?: string;
     status?: string;
     patientId?: string;
@@ -77,7 +77,7 @@ export const getAllAppointmentsController = async (
       fromDate: req.query.fromDate,
       toDate: req.query.toDate
     };
-    
+
     const result = await fetchAllAppointments(limit, offset, filters);
     res.status(200).json(result);
   } catch (error) {
@@ -87,7 +87,7 @@ export const getAllAppointmentsController = async (
 
 // Update appointment status
 export const updateAppointmentStatusController = async (
-  req: Request<{ id: string }, {}, UpdateAppointmentInput>,
+  req: Request<{ id: string }, object, UpdateAppointmentInput>,
   res: Response,
   next: NextFunction
 ) => {
@@ -101,7 +101,7 @@ export const updateAppointmentStatusController = async (
 
 // Delete appointment
 export const deleteAppointmentController = async (
-  req: Request<{ id: string }>,
+  req: Request<{ id: string }, object, object>,
   res: Response,
   next: NextFunction
 ) => {

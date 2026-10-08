@@ -1,0 +1,1 @@
+ALTER TABLE "Consultation" ADD COLUMN "consultationFee" DECIMAL(10,2);

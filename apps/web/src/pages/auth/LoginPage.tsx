@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate, useLocation, Navigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   Box,
   Card,
@@ -15,22 +15,13 @@ import {
 import { useAuth } from "../../contexts/AuthContext";
 
 const LoginPage: React.FC = () => {
-  const { login, isAuthenticated, loading } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Get the redirect path from location state or default to dashboard
-  const from = (location.state as any)?.from?.pathname || "/dashboard";
-
-  // Redirect if already authenticated
-  if (isAuthenticated && !loading) {
-    return <Navigate to={from} replace />;
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,9 +29,7 @@ const LoginPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      await login(email, password);
-      // Redirect to the page the user was trying to access
-      navigate(from, { replace: true });
+      await login(email, password, navigate);
     } catch (err: any) {
       setError(
         err.message || "Failed to login. Please check your credentials.",

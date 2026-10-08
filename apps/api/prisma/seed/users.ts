@@ -6,12 +6,12 @@ const prisma = new PrismaClient();
 // Define roles
 const roles = [
   { name: 'ADMINISTRATOR', displayName: 'Administrator' },
-  { name: 'RECEPTIONIST', displayName: 'Receptionist' },
+  { name: 'RECEPTION_CASHIER', displayName: 'Reception & Cashier (combined role)' },
   { name: 'NURSE', displayName: 'Nurse' },
   { name: 'DOCTOR', displayName: 'Doctor' },
+  { name: 'ANESTHETIST', displayName: 'Anesthetist' },
   { name: 'LAB_TECH', displayName: 'Laboratory Technician' },
   { name: 'PHARMACIST', displayName: 'Pharmacist' },
-  { name: 'CASHIER', displayName: 'Cashier' },
   { name: 'MD', displayName: 'Medical Director' },
 ];
 
@@ -21,8 +21,8 @@ const permissions = [
   { action: 'MANAGE_USERS', resource: 'users', roles: ['ADMINISTRATOR'] },
   
   // Patient management
-  { action: 'REGISTER_PATIENT', resource: 'patients', roles: ['ADMINISTRATOR', 'RECEPTIONIST'] },
-  { action: 'VIEW_ALL_PATIENTS', resource: 'patients', roles: ['ADMINISTRATOR', 'RECEPTIONIST', 'NURSE', 'DOCTOR', 'MD'] },
+  { action: 'REGISTER_PATIENT', resource: 'patients', roles: ['ADMINISTRATOR', 'RECEPTION_CASHIER'] },
+  { action: 'VIEW_ALL_PATIENTS', resource: 'patients', roles: ['ADMINISTRATOR', 'RECEPTION_CASHIER', 'NURSE', 'DOCTOR', 'MD'] },
   
   // Clinical workflows
   { action: 'RECORD_VITALS', resource: 'vitals', roles: ['ADMINISTRATOR', 'NURSE', 'DOCTOR'] },
@@ -39,14 +39,15 @@ const permissions = [
   { action: 'MANAGE_INVENTORY', resource: 'inventory', roles: ['ADMINISTRATOR', 'PHARMACIST'] },
   
   // Billing
-  { action: 'CREATE_INVOICE', resource: 'billing', roles: ['ADMINISTRATOR', 'CASHIER'] },
-  { action: 'PROCESS_PAYMENT', resource: 'billing', roles: ['ADMINISTRATOR', 'CASHIER'] },
+  { action: 'CREATE_INVOICE', resource: 'billing', roles: ['ADMINISTRATOR', 'RECEPTION_CASHIER'] },
+  { action: 'PROCESS_PAYMENT', resource: 'billing', roles: ['ADMINISTRATOR', 'RECEPTION_CASHIER'] },
   
   // OB/GYN
   { action: 'MANAGE_OBGYN_RECORDS', resource: 'obgyn', roles: ['ADMINISTRATOR', 'NURSE', 'DOCTOR'] },
+  { action: 'MANAGE_THEATER', resource: 'theater', roles: ['ADMINISTRATOR', 'DOCTOR', 'NURSE', 'ANESTHETIST'] },
   
   // Reports
-  { action: 'VIEW_REPORTS', resource: 'reports', roles: ['ADMINISTRATOR', 'CASHIER', 'MD'] },
+  { action: 'VIEW_REPORTS', resource: 'reports', roles: ['ADMINISTRATOR', 'RECEPTION_CASHIER', 'MD'] },
   { action: 'VIEW_EXECUTIVE_REPORTS', resource: 'reports', roles: ['ADMINISTRATOR', 'MD'] },
   { action: 'VIEW_AUDIT_LOGS', resource: 'audit', roles: ['ADMINISTRATOR', 'MD'] },
 ];
@@ -89,6 +90,13 @@ const additionalDoctors = [
   },
 ];
 
+const requireSeedPassword = (variable: string): string => {
+  const password = process.env[variable];
+  if (!password || password.length < 12) {
+    throw new Error(`${variable} must be set to a password of at least 12 characters.`);
+  }
+  return password;
+};
 export async function seedUsers() {
   console.log('🌱 Seeding users, roles and permissions...');
 
@@ -125,7 +133,7 @@ export async function seedUsers() {
 
   // Hash password for admin
   const saltRounds = 12;
-  const adminPassword = await bcrypt.hash('Admin123!', saltRounds);
+  const adminPassword = await bcrypt.hash(requireSeedPassword("SEED_ADMIN_PASSWORD"), saltRounds);
 
   // Find admin role
   const adminRole = createdRoles.find(r => r.name === 'ADMINISTRATOR');
@@ -152,7 +160,7 @@ export async function seedUsers() {
     throw new Error('Doctor role not found');
   }
 
-  const doctorPassword = await bcrypt.hash('Doctor123!', saltRounds);
+  const doctorPassword = await bcrypt.hash(requireSeedPassword("SEED_DOCTOR_PASSWORD"), saltRounds);
 
   for (const doctor of additionalDoctors) {
     await prisma.user.create({
@@ -168,15 +176,14 @@ export async function seedUsers() {
   
   // Create one user for each other role
   const usersToCreate = [
-    { roleName: 'RECEPTIONIST', email: 'reception@betterlifeclinic.mw', firstName: 'Mary', lastName: 'Chirwa', staffId: 'BL-STF-002' },
+    { roleName: 'RECEPTION_CASHIER', email: 'reception@betterlifeclinic.mw', firstName: 'Mary', lastName: 'Chirwa', staffId: 'BL-STF-002' },
     { roleName: 'NURSE', email: 'nurse@betterlifeclinic.mw', firstName: 'Anna', lastName: 'Mbewe', staffId: 'BL-STF-003' },
     { roleName: 'LAB_TECH', email: 'labtech@betterlifeclinic.mw', firstName: 'Peter', lastName: 'Kumwenda', staffId: 'BL-STF-004' },
     { roleName: 'PHARMACIST', email: 'pharmacist@betterlifeclinic.mw', firstName: 'Grace', lastName: 'Banda', staffId: 'BL-STF-008' },
-    { roleName: 'CASHIER', email: 'cashier@betterlifeclinic.mw', firstName: 'John', lastName: 'Phiri', staffId: 'BL-STF-009' },
     { roleName: 'MD', email: 'medicaldirector@betterlifeclinic.mw', firstName: 'David', lastName: 'Mwanza', staffId: 'BL-STF-010' },
   ];
 
-  const defaultPassword = await bcrypt.hash('Password123!', saltRounds);
+  const defaultPassword = await bcrypt.hash(requireSeedPassword("SEED_DEFAULT_PASSWORD"), saltRounds);
 
   for (const userData of usersToCreate) {
     const role = createdRoles.find(r => r.name === userData.roleName);

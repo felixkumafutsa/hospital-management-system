@@ -23,7 +23,7 @@ router.use(authenticate);
 // Create appointment
 router.post(
   '/',
-  authorize(['RECEPTIONIST', 'ADMINISTRATOR', 'NURSE', 'DOCTOR']),
+  authorize(['RECEPTION_CASHIER', 'RECEPTIONIST', 'ADMINISTRATOR', 'NURSE', 'DOCTOR']),
   validate(createAppointmentSchema),
   createAppointmentController
 );
@@ -49,14 +49,21 @@ router.get(
 
 router.put(
   '/:id/status',
-  authorize(['NURSE', 'DOCTOR', 'ADMINISTRATOR', 'RECEPTIONIST']),
+  authorize(['NURSE', 'DOCTOR', 'ADMINISTRATOR', 'RECEPTION_CASHIER', 'RECEPTIONIST']),
+  validate(updateAppointmentSchema),
+  updateAppointmentStatusController
+);
+
+router.patch(
+  '/:id/status',
+  authorize(['NURSE', 'DOCTOR', 'ADMINISTRATOR', 'RECEPTION_CASHIER', 'RECEPTIONIST']),
   validate(updateAppointmentSchema),
   updateAppointmentStatusController
 );
 
 router.delete(
   '/:id',
-  authorize(['ADMINISTRATOR', 'RECEPTIONIST']),
+  authorize(['ADMINISTRATOR', 'RECEPTION_CASHIER', 'RECEPTIONIST']),
   deleteAppointmentController
 );
 

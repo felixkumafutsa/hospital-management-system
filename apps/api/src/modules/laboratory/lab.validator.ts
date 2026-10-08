@@ -2,15 +2,18 @@ import { z } from 'zod';
 
 export const createLabRequestSchema = z.object({
   visitId: z.string().uuid('Invalid visit ID format'),
-  requestedBy: z.string().uuid('Invalid doctor ID format'),
+  requestedBy: z.string().uuid('Invalid doctor ID format').optional(),
   priority: z.enum(['ROUTINE', 'URGENT', 'STAT']).default('ROUTINE'),
   notes: z.string().optional(),
-  testIds: z.array(z.string().uuid('Invalid test ID format')).min(1, 'At least one test is required'),
+  testIds: z
+    .array(z.string().uuid('Invalid test ID format'))
+    .min(1, 'At least one test is required')
+    .refine((testIds) => new Set(testIds).size === testIds.length, 'Duplicate tests are not allowed'),
 });
 
 export const createLabTestSchema = z.object({
-  name: z.string().min(1, 'Test name is required'),
-  code: z.string().min(1, 'Test code is required'),
+  name: z.string().trim().min(1, 'Test name is required'),
+  code: z.string().trim().min(1, 'Test code is required'),
   category: z.enum([
     'HEMATOLOGY',
     'BIOCHEMISTRY',
@@ -25,6 +28,10 @@ export const createLabTestSchema = z.object({
   ]),
   unit: z.string().optional(),
   normalRange: z.string().optional(),
+  price: z.number().positive('Price must be positive'),
+});
+
+export const updateLabTestPriceSchema = z.object({
   price: z.number().positive('Price must be positive'),
 });
 

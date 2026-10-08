@@ -4,9 +4,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { ApiError } from '../../middlewares/errorHandler';
 import * as authRepository from './auth.repository';
 import { User } from '@prisma/client';
+import { getJwtPrivateKey } from '../../config/security';
 
 // JWT configuration
-const JWT_PRIVATE_KEY = process.env.JWT_PRIVATE_KEY || 'your_private_key';
 const ACCESS_TOKEN_EXPIRY = process.env.JWT_ACCESS_TOKEN_EXPIRY || '15m';
 const REFRESH_TOKEN_EXPIRY = process.env.JWT_REFRESH_TOKEN_EXPIRY || '7d';
 
@@ -19,7 +19,7 @@ const generateAccessToken = (user: User): string => {
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (jwt as any).sign(payload, JWT_PRIVATE_KEY, {
+  return (jwt as any).sign(payload, getJwtPrivateKey(), {
     expiresIn: ACCESS_TOKEN_EXPIRY,
     algorithm: 'HS256',
   });
@@ -33,7 +33,7 @@ const generateRefreshToken = (user: User): string => {
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (jwt as any).sign(payload, JWT_PRIVATE_KEY, {
+  return (jwt as any).sign(payload, getJwtPrivateKey(), {
     expiresIn: REFRESH_TOKEN_EXPIRY,
     algorithm: 'HS256',
   });
@@ -113,7 +113,7 @@ export const refreshToken = async (token: string) => {
 
   // Verify JWT
   try {
-    jwt.verify(token, JWT_PRIVATE_KEY, { algorithms: ['HS256'] });
+    jwt.verify(token, getJwtPrivateKey(), { algorithms: ['HS256'] });
   } catch (error) {
     throw new ApiError(401, 'INVALID_TOKEN', 'Invalid refresh token');
   }

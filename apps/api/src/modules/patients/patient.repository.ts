@@ -112,6 +112,9 @@ export const searchPatients = async (
       take: limit,
       orderBy: {
         createdAt: 'desc'
+      },
+      include: {
+        visits: true
       }
     }),
     prisma.patient.count({ where })
@@ -131,6 +134,9 @@ export const getAllPatients = async (
       take: limit,
       orderBy: {
         createdAt: 'desc'
+      },
+      include: {
+        visits: true
       }
     }),
     prisma.patient.count()

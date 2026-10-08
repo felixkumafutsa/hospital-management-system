@@ -4,7 +4,10 @@ import { CreateFollowUpInput, UpdateFollowUpInput } from './followup.validator';
 
 export const createFollowUp = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'User not authenticated' });
+    }
     const data: CreateFollowUpInput = req.body;
     const result = await followupService.createNewFollowUp(data, userId);
     return res.status(201).json(result);
@@ -68,7 +71,10 @@ export const getUpcomingFollowUps = async (req: Request, res: Response, next: Ne
 export const updateFollowUp = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
-    const userId = (req as any).user?.id;
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'User not authenticated' });
+    }
     const data: UpdateFollowUpInput = req.body;
     const result = await followupService.updateFollowUpService(id as string, data, userId);
     return res.status(200).json(result);
@@ -80,7 +86,10 @@ export const updateFollowUp = async (req: Request, res: Response, next: NextFunc
 export const deleteFollowUp = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
-    const userId = (req as any).user?.id;
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'User not authenticated' });
+    }
     const result = await followupService.deleteFollowUpService(id as string, userId);
     return res.status(200).json(result);
   } catch (error) {

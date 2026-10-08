@@ -13,11 +13,15 @@ import {
   Button,
   Card,
   CardContent,
+  Tabs,
+  Tab,
 } from "@mui/material";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { People, Schedule, Add, TrendingUp } from "@mui/icons-material";
 import api from "../../services/api";
+import InvoicesPage from "../finance/InvoicesPage";
 
 interface VisitQueueItem {
   id: string;
@@ -30,10 +34,14 @@ interface VisitQueueItem {
   visitDate: string;
   visitType: string;
   status: string;
+  appointments?: Array<{
+    doctor: { firstName: string; lastName: string } | null;
+  }>;
 }
 
 const ReceptionDashboardPage = () => {
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState(0);
 
   const { data: queueData, isLoading: queueLoading } = useQuery({
     queryKey: ["visitQueue"],
@@ -64,6 +72,8 @@ const ReceptionDashboardPage = () => {
         return "info";
       case "TRIAGED":
         return "warning";
+      case "EMERGENCY":
+        return "error";
       default:
         return "default";
     }
@@ -134,6 +144,13 @@ const ReceptionDashboardPage = () => {
           </Box>
         </Box>
 
+        <Tabs value={activeTab} onChange={(_, value) => setActiveTab(value)} sx={{ mb: 2 }}>
+          <Tab label="Reception" />
+          <Tab label="Cashier" />
+        </Tabs>
+
+        {activeTab === 0 ? (
+        <>
         <Grid container spacing={3} sx={{ mb: 4 }}>
           <Grid item xs={12} sm={6} md={3}>
             <StatCard
@@ -147,7 +164,9 @@ const ReceptionDashboardPage = () => {
             <StatCard
               title="Waiting Queue"
               value={
-                queueData?.filter((v) => v.status === "REGISTERED").length || 0
+                queueData?.filter((v) =>
+                  ["REGISTERED", "WAITING_FOR_CONSULTATION", "TRIAGED"].includes(v.status)
+                ).length || 0
               }
               icon={TrendingUp}
               color="#ed6c02"
@@ -186,6 +205,7 @@ const ReceptionDashboardPage = () => {
                   <TableCell>Patient</TableCell>
                   <TableCell>Patient Number</TableCell>
                   <TableCell>Visit Type</TableCell>
+                  <TableCell>Assigned Doctor</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Actions</TableCell>
                 </TableRow>
@@ -193,13 +213,13 @@ const ReceptionDashboardPage = () => {
               <TableBody>
                 {queueLoading ? (
                   <TableRow>
-                    <TableCell colSpan={5} align="center">
+                    <TableCell colSpan={6} align="center">
                       Loading queue...
                     </TableCell>
                   </TableRow>
                 ) : !queueData || queueData.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} align="center">
+                    <TableCell colSpan={6} align="center">
                       No active visits in queue
                     </TableCell>
                   </TableRow>
@@ -212,6 +232,13 @@ const ReceptionDashboardPage = () => {
                       <TableCell>{visit.patient.patientNumber}</TableCell>
                       <TableCell>{visit.visitType}</TableCell>
                       <TableCell>
+                        {visit.appointments?.find((appointment) => appointment.doctor)?.doctor
+                          ? `Dr. ${visit.appointments.find((appointment) => appointment.doctor)?.doctor?.firstName} ${visit.appointments.find((appointment) => appointment.doctor)?.doctor?.lastName}`
+                          : visit.status === "EMERGENCY"
+                            ? "Emergency queue"
+                            : visit.status === "REGISTERED" ? "Awaiting triage" : "No doctor assigned"}
+                      </TableCell>
+                      <TableCell>
                         <Chip
                           label={visit.status}
                           color={getStatusColor(visit.status) as any}
@@ -221,11 +248,10 @@ const ReceptionDashboardPage = () => {
                       <TableCell>
                         <Button
                           size="small"
-                          onClick={() =>
-                            navigate(`/patients/${visit.patient.id}`)
-                          }
+                          startIcon={<People />}
+                          onClick={() => navigate(`/patients/${visit.patient.id}`)}
                         >
-                          View Patient
+                          Patient / New Visit
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -235,6 +261,10 @@ const ReceptionDashboardPage = () => {
             </Table>
           </TableContainer>
         </Paper>
+        </>
+        ) : (
+          <InvoicesPage />
+        )}
       </Box>
   );
 };

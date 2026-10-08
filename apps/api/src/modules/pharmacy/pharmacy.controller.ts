@@ -5,12 +5,15 @@ import {
   listAllMedicines,
   searchMedicineService,
   createNewMedicineBatch,
+  receiveNewMedicineStock,
+  createOtcPharmacySale,
   getMedicineBatch,
   getLowStock,
   getTransactions,
   recordTransaction,
+  getPharmacyDashboard,
 } from './pharmacy.service';
-import { CreateMedicineInput, CreateMedicineBatchInput } from './pharmacy.validator';
+import { CreateMedicineInput, CreateMedicineBatchInput, ReceiveStockInput, OtcSaleInput } from './pharmacy.validator';
 
 export const createMedicineController = async (
   req: Request<{}, {}, CreateMedicineInput>,
@@ -81,6 +84,37 @@ export const createMedicineBatchController = async (
   }
 };
 
+export const receiveStockController = async (
+  req: Request<{}, {}, ReceiveStockInput>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const result = await receiveNewMedicineStock(req.body);
+    res.status(201).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createOtcSaleController = async (
+  req: Request<{}, {}, OtcSaleInput>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Authentication required' });
+      return;
+    }
+    const result = await createOtcPharmacySale(req.body, userId);
+    return res.status(201).json(result);
+  } catch (error) {
+    return next(error);
+  }
+};
+
 export const getMedicineBatchController = async (
   req: Request<{ id: string }>,
   res: Response,
@@ -132,5 +166,18 @@ export const recordTransactionController = async (
     res.status(201).json(result);
   } catch (error) {
     next(error);
+  }
+};
+
+export const getPharmacyDashboardController = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const result = await getPharmacyDashboard();
+    return res.status(200).json(result);
+  } catch (error) {
+    return next(error);
   }
 };

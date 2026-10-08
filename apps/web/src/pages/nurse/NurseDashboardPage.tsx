@@ -25,6 +25,9 @@ import {
 } from "@mui/icons-material";
 import api from "../../services/api";
 
+import { useState } from "react";
+import RecordVitalsDrawer from "../../components/RecordVitalsDrawer";
+
 interface TriageQueueItem {
   id: string;
   patient: {
@@ -39,6 +42,9 @@ interface TriageQueueItem {
 
 const NurseDashboardPage = () => {
   const navigate = useNavigate();
+  const [vitalsDrawerOpen, setVitalsDrawerOpen] = useState(false);
+  const [selectedVisitId, setSelectedVisitId] = useState("");
+  const [selectedPatientName, setSelectedPatientName] = useState("");
 
   const { data: triageQueue, isLoading: queueLoading } = useQuery({
     queryKey: ["nurseTriageQueue"],
@@ -63,13 +69,21 @@ const NurseDashboardPage = () => {
     switch (status) {
       case "TRIAGED":
         return "success";
-      case "WAITING_TRIAGE":
+      case "WAITING_FOR_CONSULTATION":
+      case "REGISTERED":
         return "warning";
       case "IN_TRIAGE":
+      case "CONSULTING":
         return "info";
       default:
         return "default";
     }
+  };
+
+  const handleOpenVitals = (visitId: string, patientName: string) => {
+    setSelectedVisitId(visitId);
+    setSelectedPatientName(patientName);
+    setVitalsDrawerOpen(true);
   };
 
   const StatCard = ({
@@ -142,30 +156,23 @@ const NurseDashboardPage = () => {
           <Grid item xs={12} sm={6} md={3}>
             <StatCard
               title="Waiting Triage"
-              value={
-                triageQueue?.filter((v) => v.status === "WAITING_TRIAGE")
-                  .length || 0
-              }
+              value={triageQueue?.length || 0}
               icon={Schedule}
               color="#ed6c02"
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <StatCard
-              title="In Triage"
-              value={
-                triageQueue?.filter((v) => v.status === "IN_TRIAGE").length || 0
-              }
+              title="Active Queue"
+              value={triageQueue?.length || 0}
               icon={Person}
               color="#2e7d32"
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <StatCard
-              title="Completed"
-              value={
-                triageQueue?.filter((v) => v.status === "TRIAGED").length || 0
-              }
+              title="Today's Total"
+              value={todayTriage || 0}
               icon={TrendingUp}
               color="#9c27b0"
             />
@@ -216,15 +223,30 @@ const NurseDashboardPage = () => {
                         />
                       </TableCell>
                       <TableCell>
-                        <Button
-                          size="small"
-                          startIcon={<Edit />}
-                          onClick={() =>
-                            navigate(`/patients/${item.patient.id}`)
-                          }
-                        >
-                          Record Vitals
-                        </Button>
+                        <Box sx={{ display: "flex", gap: 1 }}>
+                          <Button
+                            variant="contained"
+                            size="small"
+                            startIcon={<Edit />}
+                            onClick={() =>
+                              handleOpenVitals(
+                                item.id,
+                                `${item.patient.firstName} ${item.patient.lastName}`
+                              )
+                            }
+                          >
+                            Record Vitals
+                          </Button>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={() =>
+                              navigate(`/patients/${item.patient.id}`)
+                            }
+                          >
+                            View
+                          </Button>
+                        </Box>
                       </TableCell>
                     </TableRow>
                   ))
@@ -233,6 +255,13 @@ const NurseDashboardPage = () => {
             </Table>
           </TableContainer>
         </Paper>
+
+        <RecordVitalsDrawer
+          open={vitalsDrawerOpen}
+          onClose={() => setVitalsDrawerOpen(false)}
+          visitId={selectedVisitId}
+          patientName={selectedPatientName}
+        />
       </Box>
   );
 };

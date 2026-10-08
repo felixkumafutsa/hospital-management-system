@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Paper,
@@ -10,11 +10,23 @@ import {
   FormControlLabel,
   Divider,
   Alert,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  CircularProgress,
 } from "@mui/material";
 import { useAuth } from "../../contexts/AuthContext";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import api, { getLabTests } from "../../services/api";
 
 const SettingsPage = () => {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const rawRole = typeof user?.role === "object" ? user.role?.name : user?.role;
+  const isAdmin = rawRole?.toUpperCase() === "ADMINISTRATOR";
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -31,6 +43,37 @@ const SettingsPage = () => {
     smsNotifications: false,
     darkMode: false,
     twoFactorAuth: false,
+  });
+  const [consultationFee, setConsultationFee] = useState("");
+  const [labPrices, setLabPrices] = useState<Record<string, string>>({});
+
+  const { data: pricingData, isLoading: pricingLoading, error: pricingError } = useQuery({
+    queryKey: ["system-pricing"],
+    queryFn: async () => (await api.get("/settings/pricing")).data.settings,
+    enabled: isAdmin,
+  });
+  const { data: labTests = [], isLoading: labTestsLoading } = useQuery({
+    queryKey: ["settings-lab-tests"],
+    queryFn: async () => (await getLabTests()).data.tests || [],
+    enabled: isAdmin,
+  });
+
+  useEffect(() => {
+    if (pricingData?.consultationFee != null) {
+      setConsultationFee(String(pricingData.consultationFee));
+    }
+  }, [pricingData]);
+
+  const saveConsultationFee = useMutation({
+    mutationFn: async () => api.put("/settings/pricing/consultation", {
+      consultationFee: Number(consultationFee),
+    }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["system-pricing"] }),
+  });
+  const saveLabPrice = useMutation({
+    mutationFn: async ({ id, price }: { id: string; price: number }) =>
+      api.put(`/lab/tests/${id}/price`, { price }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["settings-lab-tests"] }),
   });
 
   const handleProfileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -88,6 +131,85 @@ const SettingsPage = () => {
         )}
 
         <Grid container spacing={3}>
+          {isAdmin && (
+            <Grid item xs={12}>
+              <Paper sx={{ p: 3, borderRadius: 1 }}>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  Clinic Pricing
+                </Typography>
+                {pricingError && <Alert severity="error" sx={{ mb: 2 }}>Unable to load pricing settings.</Alert>}
+                <Grid container spacing={2} alignItems="center" sx={{ mb: 3 }}>
+                  <Grid item xs={12} sm={5}>
+                    <TextField
+                      fullWidth
+                      type="number"
+                      label="Consultation Fee (MWK)"
+                      value={consultationFee}
+                      onChange={(event) => setConsultationFee(event.target.value)}
+                      inputProps={{ min: 1, step: "0.01" }}
+                      disabled={pricingLoading}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={3}>
+                    <Button
+                      variant="contained"
+                      onClick={() => saveConsultationFee.mutate()}
+                      disabled={saveConsultationFee.isPending || Number(consultationFee) <= 0}
+                    >
+                      {saveConsultationFee.isPending ? <CircularProgress size={20} /> : "Save Fee"}
+                    </Button>
+                  </Grid>
+                </Grid>
+                <Divider sx={{ mb: 2 }} />
+                <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 600 }}>
+                  Laboratory Test Prices
+                </Typography>
+                {labTestsLoading ? <CircularProgress size={24} /> : (
+                  <TableContainer>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Test</TableCell>
+                          <TableCell>Code</TableCell>
+                          <TableCell>Price (MWK)</TableCell>
+                          <TableCell />
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {labTests.map((test: { id: string; name: string; code: string; price: number | string }) => (
+                          <TableRow key={test.id}>
+                            <TableCell>{test.name}</TableCell>
+                            <TableCell>{test.code}</TableCell>
+                            <TableCell sx={{ width: 180 }}>
+                              <TextField
+                                size="small"
+                                type="number"
+                                value={labPrices[test.id] ?? String(Number(test.price))}
+                                onChange={(event) => setLabPrices((current) => ({ ...current, [test.id]: event.target.value }))}
+                                inputProps={{ min: 0.01, step: "0.01" }}
+                              />
+                            </TableCell>
+                            <TableCell align="right">
+                              <Button
+                                size="small"
+                                onClick={() => saveLabPrice.mutate({ id: test.id, price: Number(labPrices[test.id] ?? test.price) })}
+                                disabled={saveLabPrice.isPending || Number(labPrices[test.id] ?? test.price) <= 0}
+                              >
+                                Save
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+                {saveConsultationFee.isSuccess && <Alert severity="success" sx={{ mt: 2 }}>Consultation fee saved.</Alert>}
+                {saveLabPrice.isSuccess && <Alert severity="success" sx={{ mt: 2 }}>Lab price saved.</Alert>}
+                {(saveConsultationFee.isError || saveLabPrice.isError) && <Alert severity="error" sx={{ mt: 2 }}>Could not save clinic pricing.</Alert>}
+              </Paper>
+            </Grid>
+          )}
           {/* Profile Settings */}
           <Grid item xs={12} lg={6}>
             <Paper sx={{ p: 4, borderRadius: "16px" }}>

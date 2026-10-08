@@ -4,8 +4,11 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useMemo,
 } from "react";
 import axios from "axios";
+import { NavigateFunction } from "react-router-dom";
+import { getDashboardRoute } from "../utils/dashboardRoutes";
 
 // Types
 interface User {
@@ -35,34 +38,27 @@ interface User {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
+  login: (
+    email: string,
+    password: string,
+    navigate: NavigateFunction,
+  ) => Promise<User>;
+  logout: (navigate: NavigateFunction) => Promise<void>;
   refreshToken: () => Promise<string | null>;
   isAuthenticated: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// API base URL - uses current origin in production, localhost in development
+// Use the same-origin Nginx proxy in production and the local API during Vite development.
 const API_BASE_URL = (() => {
   const envUrl = (import.meta as any).env.VITE_API_URL;
   if (envUrl) return envUrl;
 
-  // If no env var is set and we're in production, use your API domain
-  if (window.location.hostname !== "localhost") {
-    return "https://hospital-management-system-api-felixkumafutsas-projects.vercel.app/api/v1";
-  }
+  if (import.meta.env.PROD) return "/api/v1";
 
-  // Default to localhost for development
   return "http://localhost:4000/api/v1";
 })();
-
-// DEBUG LOGGING - helps diagnose login issues
-console.group("🔐 Auth Debug Info");
-console.log("API_BASE_URL:", API_BASE_URL);
-console.log("VITE_API_URL env var:", (import.meta as any).env.VITE_API_URL);
-console.log("Current window location:", window.location.href);
-console.groupEnd();
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -127,50 +123,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   // Login function
-  const login = async (email: string, password: string) => {
-    const fullLoginUrl = `${API_BASE_URL}/auth/login`;
-    console.group("🔐 Login Attempt Debug");
-    console.log("Login URL being called:", fullLoginUrl);
-    console.log("Request payload:", { email, password: "***REDACTED***" });
+  const login = useCallback(
+    async (
+      email: string,
+      password: string,
+      navigate: NavigateFunction,
+    ): Promise<User> => {
+      try {
+        // Ensure no double slashes in URL
+        const cleanBaseUrl = API_BASE_URL.endsWith("/")
+          ? API_BASE_URL.slice(0, -1)
+          : API_BASE_URL;
+        const fullLoginUrl = `${cleanBaseUrl}/auth/login`;
 
-    try {
-      // Ensure no double slashes in URL
-      const cleanBaseUrl = API_BASE_URL.endsWith("/")
-        ? API_BASE_URL.slice(0, -1)
-        : API_BASE_URL;
-      const fullLoginUrl = `${cleanBaseUrl}/auth/login`;
-      console.log("Clean login URL:", fullLoginUrl);
+        const response = await axios.post(
+          fullLoginUrl,
+          { email, password },
+          {
+            withCredentials: true,
+          },
+        );
+        const { accessToken: newToken, user: userData } = response.data.data;
+        localStorage.setItem("accessToken", newToken);
+        setAccessToken(newToken);
+        setUser(userData);
+        setLoading(false); // Stop loading
 
-      const response = await axios.post(
-        fullLoginUrl,
-        { email, password },
-        {
-          withCredentials: true,
-        },
-      );
-      console.log("✅ Login SUCCESS! Response:", response.data);
-      const { accessToken: newToken, user: userData } = response.data.data;
-      localStorage.setItem("accessToken", newToken);
-      setAccessToken(newToken);
-      setUser(userData);
-      console.groupEnd();
-    } catch (error: any) {
-      console.error("❌ Login FAILED! Full error:", error);
-      console.error("Error code:", error.code);
-      console.error("Error message:", error.message);
-      console.error("Response status:", error.response?.status);
-      console.error("Response data:", error.response?.data);
-      console.error("Request was sent to:", fullLoginUrl);
-      console.groupEnd();
+        // Redirect to the correct dashboard
+        const dashboardRoute = getDashboardRoute(userData.role.name);
+        navigate(dashboardRoute, { replace: true });
 
-      const errorMessage =
-        error.response?.data?.error?.message || "Login failed";
-      throw new Error(errorMessage);
-    }
-  };
+        return userData;
+      } catch (error: any) {
+        const errorMessage =
+          error.response?.data?.error?.message || "Login failed";
+        throw new Error(errorMessage);
+      }
+    },
+    [],
+  );
 
   // Logout function
-  const logout = async () => {
+  const logout = useCallback(async (navigate: NavigateFunction) => {
     try {
       await axios.post(
         `${API_BASE_URL}/auth/logout`,
@@ -180,26 +174,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           withCredentials: true,
         },
       );
-    } catch (error) {
-      console.error("Logout error:", error);
+    } catch {
+      console.error("Logout request failed");
     } finally {
       localStorage.removeItem("accessToken");
       setAccessToken(null);
       setUser(null);
+      setLoading(false); // Stop loading
+      navigate("/login", { replace: true });
     }
-  };
+  }, [accessToken]);
+
+  const memoizedValue = useMemo(
+    () => ({
+      user,
+      loading,
+      login,
+      logout,
+      refreshToken,
+      isAuthenticated: !!user,
+    }),
+    [user, loading, login, logout, refreshToken],
+  );
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        login,
-        logout,
-        refreshToken,
-        isAuthenticated: !!user,
-      }}
-    >
+    <AuthContext.Provider value={memoizedValue}>
       {children}
     </AuthContext.Provider>
   );

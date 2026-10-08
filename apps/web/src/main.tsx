@@ -14,12 +14,12 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
       refetchOnMount: true,
       refetchOnReconnect: false,
-      retry: 1,
+      retry: 0, // Disable retries to prevent 429 rate limiting errors in development
       staleTime: 10 * 60 * 1000, // 10 minutes - keep data fresh longer
       gcTime: 30 * 60 * 1000, // 30 minutes - garbage collection time (formerly cacheTime in v4)
     },
     mutations: {
-      retry: 1,
+      retry: 0, // Disable retries for mutations too
     },
   },
 });

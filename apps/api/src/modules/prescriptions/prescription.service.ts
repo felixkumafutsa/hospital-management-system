@@ -1,125 +1,54 @@
-import logger from '../../config/logger';
-import * as prescriptionRepository from './prescription.repository';
-import { CreatePrescriptionInput, UpdatePrescriptionStatusInput } from './prescription.validator';
+import {
+  createPrescription as createPrescriptionRepo,
+  getPrescriptionById as getPrescriptionByIdRepo,
+  getPrescriptionsByPatient as getPrescriptionsByPatientRepo,
+  getPrescriptionsByVisit as getPrescriptionsByVisitRepo,
+  getAllPrescriptions as listAllPrescriptionsRepo,
+  updatePrescriptionStatus as updatePrescriptionStatusRepo,
+  deletePrescription as deletePrescriptionRepo,
+  getPendingPrescriptionsQueue as fetchPendingPrescriptionsQueueRepo,
+  dispensePrescriptionAndDeductStock as dispensePrescriptionRepo,
+} from './prescription.repository';
+import type {
+  CreatePrescriptionInput,
+  UpdatePrescriptionStatusInput,
+} from './prescription.validator';
 
 export const createNewPrescription = async (data: CreatePrescriptionInput) => {
-  try {
-    const prescription = await prescriptionRepository.createPrescription(data);
-
-    return {
-      success: true,
-      data: {
-        id: prescription.id,
-        status: prescription.status,
-        items: prescription.items,
-        createdAt: prescription.createdAt,
-      },
-    };
-  } catch (error: any) {
-    logger.error(`Service error creating prescription: ${error.message}`);
-    throw {
-      statusCode: error.statusCode || 500,
-      message: error.message || 'Failed to create prescription',
-    };
-  }
+  return createPrescriptionRepo(data);
 };
 
 export const getPrescription = async (id: string) => {
-  try {
-    const prescription = await prescriptionRepository.getPrescriptionById(id);
-
-    return {
-      success: true,
-      data: prescription,
-    };
-  } catch (error: any) {
-    logger.error(`Service error fetching prescription: ${error.message}`);
-    throw {
-      statusCode: error.statusCode || 500,
-      message: error.message || 'Failed to fetch prescription',
-    };
-  }
+  return getPrescriptionByIdRepo(id);
 };
 
 export const getPatientPrescriptions = async (patientId: string, limit?: number, offset?: number) => {
-  try {
-    const result = await prescriptionRepository.getPrescriptionsByPatient(patientId, limit, offset);
+  return getPrescriptionsByPatientRepo(patientId, limit, offset);
+};
 
-    return {
-      success: true,
-      data: result.data,
-      pagination: {
-        limit: result.limit,
-        offset: result.offset,
-        total: result.total,
-      },
-    };
-  } catch (error: any) {
-    logger.error(`Service error fetching patient prescriptions: ${error.message}`);
-    throw {
-      statusCode: error.statusCode || 500,
-      message: error.message || 'Failed to fetch patient prescriptions',
-    };
-  }
+export const getVisitPrescriptions = async (visitId: string, limit?: number, offset?: number) => {
+  return getPrescriptionsByVisitRepo(visitId, limit, offset);
 };
 
 export const listAllPrescriptions = async (status?: string, limit?: number, offset?: number) => {
-  try {
-    const result = await prescriptionRepository.getAllPrescriptions(status, limit, offset);
-
-    return {
-      success: true,
-      data: result.data,
-      pagination: {
-        limit: result.limit,
-        offset: result.offset,
-        total: result.total,
-      },
-    };
-  } catch (error: any) {
-    logger.error(`Service error listing prescriptions: ${error.message}`);
-    throw {
-      statusCode: error.statusCode || 500,
-      message: error.message || 'Failed to list prescriptions',
-    };
-  }
+  return listAllPrescriptionsRepo(status, limit, offset);
 };
 
-export const updatePrescriptionStatusService = async (id: string, data: UpdatePrescriptionStatusInput) => {
-  try {
-    const prescription = await prescriptionRepository.updatePrescriptionStatus(
-      id,
-      data.status,
-      data.dispensedBy,
-      data.notes
-    );
-
-    return {
-      success: true,
-      data: prescription,
-    };
-  } catch (error: any) {
-    logger.error(`Service error updating prescription status: ${error.message}`);
-    throw {
-      statusCode: error.statusCode || 500,
-      message: error.message || 'Failed to update prescription status',
-    };
-  }
+export const updatePrescriptionStatusService = async (
+  id: string,
+  { status, dispensedBy, notes }: UpdatePrescriptionStatusInput
+) => {
+  return updatePrescriptionStatusRepo(id, status, dispensedBy, notes);
 };
 
 export const deletePrescriptionService = async (id: string) => {
-  try {
-    await prescriptionRepository.deletePrescription(id);
+  return deletePrescriptionRepo(id);
+};
 
-    return {
-      success: true,
-      message: 'Prescription deleted successfully',
-    };
-  } catch (error: any) {
-    logger.error(`Service error deleting prescription: ${error.message}`);
-    throw {
-      statusCode: error.statusCode || 500,
-      message: error.message || 'Failed to delete prescription',
-    };
-  }
+export const fetchPendingPrescriptionsQueue = async () => {
+  return fetchPendingPrescriptionsQueueRepo();
+};
+
+export const dispensePrescription = async (id: string, dispensedBy: string) => {
+  return dispensePrescriptionRepo(id, dispensedBy);
 };

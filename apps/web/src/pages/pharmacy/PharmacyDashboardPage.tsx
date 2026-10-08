@@ -1,4 +1,5 @@
 import {
+  Alert,
   Box,
   Grid,
   Paper,
@@ -22,8 +23,10 @@ import {
   CheckCircle,
   TrendingUp,
   Visibility,
+  Storefront,
 } from "@mui/icons-material";
 import api from "../../services/api";
+import { formatCurrency } from "../../utils/currency";
 
 interface PrescriptionQueueItem {
   id: string;
@@ -38,7 +41,24 @@ interface PrescriptionQueueItem {
   };
   medications: number;
   status: string;
+  medicationDue: number | null;
   createdAt: string;
+}
+
+interface PharmacyDashboardStats {
+  todaySales: { units: number; revenue: number };
+  monthSales: { units: number; revenue: number };
+  availableUnits: number;
+  expiringUnits: number;
+  expiredUnits: number;
+  pendingPrescriptions: number;
+  expiringBatches: Array<{
+    id: string;
+    medicineName: string;
+    batchNumber: string;
+    quantityLeft: number;
+    expiresAt: string;
+  }>;
 }
 
 const PharmacyDashboardPage = () => {
@@ -51,16 +71,14 @@ const PharmacyDashboardPage = () => {
       const response = await api.get("/prescriptions/pending");
       return response.data.prescriptions as PrescriptionQueueItem[];
     },
+    refetchInterval: 30_000,
   });
 
-  const { data: todayDispensed } = useQuery({
-    queryKey: ["todayDispensed"],
+  const { data: dashboardStats } = useQuery<PharmacyDashboardStats>({
+    queryKey: ["pharmacyDashboardStats"],
     queryFn: async () => {
-      const today = new Date().toISOString().split("T")[0];
-      const response = await api.get("/prescriptions", {
-        params: { fromDate: today, toDate: today, status: "DISPENSED" },
-      });
-      return response.data.total as number;
+      const response = await api.get("/pharmacy/dashboard/stats");
+      return response.data.data as PharmacyDashboardStats;
     },
   });
 
@@ -70,7 +88,8 @@ const PharmacyDashboardPage = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pharmacyPrescriptions"] });
-      queryClient.invalidateQueries({ queryKey: ["todayDispensed"] });
+      queryClient.invalidateQueries({ queryKey: ["pharmacyDashboardStats"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
     },
   });
 
@@ -146,6 +165,13 @@ const PharmacyDashboardPage = () => {
             >
               View Inventory
             </Button>
+            <Button
+              variant="contained"
+              startIcon={<Storefront />}
+              onClick={() => navigate("/pharmacy/shop")}
+            >
+              Medicine Shop
+            </Button>
           </Box>
         </Box>
 
@@ -164,31 +190,78 @@ const PharmacyDashboardPage = () => {
           <Grid item xs={12} sm={6} md={3}>
             <StatCard
               title="Dispensed Today"
-              value={todayDispensed || 0}
+              value={dashboardStats?.todaySales.units ?? 0}
               icon={CheckCircle}
               color="#2e7d32"
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <StatCard
-              title="Total Medications"
-              value={
-                prescriptionQueue?.reduce((acc, p) => acc + p.medications, 0) ||
-                0
-              }
+              title="Available Stock Units"
+              value={dashboardStats?.availableUnits ?? 0}
               icon={Inventory}
               color="#1976d2"
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <StatCard
-              title="Processing Rate"
+              title="Sales Today"
               icon={TrendingUp}
               color="#9c27b0"
-              value="100%"
+              value={formatCurrency(dashboardStats?.todaySales.revenue ?? 0)}
             />
           </Grid>
         </Grid>
+
+        <Alert severity="info" sx={{ mb: 3 }}>
+          Sales this month: {formatCurrency(dashboardStats?.monthSales.revenue ?? 0)} from{" "}
+          {dashboardStats?.monthSales.units ?? 0} units sold.
+        </Alert>
+        {!!dashboardStats?.expiredUnits && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {dashboardStats.expiredUnits} expired unit(s) remain in inventory and are excluded from dispensing.
+          </Alert>
+        )}
+        {!!dashboardStats?.expiringUnits && (
+          <Alert severity="warning" sx={{ mb: 3 }}>
+            {dashboardStats.expiringUnits} unit(s) will expire within the next 30 days.
+          </Alert>
+        )}
+        {dispenseMutation.isError && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {dispenseMutation.error instanceof Error
+              ? dispenseMutation.error.message
+              : "Prescription could not be dispensed."}
+          </Alert>
+        )}
+
+        {!!dashboardStats?.expiringBatches.length && (
+          <Paper sx={{ p: 3, mb: 3 }}>
+            <Typography variant="h6" gutterBottom>Expiring Stock (Next 30 Days)</Typography>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Medicine</TableCell>
+                    <TableCell>Batch</TableCell>
+                    <TableCell>Units</TableCell>
+                    <TableCell>Expires</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {dashboardStats.expiringBatches.map((batch) => (
+                    <TableRow key={batch.id}>
+                      <TableCell>{batch.medicineName}</TableCell>
+                      <TableCell>{batch.batchNumber}</TableCell>
+                      <TableCell>{batch.quantityLeft}</TableCell>
+                      <TableCell>{new Date(batch.expiresAt).toLocaleDateString()}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Paper>
+        )}
 
         <Paper sx={{ p: 4 }}>
           <Typography variant="h6" gutterBottom>
@@ -202,6 +275,7 @@ const PharmacyDashboardPage = () => {
                   <TableCell>Patient Number</TableCell>
                   <TableCell>Prescribing Doctor</TableCell>
                   <TableCell>Medications</TableCell>
+                  <TableCell>Medication Balance</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Actions</TableCell>
                 </TableRow>
@@ -209,13 +283,13 @@ const PharmacyDashboardPage = () => {
               <TableBody>
                 {queueLoading ? (
                   <TableRow>
-                    <TableCell colSpan={6} align="center">
+                    <TableCell colSpan={7} align="center">
                       Loading prescriptions...
                     </TableCell>
                   </TableRow>
                 ) : !prescriptionQueue || prescriptionQueue.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} align="center">
+                    <TableCell colSpan={7} align="center">
                       No pending prescriptions
                     </TableCell>
                   </TableRow>
@@ -234,6 +308,13 @@ const PharmacyDashboardPage = () => {
                         {prescription.doctor.lastName}
                       </TableCell>
                       <TableCell>{prescription.medications} items</TableCell>
+                      <TableCell>
+                        {prescription.medicationDue === null
+                          ? <Chip label="Invoice missing" color="error" size="small" />
+                          : prescription.medicationDue > 0
+                          ? <Chip label={formatCurrency(prescription.medicationDue)} color="warning" size="small" />
+                          : <Chip label="Paid" color="success" size="small" />}
+                      </TableCell>
                       <TableCell>
                         <Chip
                           label={prescription.status}
@@ -256,7 +337,7 @@ const PharmacyDashboardPage = () => {
                           size="small"
                           variant="contained"
                           onClick={() => handleDispense(prescription.id)}
-                          disabled={dispenseMutation.isPending}
+                          disabled={dispenseMutation.isPending || prescription.medicationDue === null || prescription.medicationDue > 0}
                         >
                           Dispense
                         </Button>

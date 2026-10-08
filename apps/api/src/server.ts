@@ -8,6 +8,7 @@ import { rateLimit } from 'express-rate-limit';
 import logger from './config/logger';
 import connectDB, { prisma } from './config/database';
 import authRoutes from './modules/auth/auth.routes';
+
 import patientRoutes from './modules/patients/patient.routes';
 import visitRoutes from './modules/visit/visit.routes';
 import prescriptionRoutes from './modules/prescriptions/prescription.routes';
@@ -20,22 +21,37 @@ import schedulingRoutes from './modules/scheduling/scheduling.routes';
 import appointmentsRoutes from './modules/appointments/appointments.routes';
 import notificationRoutes from './modules/notifications/notifications.routes';
 import followupRoutes from './modules/followup/followup.routes';
-import errorHandler from './middlewares/errorHandler';
-import { auditLogger } from './middlewares/auditLogger';
+import consultationRoutes from './modules/consultations/consultation.routes';
+import triageRoutes from './modules/triage/triage.routes';
+import dutyRosterRoutes from './modules/duty-roster/duty-roster.routes';
+import theaterRoutes from './modules/theater/theater.routes';
+import settingsRoutes from './modules/settings/settings.routes';
+import errorHandler from './middleware/errorHandler';
+import { auditLogger } from './middleware/auditLogger';
+import { assertProductionConfiguration } from './config/security';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-// Enable trust proxy for Vercel to fix express-rate-limit warning
-app.set('trust proxy', 1);
+// Production runs behind exactly one Nginx proxy in Compose.
+app.set('trust proxy', process.env.NODE_ENV === 'production' ? 1 : false);
 
 // Security middleware
 app.use(helmet());
-// Fixed CORS that works with credentials - cannot use origin:'*' with credentials: true
+const allowedOrigins = new Set(
+  (process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3000'))
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+);
 app.use(cors({
-  origin: (_origin, callback) => {
-    // Always allow - this works with credentials
-    callback(null, true);
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.has(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(null, false);
   },
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
@@ -52,7 +68,7 @@ const generalLimiter = rateLimit({
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // limit each IP to 5 login attempts per windowMs
+  max: 100, // limit each IP to 100 login attempts per windowMs
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -71,12 +87,6 @@ app.use(generalLimiter);
 // GLOBAL URL REWRITE MIDDLEWARE - MUST COME BEFORE ALL API ROUTES
 // Handle ALL requests without /api/v1 prefix - fixes all 404s for legacy frontend calls
 app.use((req, res, next) => {
-  // ALWAYS set CORS headers FIRST - this guarantees they're on EVERY response
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  
   // Handle preflight OPTIONS immediately
   if (req.method === 'OPTIONS') {
     res.status(200).end();
@@ -106,6 +116,8 @@ app.use((req, res, next) => {
 // API Routes
 app.use('/api/v1/auth/login', loginLimiter);
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/consultations', consultationRoutes);
+app.use('/api/v1/triage', triageRoutes);
 // Move user management and maternity routes first to avoid any path matching issues
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/maternity', maternityRoutes);
@@ -119,6 +131,9 @@ app.use('/api/v1/scheduling', schedulingRoutes);
 app.use('/api/v1/appointments', appointmentsRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/followups', followupRoutes);
+app.use('/api/v1/duty-roster', dutyRosterRoutes);
+app.use('/api/v1/theater', theaterRoutes);
+app.use('/api/v1/settings', settingsRoutes);
 
 // API homepage/documentation
 app.get('/', (_req, res) => {
@@ -292,15 +307,28 @@ app.get('/', (_req, res) => {
 });
 
 // Health check endpoint
-app.get('/api/v1/health', (_req, res) => {
-  res.status(200).json({
-    success: true,
-    data: {
-      status: 'healthy',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-    },
-  });
+app.get('/api/v1/health', async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.status(200).json({
+      success: true,
+      data: {
+        status: 'healthy',
+        database: 'connected',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+      },
+    });
+  } catch {
+    res.status(503).json({
+      success: false,
+      data: {
+        status: 'unhealthy',
+        database: 'unavailable',
+        timestamp: new Date().toISOString(),
+      },
+    });
+  }
 });
 
 // Global error handler
@@ -308,6 +336,7 @@ app.use(errorHandler);
 
 // Vercel serverless function export
 if (process.env.VERCEL) {
+  assertProductionConfiguration();
   // Connect DB eagerly on Vercel so the first request isn't a cold-start miss.
   // connectDB() is idempotent — calling it multiple times is safe.
   connectDB().catch((err) => {
@@ -318,6 +347,7 @@ if (process.env.VERCEL) {
   // For local development, start the server normally
   const startServer = async () => {
     try {
+      assertProductionConfiguration();
       // Connect to database
       await connectDB();
       logger.info('✅ Connected to PostgreSQL database');

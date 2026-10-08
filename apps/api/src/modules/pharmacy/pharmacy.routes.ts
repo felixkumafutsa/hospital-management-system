@@ -4,6 +4,8 @@ import { validate } from '../../middlewares/validate';
 import {
   createMedicineSchema,
   createMedicineBatchSchema,
+  receiveStockSchema,
+  otcSaleSchema,
 } from './pharmacy.validator';
 import {
   createMedicineController,
@@ -11,13 +13,39 @@ import {
   getAllMedicinesController,
   searchMedicinesController,
   createMedicineBatchController,
+  receiveStockController,
+  createOtcSaleController,
   getMedicineBatchController,
   getLowStockController,
   getTransactionsController,
   recordTransactionController,
+  getPharmacyDashboardController,
 } from './pharmacy.controller';
 
 const router = express.Router();
+
+router.get(
+  '/dashboard/stats',
+  authenticate,
+  authorize(['PHARMACIST', 'ADMINISTRATOR']),
+  getPharmacyDashboardController
+);
+
+router.post(
+  '/sales/otc',
+  authenticate,
+  authorize(['PHARMACIST', 'RECEPTIONIST', 'RECEPTION_CASHIER', 'ADMINISTRATOR']),
+  validate(otcSaleSchema),
+  createOtcSaleController
+);
+
+router.post(
+  '/stock/receive',
+  authenticate,
+  authorize(['PHARMACIST', 'ADMINISTRATOR']),
+  validate(receiveStockSchema),
+  receiveStockController
+);
 
 // Medicines endpoints
 router.post(

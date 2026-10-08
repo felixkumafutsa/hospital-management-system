@@ -9,6 +9,7 @@ import {
   createInvoiceController,
   getInvoiceController,
   getPatientInvoicesController,
+  getVisitInvoiceController,
   getAllInvoicesController,
   recordPaymentController,
   getFinanceStatsController,
@@ -22,9 +23,21 @@ const router = express.Router();
 router.post(
   '/invoices',
   authenticate,
-  authorize(['CASHIER', 'RECEPTIONIST', 'ADMINISTRATOR']),
+  authorize(['RECEPTION_CASHIER', 'CASHIER', 'RECEPTIONIST', 'ADMINISTRATOR']),
   validate(createInvoiceSchema),
   createInvoiceController
+);
+
+router.get(
+  '/invoices/visit/:visitId',
+  authenticate,
+  getVisitInvoiceController
+);
+
+router.get(
+  '/invoices/recent',
+  authenticate,
+  getRecentInvoicesController
 );
 
 router.get(
@@ -49,7 +62,16 @@ router.get(
 router.post(
   '/invoices/:invoiceId/payments',
   authenticate,
-  authorize(['CASHIER', 'RECEPTIONIST', 'ADMINISTRATOR']),
+  authorize(['RECEPTION_CASHIER', 'CASHIER', 'RECEPTIONIST', 'ADMINISTRATOR']),
+  (req, _res, next) => {
+    if (!req.body.invoiceId && req.params.invoiceId) {
+      req.body.invoiceId = req.params.invoiceId;
+    }
+    if (!req.body.receivedBy && req.user?.userId) {
+      req.body.receivedBy = req.user.userId;
+    }
+    next();
+  },
   validate(createPaymentSchema),
   recordPaymentController
 );
@@ -65,12 +87,6 @@ router.get(
   '/revenue',
   authenticate,
   getRevenueController
-);
-
-router.get(
-  '/invoices/recent',
-  authenticate,
-  getRecentInvoicesController
 );
 
 export default router;

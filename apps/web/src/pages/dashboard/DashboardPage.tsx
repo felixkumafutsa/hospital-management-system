@@ -22,6 +22,10 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../../contexts/AuthContext";
 import api from "../../services/api";
+import { formatCurrency } from "../../utils/currency";
+import ConsultationDrawer from "../../components/ConsultationDrawer";
+import { useConsultationDrawerStore } from "../../stores/consultationDrawerStore";
+import DutyRoster from "../../components/duty-roster/DutyRoster";
 
 // Import all Recharts components normally - tree-shaking will handle code splitting automatically
 import {
@@ -147,6 +151,7 @@ const DashboardPage = () => {
   const { user } = useAuth();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  useConsultationDrawerStore();
 
   // Fetch dashboard stats from real API endpoints
   const { data: stats, isLoading } = useQuery({
@@ -408,7 +413,7 @@ const DashboardPage = () => {
     },
     {
       title: "Total Revenue",
-      value: `$${(stats?.totalRevenue ?? 0).toLocaleString()}`,
+      value: formatCurrency(stats?.totalRevenue ?? 0),
       icon: AttachMoney,
       color: "#10B981",
       trend: "up" as const,
@@ -426,6 +431,7 @@ const DashboardPage = () => {
 
   return (
     <Box sx={{ width: "100%" }}>
+      <ConsultationDrawer />
       {/* Welcome Section */}
       <Box sx={{ mb: 4 }}>
         <Typography
@@ -669,6 +675,9 @@ const DashboardPage = () => {
             </Box>
           </Paper>
         </Grid>
+      </Grid>
+      <Grid item xs={12} sx={{ mt: 4 }}>
+        <DutyRoster />
       </Grid>
     </Box>
   );

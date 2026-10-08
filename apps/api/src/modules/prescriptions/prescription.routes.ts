@@ -9,12 +9,31 @@ import {
   createPrescriptionController,
   getPrescriptionController,
   getPatientPrescriptionsController,
+  getVisitPrescriptionsController,
   getAllPrescriptionsController,
   updatePrescriptionStatusController,
   deletePrescriptionController,
+  getPendingPrescriptionsController,
+  dispensePrescriptionController,
 } from './prescription.controller';
 
 const router = express.Router();
+
+// Get pending prescriptions queue (for pharmacy dashboard)
+router.get(
+  '/pending',
+  authenticate,
+  authorize(['PHARMACIST', 'DOCTOR', 'ADMINISTRATOR']),
+  getPendingPrescriptionsController
+);
+
+// Dispense prescription (deducts inventory stock and completes visit)
+router.post(
+  '/:id/dispense',
+  authenticate,
+  authorize(['PHARMACIST', 'ADMINISTRATOR']),
+  dispensePrescriptionController
+);
 
 // Create prescription
 router.post(
@@ -30,6 +49,13 @@ router.get(
   '/',
   authenticate,
   getAllPrescriptionsController
+);
+
+// Get prescriptions for a visit (legacy compatibility)
+router.get(
+  '/visit/:visitId',
+  authenticate,
+  getVisitPrescriptionsController
 );
 
 // Get prescription by ID

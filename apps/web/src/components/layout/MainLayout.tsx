@@ -26,6 +26,8 @@ import {
   Person,
   CalendarToday,
   MedicalServices,
+  Theaters,
+  Storefront,
   Receipt,
   Inventory,
   Science,
@@ -102,6 +104,12 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
       allowedRoles: ["pharmacist"],
     },
     {
+      text: "Medicine Shop",
+      icon: <Storefront />,
+      path: "/pharmacy/shop",
+      allowedRoles: ["pharmacist", "reception", "admin"],
+    },
+    {
       text: "Laboratory Dashboard",
       icon: <Science />,
       path: "/lab",
@@ -112,6 +120,12 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
       icon: <People />,
       path: "/maternity",
       allowedRoles: ["admin", "doctor", "nurse"],
+    },
+    {
+      text: "Theater",
+      icon: <Theaters />,
+      path: "/theater",
+      allowedRoles: ["admin", "doctor", "nurse", "anesthetist"],
     },
     {
       text: "Accounts Dashboard",
@@ -162,10 +176,22 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
       allowedRoles: ["admin", "ADMINISTRATOR"],
     },
     {
-      text: "Finance",
+      text: "Duty Roster",
+      icon: <CalendarToday />,
+      path: "/duty-roster",
+      allowedRoles: ["admin", "ADMINISTRATOR"],
+    },
+    {
+      text: "Finance Dashboard",
       icon: <BarChart />,
       path: "/finance",
-      allowedRoles: ["admin", "accountant"],
+      allowedRoles: ["admin", "accountant", "cashier", "reception"],
+    },
+    {
+      text: "Invoices",
+      icon: <Receipt />,
+      path: "/finance/invoices",
+      allowedRoles: ["admin", "accountant", "cashier", "reception"],
     },
     {
       text: "Settings",
@@ -193,10 +219,12 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
     const roleMapping: Record<string, string> = {
       ADMINISTRATOR: "admin",
       RECEPTIONIST: "reception",
+      RECEPTION_CASHIER: "reception",
       NURSE: "nurse",
       DOCTOR: "doctor",
       LAB_TECH: "lab_technician",
       PHARMACIST: "pharmacist",
+      ANESTHETIST: "anesthetist",
       CASHIER: "accountant",
     };
 
@@ -210,12 +238,21 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
     });
   }, [userRole]);
 
-  const getCurrentPageTitle = () => {
-    const currentItem = menuItems.find((item) =>
-      location.pathname.startsWith(item.path),
-    );
-    return currentItem?.text || "Dashboard";
+  const findActiveMenuItem = () => {
+    const currentPath = location.pathname.replace(/\/+$/, "") || "/";
+    return menuItems
+      .filter((item) =>
+        currentPath === item.path ||
+        (item.path !== "/dashboard" && currentPath.startsWith(item.path + "/")),
+      )
+      .sort((first, second) => {
+        const exactMatchPriority =
+          Number(currentPath === second.path) - Number(currentPath === first.path);
+        return exactMatchPriority || second.path.length - first.path.length;
+      })[0];
   };
+
+  const getCurrentPageTitle = () => findActiveMenuItem()?.text || "Dashboard";
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -230,9 +267,11 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
       "/doctor": () => import("../../pages/doctor/DoctorDashboardPage"),
       "/nurse": () => import("../../pages/nurse/NurseDashboardPage"),
       "/pharmacy": () => import("../../pages/pharmacy/PharmacyDashboardPage"),
+      "/pharmacy/shop": () => import("../../pages/pharmacy/PharmacyShopPage"),
       "/lab": () => import("../../pages/lab/LabDashboardPage"),
       "/maternity": () =>
         import("../../pages/maternity/MaternityDashboardPage"),
+      "/theater": () => import("../../pages/theater/TheaterPage"),
       "/accounts": () => import("../../pages/accounts/AccountsDashboardPage"),
       "/patients": () => import("../../pages/patients/PatientListPage"),
       "/appointments": () =>
@@ -263,10 +302,11 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
   };
 
   const handleLogout = () => {
-    logout();
-    navigate("/login");
+    logout(navigate);
     setUserMenuAnchor(null);
   };
+
+  const activeMenuItemPath = findActiveMenuItem()?.path;
 
   const drawer = (
     <Box
@@ -343,10 +383,7 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
         }}
       >
         {menuItems.map((item) => {
-          const isActive =
-            location.pathname === item.path ||
-            (item.path !== "/dashboard" &&
-              location.pathname.startsWith(item.path));
+          const isActive = item.path === activeMenuItemPath;
           return (
             <ListItem
               key={item.text}
