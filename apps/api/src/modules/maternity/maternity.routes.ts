@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate } from '../../middlewares/auth';
+import { authenticate, authorize } from '../../middlewares/auth';
 import { validate } from '../../middlewares/validate';
 import { 
   createAncController,
@@ -37,6 +37,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 // All routes require authentication
 router.use(authenticate);
+router.use(authorize(['ADMINISTRATOR', 'DOCTOR', 'NURSE']));
 
 // Root route for maternity module
 router.get('/', (_req, res) => {

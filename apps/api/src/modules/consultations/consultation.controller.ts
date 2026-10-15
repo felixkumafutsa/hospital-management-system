@@ -18,7 +18,7 @@ export const recordConsultationController = async (
     }
 
     const result = await recordConsultation(doctorId, req.body);
-    return res.status(201).json(result);
+    res.status(201).json(result);
   } catch (error) {
     return next(error);
   }
@@ -34,7 +34,7 @@ export const getConsultationByIdController = async (
     if (!result) {
       return res.status(404).json({ message: 'Consultation not found' });
     }
-    return res.status(200).json(result);
+    res.status(200).json(result);
   } catch (error) {
     return next(error);
   }
@@ -50,7 +50,7 @@ export const getConsultationByVisitController = async (
     if (!result) {
       return res.status(404).json({ message: 'Consultation not found for this visit' });
     }
-    return res.status(200).json(result);
+    res.status(200).json(result);
   } catch (error) {
     return next(error);
   }
@@ -65,7 +65,7 @@ export const listConsultationsController = async (
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
     const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
     const result = await listConsultations(limit, offset);
-    return res.status(200).json(result);
+    res.status(200).json(result);
   } catch (error) {
     return next(error);
   }

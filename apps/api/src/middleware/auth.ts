@@ -4,6 +4,31 @@ import { ApiError } from './errorHandler';
 import { prisma } from '../config/database';
 import { getJwtPrivateKey } from '../config/security';
 
+const normalizeRoleName = (roleName: string): string => roleName.trim().toUpperCase();
+
+const getRoleAliases = (roleName: string): Set<string> => {
+  const normalized = normalizeRoleName(roleName);
+
+  const aliases = new Map<string, Set<string>>([
+    ['ADMINISTRATOR', new Set(['ADMINISTRATOR'])],
+    ['MD', new Set(['MD'])],
+    ['RECEPTION_CASHIER', new Set(['RECEPTION_CASHIER', 'RECEPTIONIST', 'CASHIER'])],
+    ['RECEPTIONIST', new Set(['RECEPTIONIST', 'RECEPTION_CASHIER', 'CASHIER'])],
+    ['CASHIER', new Set(['CASHIER', 'RECEPTION_CASHIER', 'RECEPTIONIST'])],
+  ]);
+
+  return aliases.get(normalized) ?? new Set([normalized]);
+};
+
+const isAuthorizedRole = (roleName: string, allowedRoles: string[]): boolean => {
+  const normalizedAllowedRoles = new Set(allowedRoles.map((role) => normalizeRoleName(role)));
+  const normalizedRole = normalizeRoleName(roleName);
+
+  return Array.from(getRoleAliases(normalizedRole)).some((alias) => {
+    return normalizedAllowedRoles.has(alias) || alias === 'ADMINISTRATOR' || alias === 'MD';
+  });
+};
+
 // Extend Express Request type to include user
 declare global {
   namespace Express {
@@ -127,9 +152,34 @@ export const authorize = (allowedRoles: string[]) => {
         throw new ApiError(403, 'FORBIDDEN', 'User role not found');
       }
 
-      // Check if user's role is in the allowed list
-      if (!allowedRoles.includes(user.role.name)) {
+      // Check if the user's role is in the allowed list or matches a legacy role alias.
+      if (!isAuthorizedRole(user.role.name, allowedRoles)) {
         throw new ApiError(403, 'FORBIDDEN', `Access denied. Required roles: ${allowedRoles.join(', ')}`);
+      }
+
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
+};
+
+export const authorizeExactRole = (requiredRole: string) => {
+  const normalizedRequiredRole = normalizeRoleName(requiredRole);
+
+  return async (req: Request, _res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) {
+        throw new ApiError(401, 'UNAUTHORIZED', 'User not authenticated');
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { id: req.user.userId },
+        include: { role: true },
+      });
+
+      if (!user?.role || normalizeRoleName(user.role.name) !== normalizedRequiredRole) {
+        throw new ApiError(403, 'FORBIDDEN', `Access denied. Required role: ${requiredRole}`);
       }
 
       next();

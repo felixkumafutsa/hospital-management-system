@@ -57,12 +57,15 @@ export const saveVitals = async (nurseId: string, data: RecordVitalsInput) => {
         },
         _count: { _all: true },
       });
-      const loadByDoctor = new Map(
-        queueLoads.map(({ doctorId: assignedDoctorId, _count }) => [
-          assignedDoctorId,
-          _count._all,
-        ])
+      const loadByDoctor = new Map<string, number>(
+        doctorIds.map(id => [id, 0])
       );
+      queueLoads.forEach(({ doctorId: assignedDoctorId, _count }) => {
+        if (assignedDoctorId) {
+          loadByDoctor.set(assignedDoctorId, _count._all);
+        }
+      });
+
       doctorId = doctorIds.reduce((leastLoaded, candidate) =>
         (loadByDoctor.get(candidate) ?? 0) < (loadByDoctor.get(leastLoaded) ?? 0)
           ? candidate

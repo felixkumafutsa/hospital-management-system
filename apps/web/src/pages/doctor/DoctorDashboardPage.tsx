@@ -27,6 +27,7 @@ import {
   Visibility,
   Science,
   Biotech as LabTestIcon,
+  Theaters,
 } from "@mui/icons-material";
 import api from "../../services/api";
 
@@ -159,6 +160,13 @@ const DoctorDashboardPage = () => {
             >
               View All Patients
             </Button>
+            <Button
+              variant="contained"
+              startIcon={<Theaters />}
+              onClick={() => navigate("/theater")}
+            >
+              Create Theater Operation
+            </Button>
           </Box>
         </Box>
 
@@ -209,6 +217,7 @@ const DoctorDashboardPage = () => {
                 }
               />
               <Tab label={`At Laboratory (${inLabCount})`} />
+              <Tab label="Theater Procedures" />
               <Tab label="All Active" />
             </Tabs>
           </Box>

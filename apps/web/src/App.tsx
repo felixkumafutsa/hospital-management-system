@@ -39,6 +39,12 @@ const PatientRegistrationPage = lazy(
 const PatientDetailPage = lazy(
   () => import("./pages/patients/PatientDetailPage"),
 );
+const PatientAdmissionPage = lazy(
+  () => import("./pages/patients/PatientAdmissionPage"),
+);
+const PatientAdmissionsDashboardPage = lazy(
+  () => import("./pages/patients/PatientAdmissionsDashboardPage"),
+);
 
 // Admin and specialty pages
 const ConsultationsPage = lazy(
@@ -60,12 +66,17 @@ const LabTestsPage = lazy(() => import("./pages/lab/LabTestsPage"));
 const PharmacyInventoryPage = lazy(
   () => import("./pages/pharmacy/PharmacyInventoryPage"),
 );
+
 const MaternityDashboardPage = lazy(
-  () => import("./pages/maternity/MaternityDashboardPage"),
+  () => import('./pages/maternity/MaternityDashboardPage'),
 );
 const SettingsPage = lazy(() => import("./pages/settings/SettingsPage"));
 const DutyRosterPage = lazy(() => import("./pages/duty-roster/DutyRosterPage"));
-const TheaterPage = lazy(() => import("./pages/theater/TheaterPage"));
+const TheaterDashboardPage = lazy(() => import("./pages/theater/TheaterDashboardPage"));
+const WardManagementPage = lazy(
+  () => import("./pages/wards/WardManagementPage"),
+);
+
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -112,7 +123,7 @@ function App() {
           <Route
             path="/reception"
             element={
-              <ProtectedRoute allowedRoles={["RECEPTIONIST", "RECEPTION_CASHIER", "ADMINISTRATOR"]}>
+              <ProtectedRoute allowedRoles={["RECEPTIONIST", "RECEPTION_CASHIER"]}>
                 <ReceptionDashboardPage />
               </ProtectedRoute>
             }
@@ -150,7 +161,7 @@ function App() {
           <Route
             path="/pharmacy/shop"
             element={
-              <ProtectedRoute allowedRoles={["PHARMACIST", "RECEPTIONIST", "RECEPTION_CASHIER", "ADMINISTRATOR"]}>
+              <ProtectedRoute allowedRoles={["PHARMACIST", "ADMINISTRATOR"]}>
                 <PharmacyShopPage />
               </ProtectedRoute>
             }
@@ -170,7 +181,7 @@ function App() {
           <Route
             path="/accounts"
             element={
-              <ProtectedRoute allowedRoles={["RECEPTION_CASHIER", "RECEPTIONIST", "CASHIER", "ADMINISTRATOR"]}>
+              <ProtectedRoute allowedRoles={["CASHIER", "ADMINISTRATOR"]}>
                 <AccountsDashboardPage />
               </ProtectedRoute>
             }
@@ -181,13 +192,7 @@ function App() {
             path="/appointments"
             element={
               <ProtectedRoute
-                allowedRoles={[
-                  "ADMINISTRATOR",
-                  "RECEPTIONIST",
-                  "RECEPTION_CASHIER",
-                  "DOCTOR",
-                  "NURSE",
-                ]}
+                allowedRoles={["ADMINISTRATOR", "DOCTOR", "NURSE"]}
               >
                 <AppointmentsPage />
               </ProtectedRoute>
@@ -198,7 +203,7 @@ function App() {
           <Route
             path="/patients"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute allowedRoles={["ADMINISTRATOR", "DOCTOR", "NURSE", "PHARMACIST", "MD"]}>
                 <PatientListPage />
               </ProtectedRoute>
             }
@@ -207,7 +212,7 @@ function App() {
             path="/patients/register"
             element={
               <ProtectedRoute
-                allowedRoles={["RECEPTIONIST", "RECEPTION_CASHIER", "ADMINISTRATOR", "DOCTOR"]}
+                allowedRoles={["ADMINISTRATOR", "DOCTOR"]}
               >
                 <PatientRegistrationPage />
               </ProtectedRoute>
@@ -217,15 +222,25 @@ function App() {
             path="/patients/:id"
             element={
               <ProtectedRoute
-                allowedRoles={[
-                  "ADMINISTRATOR",
-                  "RECEPTIONIST",
-                  "RECEPTION_CASHIER",
-                  "DOCTOR",
-                  "NURSE",
-                ]}
+                allowedRoles={["ADMINISTRATOR", "DOCTOR", "NURSE"]}
               >
                 <PatientDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/patients/admissions"
+            element={
+              <ProtectedRoute allowedRoles={["ADMINISTRATOR", "NURSE", "RECEPTIONIST", "RECEPTION_CASHIER", "DOCTOR"]}>
+                <PatientAdmissionsDashboardPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/patients/admissions/new"
+            element={
+              <ProtectedRoute allowedRoles={["ADMINISTRATOR", "DOCTOR"]}>
+                <PatientAdmissionPage />
               </ProtectedRoute>
             }
           />
@@ -242,7 +257,7 @@ function App() {
           <Route
             path="/finance"
             element={
-              <ProtectedRoute allowedRoles={["ADMINISTRATOR", "RECEPTION_CASHIER", "RECEPTIONIST", "CASHIER"]}>
+              <ProtectedRoute allowedRoles={["ADMINISTRATOR", "RECEPTION_CASHIER", "RECEPTIONIST"]}>
                 <FinanceDashboardPage />
               </ProtectedRoute>
             }
@@ -250,7 +265,7 @@ function App() {
           <Route
             path="/finance/invoices"
             element={
-              <ProtectedRoute allowedRoles={["ADMINISTRATOR", "RECEPTION_CASHIER", "RECEPTIONIST", "CASHIER"]}>
+              <ProtectedRoute allowedRoles={["ADMINISTRATOR", "RECEPTION_CASHIER", "RECEPTIONIST"]}>
                 <InvoicesPage />
               </ProtectedRoute>
             }
@@ -276,6 +291,14 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={["ADMINISTRATOR"]}>
                 <DutyRosterPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/wards"
+            element={
+              <ProtectedRoute allowedRoles={["ADMINISTRATOR"]}>
+                <WardManagementPage />
               </ProtectedRoute>
             }
           />
@@ -314,6 +337,14 @@ function App() {
             }
           />
           <Route
+            path="/pharmacy/inventory-management"
+            element={
+              <ProtectedRoute allowedRoles={["ADMINISTRATOR", "PHARMACIST"]}>
+                <PharmacyInventoryPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/maternity"
             element={
               <ProtectedRoute
@@ -326,16 +357,37 @@ function App() {
           <Route
             path="/theater"
             element={
-              <ProtectedRoute allowedRoles={["ADMINISTRATOR", "DOCTOR", "NURSE", "ANESTHETIST"]}>
-                <TheaterPage />
+              <ProtectedRoute allowedRoles={["ADMINISTRATOR", "DOCTOR", "NURSE", "ANESTHETIST", "RECEPTION_CASHIER", "RECEPTIONIST"]}>
+                <TheaterDashboardPage />
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/theater/operations"
+            element={<Navigate to="/theater" replace />}
+          />
+
           <Route
             path="/settings"
             element={
               <ProtectedRoute>
                 <SettingsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <SettingsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profile/:id"
+            element={
+              <ProtectedRoute allowedRoles={["ADMINISTRATOR"]}>
+                <UserManagementPage />
               </ProtectedRoute>
             }
           />

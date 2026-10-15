@@ -9,6 +9,7 @@ import {
   getFinanceStats,
   getMonthlyRevenue,
   getLatestInvoices,
+  getDepartmentRevenue,
 } from './billing.service';
 import { CreateInvoiceInput, CreatePaymentInput } from './billing.validator';
 
@@ -30,6 +31,19 @@ export const createInvoiceController = async (
       });
     }
     return next(error);
+  }
+};
+
+export const getDepartmentRevenueController = async (
+  _req: Request<Record<string, never>, unknown, unknown>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const result = await getDepartmentRevenue();
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
   }
 };
 
@@ -124,7 +138,7 @@ export const getRevenueController = async (
     const result = await getMonthlyRevenue();
     res.status(200).json(result);
   } catch (error) {
-    return next(error);
+    next(error);
   }
 };
 
@@ -137,6 +151,6 @@ export const getRecentInvoicesController = async (
     const result = await getLatestInvoices();
     res.status(200).json(result);
   } catch (error) {
-    return next(error);
+    next(error);
   }
 };

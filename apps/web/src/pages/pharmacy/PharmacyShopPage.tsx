@@ -21,6 +21,7 @@ import { Add, Remove, ShoppingBag } from "@mui/icons-material";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "../../services/api";
 import { formatCurrency } from "../../utils/currency";
+import { printThermalReceipt, type ThermalReceiptData } from "../../utils/thermalReceipt";
 
 interface ShopMedicine {
   id: string;
@@ -39,7 +40,8 @@ const PharmacyShopPage = () => {
   const [patientId, setPatientId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [cart, setCart] = useState<Record<string, number>>({});
-  const [receipt, setReceipt] = useState("");
+  const [receipt, setReceipt] = useState<ThermalReceiptData | null>(null);
+  const [printError, setPrintError] = useState("");
   const queryClient = useQueryClient();
 
   const { data: products = [], isLoading, isError } = useQuery<ShopMedicine[]>({
@@ -84,13 +86,19 @@ const PharmacyShopPage = () => {
       return response.data.data.invoice;
     },
     onSuccess: (invoice) => {
-      setReceipt(invoice.invoiceNo);
+      const receiptData = { ...invoice, payment: invoice.payments?.[0] };
+      setReceipt(receiptData);
+      setPrintError("");
       setCart({});
       queryClient.invalidateQueries({ queryKey: ["otc-products"] });
       queryClient.invalidateQueries({ queryKey: ["inventory"] });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["visits"] });
       queryClient.invalidateQueries({ queryKey: ["pharmacyDashboardStats"] });
+      void printThermalReceipt(receiptData).catch((error: unknown) => {
+        console.error("Could not open the pharmacy sale receipt for printing.", error);
+        setPrintError("Sale completed, but the receipt could not be printed. Please use Print receipt to try again.");
+      });
     },
   });
 
@@ -138,7 +146,8 @@ const PharmacyShopPage = () => {
         <Chip icon={<ShoppingBag />} label={`${cartItems.length} products`} variant="outlined" />
       </Box>
 
-      {receipt && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setReceipt("")}>Sale complete. Receipt {receipt} is paid and linked to a pharmacy visit.</Alert>}
+      {receipt && <Alert severity="success" sx={{ mb: 2 }} action={<Button color="inherit" size="small" onClick={() => void printThermalReceipt(receipt).catch((error: unknown) => { console.error("Could not print the pharmacy sale receipt.", error); setPrintError("The receipt could not be printed. Please check the printer and try again."); })}>Print receipt</Button>} onClose={() => setReceipt(null)}>Sale complete. Receipt {receipt.invoiceNo} is paid and linked to a pharmacy visit.</Alert>}
+      {printError && <Alert severity="warning" sx={{ mb: 2 }}>{printError}</Alert>}
       {checkout.isError && <Alert severity="error" sx={{ mb: 2 }}>Checkout failed. Check stock and try again.</Alert>}
       {isError && <Alert severity="error" sx={{ mb: 2 }}>Unable to load shop stock.</Alert>}
 

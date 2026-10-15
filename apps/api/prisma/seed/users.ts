@@ -30,7 +30,7 @@ const permissions = [
   
   // Laboratory
   { action: 'REQUEST_LAB_TESTS', resource: 'lab', roles: ['ADMINISTRATOR', 'DOCTOR'] },
-  { action: 'ENTER_LAB_RESULTS', resource: 'lab', roles: ['ADMINISTRATOR', 'LAB_TECH'] },
+  { action: 'ENTER_LAB_RESULTS', resource: 'lab', roles: ['ADMINISTRATOR', 'LAB_TECH', 'DOCTOR'] },
   { action: 'REVIEW_LAB_RESULTS', resource: 'lab', roles: ['ADMINISTRATOR', 'DOCTOR'] },
   
   // Pharmacy

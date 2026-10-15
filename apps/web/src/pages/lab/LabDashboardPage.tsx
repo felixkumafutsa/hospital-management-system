@@ -23,6 +23,9 @@ import {
   CheckCircle,
 } from "@mui/icons-material";
 import api from "../../services/api";
+import { useAuth } from "../../contexts/AuthContext";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import Swal from "sweetalert2";
 
 interface LabRequestItem {
   id: string;
@@ -40,6 +43,29 @@ interface LabRequestItem {
 
 const LabDashboardPage = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isLabTechnician = user?.role?.name === "lab-technician";
+
+  const { data: prescriptions, isLoading: prescriptionsLoading } = useQuery({
+    queryKey: ["prescriptions"],
+    queryFn: async () => {
+      const response = await api.get("/prescriptions");
+      return response.data.data;
+    },
+  });
+
+  const finalizeMutation = useMutation({
+    mutationFn: (id: string) => api.put(`/prescriptions/${id}/finalize`),
+    onSuccess: () => {
+      Swal.fire("Success", "Prescription finalized successfully", "success");
+      queryClient.invalidateQueries({ queryKey: ["prescriptions"] });
+    },
+    onError: () => {
+      Swal.fire("Error", "Failed to finalize prescription", "error");
+    },
+  });
+
 
   const { data: labRequests, isLoading: requestsLoading } = useQuery({
     queryKey: ["labRequests"],
@@ -51,9 +77,9 @@ const LabDashboardPage = () => {
         .map((request: any) => ({
           id: request.id,
           patient: {
-            firstName: request.visit?.patient?.firstName || "Unknown",
-            lastName: request.visit?.patient?.lastName || "Patient",
-            patientNumber: request.visit?.patient?.patientNumber || "N/A",
+            firstName: request.visit?.patient?.firstName ?? "Unknown",
+            lastName: request.visit?.patient?.lastName ?? "Patient",
+            patientNumber: request.visit?.patient?.patientNumber ?? "N/A",
           },
           requestedBy: request.requestedBy || "Unassigned",
           testTypes: (request.items || []).map((item: any) => item.test?.name).filter(Boolean),
@@ -64,12 +90,13 @@ const LabDashboardPage = () => {
     },
   });
 
-  const { data: stats } = useQuery({
+  const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["labDashboardStats"],
     queryFn: async () => {
       const response = await api.get("/lab/requests/stats");
       return response.data;
     },
+    enabled: isLabTechnician,
   });
 
   const getStatusColor = (status: string) => {
@@ -144,38 +171,46 @@ const LabDashboardPage = () => {
       </Box>
 
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Pending Tests"
-            value={stats?.pending ?? 0}
-            icon={Science}
-            color="#ed6c02"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="In Progress"
-            value={stats?.processing ?? 0}
-            icon={UploadFile}
-            color="#1976d2"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Completed Today"
-            value={stats?.completedToday ?? 0}
-            icon={CheckCircle}
-            color="#2e7d32"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Completion Rate"
-            icon={TrendingUp}
-            color="#9c27b0"
-            value={`${stats?.completionRate ?? 0}%`}
-          />
-        </Grid>
+        {statsLoading ? (
+          <Grid item xs={12}>
+            <Typography>Loading statistics...</Typography>
+          </Grid>
+        ) : (
+          <>
+            <Grid item xs={12} sm={6} md={3}>
+              <StatCard
+                title="Pending Tests"
+                value={stats?.pending ?? 0}
+                icon={Science}
+                color="#ed6c02"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <StatCard
+                title="In Progress"
+                value={stats?.processing ?? 0}
+                icon={UploadFile}
+                color="#1976d2"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <StatCard
+                title="Completed Today"
+                value={stats?.completedToday ?? 0}
+                icon={CheckCircle}
+                color="#2e7d32"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <StatCard
+                title="Completion Rate"
+                icon={TrendingUp}
+                color="#9c27b0"
+                value={`${stats?.completionRate ?? 0}%`}
+              />
+            </Grid>
+          </>
+        )}
       </Grid>
 
       <Paper sx={{ p: 4 }}>
@@ -231,6 +266,62 @@ const LabDashboardPage = () => {
                         onClick={() => navigate("/lab-tests")}
                       >
                         Open Request
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
+
+      <Paper sx={{ p: 4, mt: 4 }}>
+        <Typography variant="h6" gutterBottom>
+          Prescriptions to Finalize
+        </Typography>
+        <TableContainer>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Patient</TableCell>
+                <TableCell>Medication</TableCell>
+                <TableCell>Dosage</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {prescriptionsLoading ? (
+                <TableRow>
+                  <TableCell colSpan={5} align="center">
+                    Loading...
+                  </TableCell>
+                </TableRow>
+              ) : (
+                prescriptions?.map((prescription: any) => (
+                  <TableRow key={prescription.id}>
+                    <TableCell>{`${prescription.patient?.firstName} ${prescription.patient?.lastName}`}</TableCell>
+                    <TableCell>{prescription.medication?.name}</TableCell>
+                    <TableCell>{prescription.dosage}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={prescription.status}
+                        color={
+                          prescription.status === "PENDING"
+                            ? "warning"
+                            : "default"
+                        }
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="contained"
+                        color="primary"
+                        onClick={() => finalizeMutation.mutate(prescription.id)}
+                        disabled={prescription.status !== "PENDING"}
+                      >
+                        Finalize
                       </Button>
                     </TableCell>
                   </TableRow>

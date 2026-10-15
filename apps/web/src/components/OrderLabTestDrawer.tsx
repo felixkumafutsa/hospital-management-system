@@ -42,7 +42,7 @@ const OrderLabTestDrawer: React.FC<OrderLabTestDrawerProps> = ({
 }) => {
   const queryClient = useQueryClient();
   const [selectedTestIds, setSelectedTestIds] = useState<string[]>([]);
-  const [priority, setPriority] = useState('Routine');
+  const [priority, setPriority] = useState('ROUTINE');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -59,7 +59,7 @@ const OrderLabTestDrawer: React.FC<OrderLabTestDrawerProps> = ({
   const mutation = useMutation({
     mutationFn: (labOrderData: {
       visitId: string;
-      requests: { testId: string }[];
+      testIds: string[];
       priority: string;
       notes?: string;
     }) => {
@@ -99,8 +99,7 @@ const OrderLabTestDrawer: React.FC<OrderLabTestDrawerProps> = ({
       return;
     }
     setError(null);
-    const requests = selectedTestIds.map((testId) => ({ testId }));
-    mutation.mutate({ visitId, requests, priority, notes });
+    mutation.mutate({ visitId, testIds: selectedTestIds, priority, notes });
   };
 
   const getTestNameById = (id: string) => {
@@ -161,8 +160,8 @@ const OrderLabTestDrawer: React.FC<OrderLabTestDrawerProps> = ({
                     label="Priority"
                     onChange={(e) => setPriority(e.target.value)}
                   >
-                    <MenuItem value="Routine">Routine</MenuItem>
-                    <MenuItem value="Urgent">Urgent</MenuItem>
+                    <MenuItem value="ROUTINE">Routine</MenuItem>
+                    <MenuItem value="URGENT">Urgent</MenuItem>
                     <MenuItem value="STAT">STAT</MenuItem>
                   </Select>
                 </FormControl>

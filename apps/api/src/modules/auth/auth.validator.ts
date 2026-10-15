@@ -15,8 +15,7 @@ export const loginValidator = [
 // Refresh token validation
 export const refreshTokenValidator = [
   body('refreshToken')
-    .notEmpty()
-    .withMessage('Refresh token is required')
+    .optional()
     .isString()
     .withMessage('Refresh token must be a string'),
 ];
@@ -43,8 +42,9 @@ export const changePasswordValidator = [
 // Logout validation
 export const logoutValidator = [
   body('refreshToken')
-    .notEmpty()
-    .withMessage('Refresh token is required'),
+    .optional()
+    .isString()
+    .withMessage('Refresh token must be a string'),
 ];
 
 // Validate results middleware (use the centralized one)

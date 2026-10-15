@@ -95,6 +95,25 @@ const themeOptions: ThemeOptions = {
     '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '',
   ],
   components: {
+    MuiDialog: {
+      styleOverrides: {
+        root: {
+          '& .MuiDialog-container': {
+            justifyContent: 'flex-end',
+            alignItems: 'stretch',
+          },
+          '& .MuiDialog-paper': {
+            width: 'min(560px, 100%)',
+            maxWidth: '100%',
+            height: '100%',
+            maxHeight: '100%',
+            margin: 0,
+            borderRadius: 0,
+            borderLeft: `1px solid ${colors.divider}`,
+          },
+        },
+      },
+    },
     MuiCard: {
       styleOverrides: {
         root: {

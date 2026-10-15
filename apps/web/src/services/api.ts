@@ -31,6 +31,8 @@ const api = axios.create({
   },
 });
 
+let refreshRequest: Promise<string> | null = null;
+
 // Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
@@ -52,28 +54,37 @@ api.interceptors.response.use(
     const originalRequest = error.config;
     
     // If the error is 401 and we haven't tried to refresh the token yet
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       originalRequest._retry = true;
       
       try {
-        const refreshToken = localStorage.getItem('refreshToken');
-        const response = await axios.post(
-          `${API_BASE_URL}/auth/refresh-token`,
-          { refreshToken },
-          { withCredentials: true },
-        );
-        
-        const { accessToken } = response.data.data;
+        if (!refreshRequest) {
+          refreshRequest = axios
+            .post(`${API_BASE_URL}/auth/refresh`, {}, { withCredentials: true })
+            .then((response) => response.data.data.accessToken)
+            .finally(() => {
+              refreshRequest = null;
+            });
+        }
+
+        const accessToken = await refreshRequest;
         localStorage.setItem('accessToken', accessToken);
         
         // Retry the original request with the new token
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         return api(originalRequest);
       } catch (refreshError) {
-        // If refresh fails, logout the user
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        window.location.href = '/login';
+        const status = axios.isAxiosError(refreshError)
+          ? refreshError.response?.status
+          : undefined;
+
+        // Only expire the local session when the server rejects the refresh token.
+        // A temporary network/server failure should not force a user back to login.
+        if (status === 400 || status === 401) {
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          window.location.href = '/login';
+        }
         return Promise.reject(refreshError);
       }
     }

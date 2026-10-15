@@ -25,7 +25,7 @@ router.use(authenticate);
 // Create patient - only reception, admin, doctor can create
 router.post(
   '/',
-  authorize(['RECEPTION_CASHIER', 'RECEPTIONIST', 'ADMINISTRATOR', 'DOCTOR']),
+  authorize(['ADMINISTRATOR', 'DOCTOR']),
   validate(createPatientSchema),
   createPatientController
 );
@@ -33,6 +33,7 @@ router.post(
 // Get all patients
 router.get(
   '/',
+  authorize(['ADMINISTRATOR', 'DOCTOR', 'NURSE', 'PHARMACIST', 'MD']),
   validate(getPatientsSchema),
   getAllPatientsController
 );
@@ -40,6 +41,7 @@ router.get(
 // Search patients
 router.get(
   '/search',
+  authorize(['ADMINISTRATOR', 'DOCTOR', 'NURSE', 'PHARMACIST', 'MD']),
   validate(searchPatientsSchema),
   searchPatientsController
 );
@@ -47,18 +49,20 @@ router.get(
 // Get patient by number
 router.get(
   '/number/:patientNumber',
+  authorize(['ADMINISTRATOR', 'DOCTOR', 'NURSE', 'PHARMACIST', 'MD']),
   getPatientByNumberController
 );
 
 // Get patient by ID, update, deactivate
 router.get(
   '/:id',
+  authorize(['ADMINISTRATOR', 'DOCTOR', 'NURSE', 'PHARMACIST', 'MD']),
   getPatientByIdController
 );
 
 router.put(
   '/:id',
-  authorize(['RECEPTION_CASHIER', 'RECEPTIONIST', 'ADMINISTRATOR', 'DOCTOR']),
+  authorize(['ADMINISTRATOR', 'DOCTOR']),
   validate(updatePatientSchema),
   updatePatientController
 );

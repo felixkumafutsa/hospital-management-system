@@ -20,7 +20,7 @@ export const recordVitalsController = async (
      nurseId ,
       req.body
     );
-    return res.status(201).json(result);
+    res.status(201).json(result);
   } catch (error) {
     return next(error);
   }
@@ -33,7 +33,7 @@ export const getVitalsByVisitController = async (
 ) => {
   try {
     const result = await fetchVitalsForVisit(req.params.visitId as string);
-    return res.status(200).json(result);
+    res.status(200).json(result);
   } catch (error) {
     return next(error);
   }
@@ -46,7 +46,7 @@ export const getTriageQueueController = async (
 ) => {
   try {
     const result = await fetchTriageQueue();
-    return res.status(200).json(result);
+    res.status(200).json(result);
   } catch (error) {
     return next(error);
   }
@@ -61,7 +61,7 @@ export const getTriageCountController = async (
     const fromDate = req.query.fromDate ? new Date(req.query.fromDate as string) : undefined;
     const toDate = req.query.toDate ? new Date(req.query.toDate as string) : undefined;
     const result = await fetchTriageCount(fromDate, toDate);
-    return res.status(200).json(result);
+    res.status(200).json(result);
   } catch (error) {
     return next(error);
   }

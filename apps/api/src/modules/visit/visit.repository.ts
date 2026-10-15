@@ -1,6 +1,7 @@
 import { prisma } from '../../config/database';
 import { Visit, VisitType, VisitStatus, TriageLevel, Ward, Bed } from '@prisma/client';
 import { randomUUID } from 'crypto';
+import { ApiError } from '../../middleware/errorHandler';
 
 
 
@@ -176,29 +177,76 @@ export const admitPatient = async (
   expectedDischargeDate: Date,
   dailyRate: number
 ): Promise<Visit> => {
-  // Mark bed as occupied
-  const wardRecord = await prisma.ward.findFirst({
-    where: { OR: [{ id: ward }, { name: ward }] },
-  });
-  if (wardRecord) {
-    await prisma.bed.updateMany({
-      where: { wardId: wardRecord.id, bedNumber: bedNumber },
-      data: { isOccupied: true, status: 'OCCUPIED' }
+  return prisma.$transaction(async (transaction) => {
+    const visit = await transaction.visit.findUnique({
+      where: { id },
+      select: { id: true, status: true, admissionDate: true },
     });
-  }
-
-  return prisma.visit.update({
-    where: { id },
-    data: {
-      admissionDate: new Date(),
-      ward: wardRecord?.name || ward,
-      bedNumber,
-      attendingDoctorId,
-      expectedDischargeDate,
-      dailyRate,
-      status: VisitStatus.ADMITTED,
-      visitType: VisitType.INPATIENT,
+    if (!visit) {
+      throw new ApiError(404, 'VISIT_NOT_FOUND', 'Visit not found');
     }
+    if (visit.status === VisitStatus.ADMITTED || visit.admissionDate) {
+      throw new ApiError(409, 'PATIENT_ALREADY_ADMITTED', 'This visit is already admitted');
+    }
+
+    const wardRecord = await transaction.ward.findFirst({
+      where: { OR: [{ id: ward }, { name: ward }] },
+    });
+    if (!wardRecord) {
+      throw new ApiError(404, 'WARD_NOT_FOUND', 'The selected ward does not exist');
+    }
+    if (!wardRecord.isActive) {
+      throw new ApiError(409, 'WARD_INACTIVE', 'The selected ward is inactive');
+    }
+
+    const bed = await transaction.bed.findFirst({
+      where: { wardId: wardRecord.id, bedNumber },
+      select: { id: true, status: true, isOccupied: true },
+    });
+    if (!bed) {
+      throw new ApiError(404, 'BED_NOT_FOUND', 'The selected bed does not exist in this ward');
+    }
+    if (bed.status !== 'AVAILABLE' || bed.isOccupied) {
+      throw new ApiError(409, 'BED_NOT_AVAILABLE', 'The selected bed is not available');
+    }
+
+    // Compare-and-set protects the bed even if another admission wins after the read above.
+    const bedClaim = await transaction.bed.updateMany({
+      where: {
+        id: bed.id,
+        status: 'AVAILABLE',
+        isOccupied: false,
+        ward: { isActive: true },
+      },
+      data: { isOccupied: true, status: 'OCCUPIED' },
+    });
+    if (bedClaim.count !== 1) {
+      throw new ApiError(409, 'BED_NOT_AVAILABLE', 'The selected bed is no longer available');
+    }
+
+    // A conditional write makes duplicate admission attempts for the same visit mutually exclusive.
+    const admission = await transaction.visit.updateMany({
+      where: {
+        id,
+        admissionDate: null,
+        status: { not: VisitStatus.ADMITTED },
+      },
+      data: {
+        admissionDate: new Date(),
+        ward: wardRecord.name,
+        bedNumber,
+        attendingDoctorId,
+        expectedDischargeDate,
+        dailyRate,
+        status: VisitStatus.ADMITTED,
+        visitType: VisitType.INPATIENT,
+      },
+    });
+    if (admission.count !== 1) {
+      throw new ApiError(409, 'PATIENT_ALREADY_ADMITTED', 'This visit is already admitted');
+    }
+
+    return transaction.visit.findUniqueOrThrow({ where: { id } });
   });
 };
 
@@ -343,6 +391,28 @@ export const getWardOccupancy = async () => {
     availableBeds: ward.beds.filter((bed: Bed) => bed.status === 'AVAILABLE').length,
     totalBeds: ward.totalBeds
   }));
+};
+
+export const getActiveWardsWithAvailableBeds = async () => {
+  return prisma.ward.findMany({
+    where: {
+      isActive: true,
+      beds: {
+        some: { status: 'AVAILABLE', isOccupied: false }
+      }
+    },
+    select: {
+      id: true,
+      name: true,
+      department: true,
+      beds: {
+        where: { status: 'AVAILABLE', isOccupied: false },
+        select: { id: true, bedNumber: true },
+        orderBy: { bedNumber: 'asc' }
+      }
+    },
+    orderBy: { name: 'asc' }
+  });
 };
 
 // Get patients waiting for consultation

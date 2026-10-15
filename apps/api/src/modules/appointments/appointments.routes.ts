@@ -23,7 +23,7 @@ router.use(authenticate);
 // Create appointment
 router.post(
   '/',
-  authorize(['RECEPTION_CASHIER', 'RECEPTIONIST', 'ADMINISTRATOR', 'NURSE', 'DOCTOR']),
+  authorize(['ADMINISTRATOR', 'NURSE', 'DOCTOR']),
   validate(createAppointmentSchema),
   createAppointmentController
 );
@@ -31,6 +31,7 @@ router.post(
 // Get all appointments
 router.get(
   '/',
+  authorize(['ADMINISTRATOR', 'DOCTOR', 'NURSE']),
   validate(getAppointmentsSchema),
   getAllAppointmentsController
 );
@@ -38,32 +39,34 @@ router.get(
 // Get patient's appointment history
 router.get(
   '/patient/:patientId',
+  authorize(['ADMINISTRATOR', 'DOCTOR', 'NURSE']),
   getPatientAppointmentsController
 );
 
 // Get appointment by ID, update status, delete
 router.get(
   '/:id',
+  authorize(['ADMINISTRATOR', 'DOCTOR', 'NURSE']),
   getAppointmentByIdController
 );
 
 router.put(
   '/:id/status',
-  authorize(['NURSE', 'DOCTOR', 'ADMINISTRATOR', 'RECEPTION_CASHIER', 'RECEPTIONIST']),
+  authorize(['NURSE', 'DOCTOR', 'ADMINISTRATOR']),
   validate(updateAppointmentSchema),
   updateAppointmentStatusController
 );
 
 router.patch(
   '/:id/status',
-  authorize(['NURSE', 'DOCTOR', 'ADMINISTRATOR', 'RECEPTION_CASHIER', 'RECEPTIONIST']),
+  authorize(['NURSE', 'DOCTOR', 'ADMINISTRATOR']),
   validate(updateAppointmentSchema),
   updateAppointmentStatusController
 );
 
 router.delete(
   '/:id',
-  authorize(['ADMINISTRATOR', 'RECEPTION_CASHIER', 'RECEPTIONIST']),
+  authorize(['ADMINISTRATOR']),
   deleteAppointmentController
 );
 

@@ -22,6 +22,7 @@ import {
   Person,
   TrendingUp,
   Edit,
+  LocalHospital,
 } from "@mui/icons-material";
 import api from "../../services/api";
 
@@ -134,6 +135,13 @@ const NurseDashboardPage = () => {
         >
           <Typography variant="h4">Nurse Dashboard</Typography>
           <Box sx={{ display: "flex", gap: 2 }}>
+            <Button
+              variant="contained"
+              startIcon={<LocalHospital />}
+              onClick={() => navigate("/patients/admissions")}
+            >
+              View Admissions
+            </Button>
             <Button
               variant="outlined"
               startIcon={<Person />}

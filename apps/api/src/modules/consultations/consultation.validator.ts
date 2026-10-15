@@ -21,6 +21,7 @@ export const createConsultationSchema = z.object({
     followUpStatus: z.nativeEnum(FollowUpStatus).optional(),
     assignedDoctorId: z.string().uuid().optional(),
     diagnoses: z.array(createDiagnosisSchema).optional().default([]),
+    status: z.enum(['COMPLETED']).optional(),
   }),
 });
 
@@ -39,6 +40,16 @@ export const updateConsultationSchema = z.object({
     followUpStatus: z.nativeEnum(FollowUpStatus).optional(),
     assignedDoctorId: z.string().uuid().optional(),
     diagnoses: z.array(createDiagnosisSchema).optional(),
+    status: z.enum(['COMPLETED']).optional(),
+  }),
+});
+
+export const updateConsultationStatusSchema = z.object({
+  params: z.object({
+    id: z.string().uuid('Invalid consultation ID format'),
+  }),
+  body: z.object({
+    status: z.enum(['COMPLETED']),
   }),
 });
 

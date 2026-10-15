@@ -41,6 +41,20 @@ export const updateTheater = asyncHandler(async (req: Request, res: Response) =>
   res.status(200).json(await theaterService.updateTheater(req.params.id as string, req.body));
 });
 
+export const getTheaters = asyncHandler(async (_req: Request, res: Response) => {
+  res.status(200).json(await theaterService.getTheaters());
+});
+
+export const getTheaterById = asyncHandler(async (req: Request, res: Response) => {
+  res.status(200).json(await theaterService.getTheaterById(req.params.id as string));
+});
+
+export const deleteTheater = asyncHandler(async (req: Request, res: Response) => {
+  await theaterService.deleteTheater(req.params.id as string);
+  res.status(204).send();
+});
+
+
 export const getAllSurgicalProcedures = asyncHandler(async (_req: Request, res: Response) => {
   const surgicalProcedures = await theaterService.getAllSurgicalProcedures();
   res.status(200).json(surgicalProcedures);

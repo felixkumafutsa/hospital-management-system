@@ -186,6 +186,8 @@ interface TransactionData {
   notes?: string;
   type: TransactionType;
   performedBy: string;
+  reason?: string;
+  reference?: string;
 }
 
 export const recordTransaction = async (data: TransactionData) => {
@@ -207,16 +209,99 @@ export const recordTransaction = async (data: TransactionData) => {
 };
 
 export const receiveNewMedicineStock = async (data: ReceiveStockInput) => {
-  const medicine = await pharmacyRepository.receiveMedicineStock(data);
-  return { success: true, data: medicine };
+  try {
+    const medicine = await pharmacyRepository.receiveMedicineStock(data);
+    return { success: true, data: medicine };
+  } catch (error: unknown) {
+    const err = error as Error;
+    logger.error(`Service error receiving medicine stock: ${err.message}`);
+    throw {
+      statusCode: 500,
+      message: err.message || 'Failed to receive medicine stock',
+    };
+  }
 };
 
 export const createOtcPharmacySale = async (data: OtcSaleInput, userId: string) => {
-  const sale = await pharmacyRepository.createOtcSale({ ...data, userId });
-  return { success: true, data: sale };
+  try {
+    const sale = await pharmacyRepository.createOtcSale({ ...data, userId });
+    return { success: true, data: sale };
+  } catch (error: unknown) {
+    const err = error as Error;
+    logger.error(`Service error creating OTC sale: ${err.message}`);
+    throw {
+      statusCode: 500,
+      message: err.message || 'Failed to create OTC sale',
+    };
+  }
 };
 
 export const getPharmacyDashboard = async () => {
-  const stats = await pharmacyRepository.getPharmacyDashboardStats();
-  return { success: true, data: stats };
+  try {
+    const stats = await pharmacyRepository.getPharmacyDashboardStats();
+    return { success: true, data: stats };
+  } catch (error: unknown) {
+    const err = error as Error;
+    logger.error(`Service error getting pharmacy dashboard stats: ${err.message}`);
+    throw {
+      statusCode: 500,
+      message: err.message || 'Failed to get pharmacy dashboard stats',
+    };
+  }
+};
+
+export const getInventory = async () => {
+  try {
+    const inventory = await pharmacyRepository.getInventory();
+    return { success: true, data: inventory };
+  } catch (error: unknown) {
+    const err = error as Error;
+    logger.error(`Service error getting inventory: ${err.message}`);
+    throw {
+      statusCode: 500,
+      message: err.message || 'Failed to get inventory',
+    };
+  }
+};
+
+export const getArchivedMedicines = async () => {
+  try {
+    const medicines = await pharmacyRepository.getArchivedMedicines();
+    return { success: true, data: medicines };
+  } catch (error: unknown) {
+    const err = error as Error & { statusCode?: number };
+    logger.error(`Service error fetching archived medicines: ${err.message}`);
+    throw {
+      statusCode: err.statusCode || 500,
+      message: err.message || 'Failed to fetch archived medicines',
+    };
+  }
+};
+
+export const archiveMedicine = async (id: string) => {
+  try {
+    const medicine = await pharmacyRepository.archiveMedicine(id);
+    return { success: true, data: medicine };
+  } catch (error: unknown) {
+    const err = error as Error & { statusCode?: number };
+    logger.error(`Service error archiving medicine: ${err.message}`);
+    throw {
+      statusCode: err.statusCode || 500,
+      message: err.message || 'Failed to archive medicine',
+    };
+  }
+};
+
+export const updateInventoryItem = async (id: string, data: { quantity: number; reason?: string }) => {
+  try {
+    const updatedItem = await pharmacyRepository.updateInventoryItem(id, data);
+    return { success: true, data: updatedItem };
+  } catch (error: unknown) {
+    const err = error as Error;
+    logger.error(`Service error updating inventory item: ${err.message}`);
+    throw {
+      statusCode: 500,
+      message: err.message || 'Failed to update inventory item',
+    };
+  }
 };

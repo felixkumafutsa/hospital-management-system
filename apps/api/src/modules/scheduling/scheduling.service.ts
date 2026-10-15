@@ -21,6 +21,7 @@ import type {
   CreateTimeOffInput
 } from '@packages/types';
 import { ListSchedulesInput } from './scheduling.validator';
+import { ShiftType } from '@prisma/client';
 
 // Schedule Service functions
 export const addStaffSchedule = async (data: CreateScheduleInput) => {
@@ -88,7 +89,7 @@ export const updateStaffSchedule = async (id: string, data: Partial<CreateSchedu
     const newType = data.shiftType || existing.shiftType;
     const userId = data.userId || existing.userId;
     
-    const hasConflict = await checkScheduleConflict(userId, newDate as string, newType as any);
+    const hasConflict = await checkScheduleConflict(userId, newDate as string, newType as ShiftType, id);
     if (hasConflict && (data.shiftDate || data.shiftType)) {
       // Only throw if we're actually modifying these fields
       throw new ApiError(409,'Schedule conflict: Staff member already has a shift at this time', 'SCHEDULE_CONFLICT');

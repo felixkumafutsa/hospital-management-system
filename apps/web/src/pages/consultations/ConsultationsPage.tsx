@@ -1,47 +1,76 @@
-import React, { useEffect, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
+  Alert,
   Box,
-  Grid,
-  Paper,
-  Typography,
   Button,
   Chip,
+  CircularProgress,
+  Drawer,
+  Grid,
+  IconButton,
+  MenuItem,
+  Paper,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
-  TableRow,
   TablePagination,
-  IconButton,
-  Tooltip,
-  CircularProgress,
-  Drawer,
-  Stepper,
-  Step,
-  StepLabel,
+  TableRow,
   TextField,
-  MenuItem,
+  Tooltip,
+  Typography,
 } from "@mui/material";
-import { Add, Edit, Visibility, Search } from "@mui/icons-material";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Add, DeleteOutline, Edit, Search, Visibility } from "@mui/icons-material";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "../../services/api";
-import ConsultationDetails from '../../components/ConsultationDetails';
-import { formatCurrency } from "../../utils/currency";
+import ConsultationDetails from "../../components/ConsultationDetails";
 
-interface Consultation {
-  id: string;
-  consultationId?: string;
-  consultationNumber: string;
-  patientName: string;
-  doctorName: string;
-  date: string;
-  status: "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
-  symptoms: string;
-  diagnosis: string;
-  fee: number | null;
-  createdAt: string;
+type DiagnosisType = "PRIMARY" | "SECONDARY" | "DIFFERENTIAL";
+type FollowUpStatus = "SCHEDULED" | "COMPLETED" | "MISSED";
+
+interface DiagnosisForm {
+  icd10Code: string;
+  icd10Desc: string;
+  diagnosisType: DiagnosisType;
+  notes: string;
 }
+
+interface ConsultationForm {
+  visitId: string;
+  chiefComplaint: string;
+  historyOfPC: string;
+  examination: string;
+  clinicalNotes: string;
+  plan: string;
+  followUpDate: string;
+  followUpNotes: string;
+  followUpStatus: FollowUpStatus;
+  assignedDoctorId: string;
+  diagnoses: DiagnosisForm[];
+  complete: boolean;
+}
+
+const emptyForm = (): ConsultationForm => ({
+  visitId: "",
+  chiefComplaint: "",
+  historyOfPC: "",
+  examination: "",
+  clinicalNotes: "",
+  plan: "",
+  followUpDate: "",
+  followUpNotes: "",
+  followUpStatus: "SCHEDULED",
+  assignedDoctorId: "",
+  diagnoses: [],
+  complete: false,
+});
+
+const errorMessage = (error: any) =>
+  error?.response?.data?.error?.message ||
+  error?.response?.data?.message ||
+  error?.message ||
+  "Unable to save the consultation. Please try again.";
 
 const ConsultationsPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -49,520 +78,242 @@ const ConsultationsPage = () => {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedConsultationId, setSelectedConsultationId] = useState<string | null>(null);
-  const [activeStep, setActiveStep] = useState(0);
+  const [form, setForm] = useState<ConsultationForm>(emptyForm);
+  const [formError, setFormError] = useState("");
   const queryClient = useQueryClient();
-  const { data: pricingSettings } = useQuery({
-    queryKey: ["system-pricing"],
-    queryFn: async () => (await api.get("/settings/pricing")).data.settings,
-  });
-  const configuredConsultationFee = Number(pricingSettings?.consultationFee || 0);
 
-  // New consultation form state
-  const steps = [
-    "Patient & Doctor Assignment",
-    "Clinical Details",
-    "Billing & Status",
-    "Review & Submit",
-  ];
-
-  const statusOptions = ["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"];
-
-  interface ConsultationFormData {
-    patientId: string;
-    doctorId: string;
-    consultationDate: string;
-    symptoms: string;
-    diagnosis: string;
-    notes: string;
-    fee: number;
-    status: string;
-  }
-
-  const initialFormData: ConsultationFormData = {
-    patientId: "",
-    doctorId: "",
-    consultationDate: new Date().toISOString().split("T")[0],
-    symptoms: "",
-    diagnosis: "",
-    notes: "",
-    fee: 0,
-    status: "PENDING",
-  };
-
-  const [formData, setFormData] =
-    useState<ConsultationFormData>(initialFormData);
-
-  useEffect(() => {
-    setFormData((current) => ({ ...current, fee: configuredConsultationFee }));
-  }, [configuredConsultationFee]);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: name === 'fee' ? Number(value) : value,
-    }));
-  };
-
-  const handleNext = () => {
-    setActiveStep((prev) => prev + 1);
-  };
-
-  const handleBack = () => {
-    setActiveStep((prev) => prev - 1);
-  };
-
-  const handleCloseDrawer = () => {
-    setDrawerOpen(false);
-    setActiveStep(0);
-    setFormData(initialFormData);
-  };
-
-  const handleOpenAdd = () => {
-    setDrawerOpen(true);
-  };
-
-  const handleChangePage = (_event: unknown, newPage: number) => {
-    setPage(newPage);
-  };
-
-  const handleChangeRowsPerPage = (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0);
-  };
-
-  // Mutation for adding new consultation
-  const addConsultationMutation = useMutation({
-    mutationFn: async (data: ConsultationFormData) => {
-      const res = await api.post("/visits", {
-        ...data,
-        visitType: "OUTPATIENT",
-      });
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["consultations"] });
-      handleCloseDrawer();
-    },
-  });
-
-  const handleSubmit = () => {
-    addConsultationMutation.mutate(formData);
-  };
-
-  // Fetch all patients from the system
-  const { data: patients } = useQuery({
-    queryKey: ["patients"],
-    queryFn: async () => {
-      const response = await api.get("/patients");
-      return response.data.patients;
-    },
-  });
-
-  // Fetch all users and filter to only doctors (uses the /users endpoint which returns all system users)
-  const { data: doctors } = useQuery({
-    queryKey: ["doctors"],
-    queryFn: async () => {
-      // The /users endpoint returns all system users from the database
-      const response = await api.get("/users");
-      // Filter to only include users who are doctors (role.name === "DOCTOR")
-      const allStaff = response.data.data || [];
-      return allStaff.filter((staff: any) => staff.role?.name === "DOCTOR");
-    },
-  });
-
-  // Fetch consultations from API
-  const { data: consultations, isLoading } = useQuery({
+  const { data: visits = [], isLoading, isError } = useQuery({
     queryKey: ["consultations"],
     queryFn: async () => {
-      const res = await api.get("/visits");
-      return res.data.visits.filter((visit: any) => visit.consultation).map((visit: any) => ({
+      const response = await api.get("/visits");
+      return (response.data.visits || []).map((visit: any) => ({
         id: visit.id,
         consultationId: visit.consultation?.id,
         consultationNumber: `CON-${visit.id.slice(0, 8).toUpperCase()}`,
         patientName:
-          `${visit.patient?.firstName || ""} ${visit.patient?.lastName || ""}`.trim() ||
-          "Unknown",
+          `${visit.patient?.firstName || ""} ${visit.patient?.lastName || ""}`.trim() || "Unknown",
         doctorName: visit.consultation?.doctor
           ? `${visit.consultation.doctor.firstName} ${visit.consultation.doctor.lastName}`
           : "Unassigned",
         date: visit.visitDate,
         status: visit.status,
         symptoms: visit.consultation?.chiefComplaint || "N/A",
-        diagnosis: visit.consultation?.diagnoses?.map((item: any) => item.icd10Desc).join(", ") || "N/A",
-        fee: visit.consultation?.consultationFee == null
-          ? null
-          : Number(visit.consultation.consultationFee),
-        createdAt: visit.createdAt,
-      })) as Consultation[];
+        diagnosis: (visit.consultation?.diagnoses || [])
+          .map((diagnosis: any) => diagnosis.icd10Desc)
+          .filter(Boolean)
+          .join(", ") || "N/A",
+        hasConsultation: Boolean(visit.consultation),
+        consultation: visit.consultation,
+      }));
     },
   });
 
-  // Filter consultations based on search term
-  const filteredConsultations =
-    consultations?.filter(
-      (consultation) =>
-        consultation.patientName
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase()) ||
-        consultation.doctorName
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase()) ||
-        consultation.consultationNumber
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase()) ||
-        consultation.status.toLowerCase().includes(searchTerm.toLowerCase()),
-    ) || [];
+  const { data: visitsForForm = [], isLoading: visitsLoading, isError: visitsError } = useQuery({
+    queryKey: ["consultation-available-visits"],
+    queryFn: async () => {
+      const response = await api.get("/visits");
+      return (response.data.visits || []).filter((visit: any) => !visit.consultation);
+    },
+    enabled: drawerOpen,
+  });
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "COMPLETED":
-        return "success";
-      case "IN_PROGRESS":
-        return "primary";
-      case "PENDING":
-        return "warning";
-      case "CANCELLED":
-        return "error";
-      default:
-        return "default";
-    }
+  const { data: doctors = [], isLoading: doctorsLoading } = useQuery({
+    queryKey: ["consultation-doctors"],
+    queryFn: async () => {
+      const response = await api.get("/users");
+      return (response.data.data || []).filter((staff: any) => staff.role?.name === "DOCTOR");
+    },
+    enabled: drawerOpen,
+  });
+
+  const createConsultationMutation = useMutation({
+    mutationFn: async (values: ConsultationForm) => {
+      const payload: Record<string, unknown> = {
+        visitId: values.visitId,
+        chiefComplaint: values.chiefComplaint.trim(),
+        historyOfPC: values.historyOfPC.trim() || undefined,
+        examination: values.examination.trim() || undefined,
+        clinicalNotes: values.clinicalNotes.trim() || undefined,
+        plan: values.plan.trim() || undefined,
+        followUpDate: values.followUpDate
+          ? new Date(`${values.followUpDate}T00:00:00`).toISOString()
+          : undefined,
+        followUpNotes: values.followUpNotes.trim() || undefined,
+        followUpStatus: values.followUpStatus || undefined,
+        assignedDoctorId: values.assignedDoctorId || undefined,
+        diagnoses: values.diagnoses
+          .filter((diagnosis) => diagnosis.icd10Desc.trim())
+          .map((diagnosis) => ({
+            icd10Code: diagnosis.icd10Code.trim() || "N/A",
+            icd10Desc: diagnosis.icd10Desc.trim(),
+            diagnosisType: diagnosis.diagnosisType,
+            notes: diagnosis.notes.trim() || undefined,
+          })),
+      };
+      if (values.complete) payload.status = "COMPLETED";
+      return api.post("/consultations", payload);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["consultations"] }),
+        queryClient.invalidateQueries({ queryKey: ["consultation-available-visits"] }),
+        queryClient.invalidateQueries({ queryKey: ["visits"] }),
+        queryClient.invalidateQueries({ queryKey: ["appointments"] }),
+      ]);
+      setDrawerOpen(false);
+      setForm(emptyForm());
+      setFormError("");
+    },
+    onError: (error) => setFormError(errorMessage(error)),
+  });
+
+  const filteredVisits = useMemo(() => visits.filter((visit: any) => {
+    const needle = searchTerm.toLowerCase();
+    return (
+      visit.patientName.toLowerCase().includes(needle) ||
+      visit.doctorName.toLowerCase().includes(needle) ||
+      visit.consultationNumber.toLowerCase().includes(needle) ||
+      visit.status.toLowerCase().includes(needle)
+    );
+  }), [visits, searchTerm]);
+
+  const closeForm = () => {
+    if (createConsultationMutation.isPending) return;
+    setDrawerOpen(false);
+    setForm(emptyForm());
+    setFormError("");
   };
 
-  // Render form steps
-  const renderStepContent = () => {
-    switch (activeStep) {
-      case 0: // Patient & Doctor Assignment
-        return (
-          <Grid container spacing={2} sx={{ mt: 2 }}>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Select Patient"
-                name="patientId"
-                value={formData.patientId}
-                onChange={handleInputChange}
-                required
-                select
-              >
-                {patients?.map((patient: any) => (
-                  <MenuItem key={patient.id} value={patient.id}>
-                    {patient.firstName} {patient.lastName} -{" "}
-                    {patient.patientNumber}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Select Doctor"
-                name="doctorId"
-                value={formData.doctorId}
-                onChange={handleInputChange}
-                required
-                select
-              >
-                {doctors?.map((doctor: any) => (
-                  <MenuItem key={doctor.id} value={doctor.id}>
-                    Dr. {doctor.firstName} {doctor.lastName}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Consultation Date"
-                name="consultationDate"
-                type="date"
-                value={formData.consultationDate}
-                onChange={handleInputChange}
-                required
-                InputLabelProps={{ shrink: true }}
-              />
-            </Grid>
-          </Grid>
-        );
+  const openEdit = (visit: any) => {
+    const consultation = visit.consultation;
+    if (!consultation) return;
+    const date = consultation.followUpDate
+      ? new Date(consultation.followUpDate).toISOString().slice(0, 10)
+      : "";
+    setForm({
+      visitId: visit.id,
+      chiefComplaint: consultation.chiefComplaint || "",
+      historyOfPC: consultation.historyOfPC || "",
+      examination: consultation.examination || "",
+      clinicalNotes: consultation.clinicalNotes || "",
+      plan: consultation.plan || "",
+      followUpDate: date,
+      followUpNotes: consultation.followUpNotes || "",
+      followUpStatus: consultation.followUpStatus || "SCHEDULED",
+      assignedDoctorId: consultation.assignedDoctorId || "",
+      diagnoses: (consultation.diagnoses || []).map((diagnosis: any) => ({
+        icd10Code: diagnosis.icd10Code || "",
+        icd10Desc: diagnosis.icd10Desc || "",
+        diagnosisType: diagnosis.diagnosisType || "PRIMARY",
+        notes: diagnosis.notes || "",
+      })),
+      complete: visit.status === "AWAITING_PAYMENT",
+    });
+    setFormError("");
+    setDrawerOpen(true);
+  };
 
-      case 1: // Clinical Details
-        return (
-          <Grid container spacing={2} sx={{ mt: 2 }}>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                multiline
-                rows={3}
-                label="Symptoms"
-                name="symptoms"
-                value={formData.symptoms}
-                onChange={handleInputChange}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                multiline
-                rows={3}
-                label="Diagnosis"
-                name="diagnosis"
-                value={formData.diagnosis}
-                onChange={handleInputChange}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                multiline
-                rows={2}
-                label="Additional Notes"
-                name="notes"
-                value={formData.notes}
-                onChange={handleInputChange}
-              />
-            </Grid>
-          </Grid>
-        );
-
-      case 2: // Billing & Status
-        return (
-          <Grid container spacing={2} sx={{ mt: 2 }}>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Consultation Fee"
-                value={configuredConsultationFee > 0 ? formatCurrency(configuredConsultationFee) : "Not configured"}
-                InputProps={{ readOnly: true }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                select
-                label="Status"
-                name="status"
-                value={formData.status}
-                onChange={handleInputChange}
-              >
-                {statusOptions.map((status) => (
-                  <MenuItem key={status} value={status}>
-                    {status.replace("_", " ")}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Grid>
-          </Grid>
-        );
-
-      case 3: // Review & Submit
-        return (
-          <Grid container spacing={2} sx={{ mt: 2 }}>
-            <Grid item xs={12}>
-              <Paper variant="outlined" sx={{ p: 2 }}>
-                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                  Consultation Summary
-                </Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={6}>
-                    <Typography>
-                      <strong>Patient ID:</strong>{" "}
-                      {formData.patientId || "Not selected"}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography>
-                      <strong>Doctor ID:</strong>{" "}
-                      {formData.doctorId || "Not selected"}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography>
-                      <strong>Date:</strong>{" "}
-                      {formData.consultationDate
-                        ? new Date(
-                            formData.consultationDate,
-                          ).toLocaleDateString()
-                        : "Not set"}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography>
-                      <strong>Status:</strong> {formData.status}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography>
-                      <strong>Fee:</strong> {formatCurrency(configuredConsultationFee)}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12}>
-                    <Typography>
-                      <strong>Symptoms:</strong>{" "}
-                      {formData.symptoms || "None recorded"}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12}>
-                    <Typography>
-                      <strong>Diagnosis:</strong>{" "}
-                      {formData.diagnosis || "None recorded"}
-                    </Typography>
-                  </Grid>
-                </Grid>
-              </Paper>
-            </Grid>
-            <Box sx={{ mt: 3, display: "flex", gap: 2 }}>
-              <Button
-                variant="contained"
-                onClick={handleSubmit}
-                disabled={addConsultationMutation.isPending}
-                sx={{ bgcolor: "#0EA5A4", "&:hover": { bgcolor: "#0c8c8b" } }}
-              >
-                {addConsultationMutation.isPending ? (
-                  <CircularProgress size={24} color="inherit" />
-                ) : (
-                  "Create Consultation"
-                )}
-              </Button>
-            </Box>
-          </Grid>
-        );
-
-      default:
-        return null;
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    setFormError("");
+    if (!form.visitId || !form.chiefComplaint.trim()) {
+      setFormError("Select a visit and enter the chief complaint.");
+      return;
     }
+    createConsultationMutation.mutate(form);
+  };
+
+  const updateDiagnosis = (index: number, values: Partial<DiagnosisForm>) => {
+    setForm((current) => ({
+      ...current,
+      diagnoses: current.diagnoses.map((diagnosis, itemIndex) =>
+        itemIndex === index ? { ...diagnosis, ...values } : diagnosis,
+      ),
+    }));
   };
 
   return (
-    <Box
-      sx={{
-        p: { xs: 2, sm: 3, md: 4 },
-        width: "100%",
-        boxSizing: "border-box",
-      }}
-    >
-
-      <Box
-        sx={{
-          mb: 4,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: 2,
-        }}
-      >
+    <Box sx={{ p: { xs: 2, sm: 3, md: 4 }, width: "100%", boxSizing: "border-box" }}>
+      <Box sx={{ mb: 3, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 2 }}>
         <Box>
-          <Typography variant="h4" sx={{ mb: 1, fontWeight: 600 }}>
-            Consultations
-          </Typography>
-          <Typography color="text.secondary">
-            Manage patient consultations and medical records
-          </Typography>
+          <Typography variant="h4" sx={{ mb: 0.5, fontWeight: 600 }}>Consultations</Typography>
+          <Typography color="text.secondary">Record clinical findings and follow-up for a patient visit.</Typography>
         </Box>
-        <Button variant="contained" startIcon={<Add />} onClick={handleOpenAdd}>
+        <Button variant="contained" startIcon={<Add />} onClick={() => setDrawerOpen(true)}>
           New Consultation
         </Button>
       </Box>
 
-      {/* Search Bar */}
-      <Paper elevation={2} sx={{ p: 2, mb: 3 }}>
+      <Paper variant="outlined" sx={{ p: 1.5, mb: 2 }}>
         <TextField
           fullWidth
-          placeholder="Search consultations by patient, doctor, ID, or status..."
+          placeholder="Search patient, doctor, visit, or status"
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          variant="standard"
-          InputProps={{
-            disableUnderline: true,
-            startAdornment: <Search sx={{ mr: 1, color: "text.secondary" }} />,
-          }}
+          onChange={(event) => { setSearchTerm(event.target.value); setPage(0); }}
+          InputProps={{ startAdornment: <Search sx={{ mr: 1, color: "text.secondary" }} /> }}
         />
       </Paper>
 
-      {/* Consultations Table */}
-      <Paper elevation={2} sx={{ width: "100%", overflow: "hidden" }}>
+      <Paper variant="outlined" sx={{ overflow: "hidden" }}>
         {isLoading ? (
-          <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
-            <CircularProgress />
-          </Box>
+          <Box sx={{ display: "flex", justifyContent: "center", p: 5 }}><CircularProgress /></Box>
+        ) : isError ? (
+          <Alert severity="error" sx={{ m: 2 }}>Consultations could not be loaded. Refresh and try again.</Alert>
         ) : (
           <>
             <TableContainer>
               <Table>
-                <TableHead sx={{ backgroundColor: "#f5f5f5" }}>
+                <TableHead>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: "bold" }}>
-                      Consultation ID
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: "bold" }}>Patient</TableCell>
-                    <TableCell sx={{ fontWeight: "bold" }}>Doctor</TableCell>
-                    <TableCell sx={{ fontWeight: "bold" }}>Date</TableCell>
-                    <TableCell sx={{ fontWeight: "bold" }}>Symptoms</TableCell>
-                    <TableCell sx={{ fontWeight: "bold" }}>Status</TableCell>
-                    <TableCell sx={{ fontWeight: "bold" }}>Fee</TableCell>
-                    <TableCell sx={{ fontWeight: "bold" }}>Actions</TableCell>
+                    <TableCell>Visit</TableCell>
+                    <TableCell>Patient</TableCell>
+                    <TableCell>Doctor</TableCell>
+                    <TableCell>Date</TableCell>
+                    <TableCell>Chief complaint</TableCell>
+                    <TableCell>Visit status</TableCell>
+                    <TableCell>Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {filteredConsultations
-                    .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                    .map((consultation) => (
-                      <TableRow key={consultation.id} hover>
-                        <TableCell sx={{ fontFamily: "monospace" }}>
-                          {consultation.consultationNumber}
-                        </TableCell>
-                        <TableCell>{consultation.patientName}</TableCell>
-                        <TableCell>{consultation.doctorName}</TableCell>
-                        <TableCell>
-                          {new Date(consultation.date).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell>
-                          {consultation.symptoms.length > 30
-                            ? `${consultation.symptoms.substring(0, 30)}...`
-                            : consultation.symptoms}
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            label={consultation.status}
-                            color={getStatusColor(consultation.status) as any}
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell>{consultation.fee == null ? "Not recorded" : formatCurrency(consultation.fee)}</TableCell>
-                        <TableCell>
-                          <Tooltip title={consultation.consultationId ? "View Details" : "No consultation created for this visit"}>
-                            <span>
-                              <IconButton
-                                size="small"
-                                disabled={!consultation.consultationId}
-                                onClick={() => {
-                                  if (consultation.consultationId) {
-                                    setSelectedConsultationId(consultation.consultationId);
-                                  }
-                                }}
-                              >
-                                <Visibility />
-                              </IconButton>
-                            </span>
-                          </Tooltip>
-                          <Tooltip title="Edit">
-                            <IconButton size="small">
-                              <Edit />
+                  {filteredVisits.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((visit: any) => (
+                    <TableRow key={visit.id} hover>
+                      <TableCell sx={{ fontFamily: "monospace" }}>{visit.consultationNumber}</TableCell>
+                      <TableCell>{visit.patientName}</TableCell>
+                      <TableCell>{visit.doctorName}</TableCell>
+                      <TableCell>{visit.date ? new Date(visit.date).toLocaleDateString() : "—"}</TableCell>
+                      <TableCell>{visit.symptoms}</TableCell>
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          label={visit.status}
+                          color={visit.status === "AWAITING_PAYMENT" ? "success" : visit.status === "CANCELLED" ? "error" : "primary"}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Box sx={{ display: "flex", alignItems: "center" }}>
+                          <Tooltip title={visit.consultationId ? "View consultation" : "No consultation recorded for this visit"}>
+                            <IconButton
+                              size="small"
+                              disabled={!visit.consultationId}
+                              onClick={() => setSelectedConsultationId(visit.consultationId)}
+                              aria-label="View consultation"
+                            >
+                              <Visibility />
                             </IconButton>
                           </Tooltip>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  {filteredConsultations.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
-                        <Typography color="text.secondary">
-                          No consultations found matching your search
-                        </Typography>
+                          {visit.consultationId && (
+                            <Tooltip title="Edit saved consultation">
+                              <IconButton size="small" onClick={() => openEdit(visit)} aria-label="Edit consultation">
+                                <Edit />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                        </Box>
                       </TableCell>
                     </TableRow>
+                  ))}
+                  {filteredVisits.length === 0 && (
+                    <TableRow><TableCell colSpan={7} align="center" sx={{ py: 4 }}>No visits found.</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -570,124 +321,202 @@ const ConsultationsPage = () => {
             <TablePagination
               rowsPerPageOptions={[5, 10, 25]}
               component="div"
-              count={filteredConsultations.length}
+              count={filteredVisits.length}
               rowsPerPage={rowsPerPage}
               page={page}
-              onPageChange={handleChangePage}
-              onRowsPerPageChange={handleChangeRowsPerPage}
+              onPageChange={(_, nextPage) => setPage(nextPage)}
+              onRowsPerPageChange={(event) => { setRowsPerPage(Number(event.target.value)); setPage(0); }}
             />
           </>
         )}
       </Paper>
 
-      {/* Consultation Details Drawer */}
       <Drawer
         anchor="right"
-        open={!!selectedConsultationId}
+        open={Boolean(selectedConsultationId)}
         onClose={() => setSelectedConsultationId(null)}
-        PaperProps={{
-          sx: { width: { xs: "100%", md: "500px" }, p: 2 },
-        }}
+        PaperProps={{ sx: { width: { xs: "100%", md: 500 }, p: 2 } }}
       >
         {selectedConsultationId && (
-          <ConsultationDetails
-            consultationId={selectedConsultationId}
-            onClose={() => setSelectedConsultationId(null)}
-          />
+          <ConsultationDetails consultationId={selectedConsultationId} onClose={() => setSelectedConsultationId(null)} />
         )}
       </Drawer>
 
-      {/* Add Consultation Drawer */}
-      <Drawer
-        anchor="right"
-        open={drawerOpen}
-        onClose={handleCloseDrawer}
-        PaperProps={{
-          sx: { width: { xs: "100%", md: "600px" }, p: 4 },
-        }}
-      >
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="h5" sx={{ mb: 1, fontWeight: 600 }}>
-            Add New Consultation
+      <Drawer anchor="right" open={drawerOpen} onClose={closeForm} PaperProps={{ sx: { width: { xs: "100%", sm: 640 }, maxWidth: "100vw", p: 3, boxSizing: "border-box" } }}>
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="h5" sx={{ fontWeight: 600 }}>
+            {visits.some((visit: any) => visit.id === form.visitId && visit.consultationId) ? "Edit Consultation" : "New Consultation"}
           </Typography>
-          <Typography color="text.secondary">
-            Fill in the information to create a new patient consultation
+          <Typography color="text.secondary" variant="body2">
+            Saved through the consultation API for the selected patient visit.
           </Typography>
         </Box>
-        <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
-          {steps.map((label) => (
-            <Step key={label}>
-              <StepLabel>{label}</StepLabel>
-            </Step>
-          ))}
-        </Stepper>
-        {renderStepContent()}
-        {activeStep > 0 && activeStep < steps.length - 1 && (
-          <Box
-            sx={{
-              mt: 2,
-              display: "flex",
-              gap: 2,
-              justifyContent: "flex-end",
-            }}
+        {formError && <Alert severity="error" sx={{ mb: 2 }}>{formError}</Alert>}
+        {visitsError && <Alert severity="error" sx={{ mb: 2 }}>Unable to load visits for consultation.</Alert>}
+        <Box component="form" onSubmit={handleSubmit} sx={{ display: "grid", gap: 2, overflowY: "auto", pb: 2 }}>
+          <TextField
+            fullWidth
+            required
+            select
+            label="Patient visit"
+            value={form.visitId}
+            onChange={(event) => setForm((current) => ({ ...current, visitId: event.target.value }))}
+            disabled={visitsLoading || Boolean(visits.some((visit: any) => visit.id === form.visitId && visit.consultationId))}
           >
-            <Button onClick={handleBack}>Back</Button>
-            <Button variant="contained" onClick={handleNext}>
-              Next
-            </Button>
-          </Box>
-        )}
-        {activeStep === steps.length - 2 && (
-          <Box
-            sx={{
-              mt: 2,
-              display: "flex",
-              gap: 2,
-              justifyContent: "flex-end",
-            }}
+            {[
+              ...visitsForForm,
+              ...visits.filter((visit: any) => visit.id === form.visitId && visit.consultationId)
+                .map((visit: any) => ({ id: visit.id, patient: { firstName: visit.patientName, lastName: "" }, visitDate: visit.date, visitType: "", status: visit.status })),
+            ].map((visit: any) => (
+              <MenuItem key={visit.id} value={visit.id}>
+                {visit.patient?.firstName} {visit.patient?.lastName} · {new Date(visit.visitDate).toLocaleDateString()} · {visit.status}
+              </MenuItem>
+            ))}
+          </TextField>
+          {visitsLoading && <CircularProgress size={22} />}
+          {!visitsLoading && !visitsError && visitsForForm.length === 0 && (
+            <Alert severity="info">There are no visits available without an existing consultation.</Alert>
+          )}
+          <TextField
+            fullWidth
+            select
+            label="Assigned doctor"
+            value={form.assignedDoctorId}
+            onChange={(event) => setForm((current) => ({ ...current, assignedDoctorId: event.target.value }))}
+            disabled={doctorsLoading}
           >
-            <Button onClick={handleBack}>Back</Button>
-            <Button variant="contained" onClick={handleNext}>
-              Review
-            </Button>
-          </Box>
-        )}
-        {activeStep === 0 && (
-          <Box
-            sx={{
-              mt: 2,
-              display: "flex",
-              gap: 2,
-              justifyContent: "flex-end",
-            }}
-          >
-            <Button onClick={handleCloseDrawer}>Cancel</Button>
-            <Button
-              variant="contained"
-              onClick={handleNext}
-              disabled={!formData.patientId || !formData.doctorId}
-            >
-              Next
-            </Button>
-          </Box>
-        )}
-      </Drawer>
-
-      {/* Consultation Details Drawer */}
-      <Drawer
-        anchor="right"
-        open={!!selectedConsultationId}
-        onClose={() => setSelectedConsultationId(null)}
-        PaperProps={{
-          sx: { width: { xs: "100%", md: "500px" }, p: 2 },
-        }}
-      >
-        {selectedConsultationId && (
-          <ConsultationDetails
-            consultationId={selectedConsultationId}
-            onClose={() => setSelectedConsultationId(null)}
+            {doctors.map((doctor: any) => (
+              <MenuItem key={doctor.id} value={doctor.id}>Dr. {doctor.firstName} {doctor.lastName}</MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            fullWidth required multiline minRows={2}
+            label="Chief complaint"
+            value={form.chiefComplaint}
+            onChange={(event) => setForm((current) => ({ ...current, chiefComplaint: event.target.value }))}
           />
-        )}
+          <TextField
+            fullWidth multiline minRows={3}
+            label="History of present complaint"
+            value={form.historyOfPC}
+            onChange={(event) => setForm((current) => ({ ...current, historyOfPC: event.target.value }))}
+          />
+          <TextField
+            fullWidth multiline minRows={3}
+            label="Examination"
+            value={form.examination}
+            onChange={(event) => setForm((current) => ({ ...current, examination: event.target.value }))}
+          />
+          <TextField
+            fullWidth multiline minRows={3}
+            label="Clinical notes"
+            value={form.clinicalNotes}
+            onChange={(event) => setForm((current) => ({ ...current, clinicalNotes: event.target.value }))}
+          />
+          <TextField
+            fullWidth multiline minRows={3}
+            label="Plan"
+            value={form.plan}
+            onChange={(event) => setForm((current) => ({ ...current, plan: event.target.value }))}
+          />
+          <Box>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>Diagnoses</Typography>
+            {form.diagnoses.map((diagnosis, index) => (
+              <Paper key={index} variant="outlined" sx={{ p: 1.5, mb: 1.5 }}>
+                <Grid container spacing={1.5} alignItems="center">
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      fullWidth label="ICD-10 code" value={diagnosis.icd10Code}
+                      onChange={(event) => updateDiagnosis(index, { icd10Code: event.target.value })}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={8}>
+                    <TextField
+                      fullWidth required label="Diagnosis description" value={diagnosis.icd10Desc}
+                      onChange={(event) => updateDiagnosis(index, { icd10Desc: event.target.value })}
+                    />
+                  </Grid>
+                  <Grid item xs={9}>
+                    <TextField
+                      fullWidth select label="Diagnosis type" value={diagnosis.diagnosisType}
+                      onChange={(event) => updateDiagnosis(index, { diagnosisType: event.target.value as DiagnosisType })}
+                    >
+                      {(["PRIMARY", "SECONDARY", "DIFFERENTIAL"] as DiagnosisType[]).map((type) => (
+                        <MenuItem key={type} value={type}>{type}</MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={3} sx={{ textAlign: "right" }}>
+                    <IconButton
+                      color="error" aria-label="Remove diagnosis"
+                      onClick={() => setForm((current) => ({ ...current, diagnoses: current.diagnoses.filter((_, itemIndex) => itemIndex !== index) }))}
+                    >
+                      <DeleteOutline />
+                    </IconButton>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth label="Diagnosis notes" value={diagnosis.notes}
+                      onChange={(event) => updateDiagnosis(index, { notes: event.target.value })}
+                    />
+                  </Grid>
+                </Grid>
+              </Paper>
+            ))}
+            <Button
+              startIcon={<Add />}
+              onClick={() => setForm((current) => ({
+                ...current,
+                diagnoses: [...current.diagnoses, {
+                  icd10Code: "",
+                  icd10Desc: "",
+                  diagnosisType: current.diagnoses.length ? "SECONDARY" : "PRIMARY",
+                  notes: "",
+                }],
+              }))}
+            >
+              Add diagnosis
+            </Button>
+          </Box>
+          <TextField
+            fullWidth type="date" label="Follow-up date" InputLabelProps={{ shrink: true }}
+            value={form.followUpDate}
+            onChange={(event) => setForm((current) => ({ ...current, followUpDate: event.target.value }))}
+          />
+          <TextField
+            fullWidth select label="Follow-up status" value={form.followUpStatus}
+            onChange={(event) => setForm((current) => ({ ...current, followUpStatus: event.target.value as FollowUpStatus }))}
+          >
+            {(["SCHEDULED", "COMPLETED", "MISSED"] as FollowUpStatus[]).map((status) => (
+              <MenuItem key={status} value={status}>{status}</MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            fullWidth multiline minRows={2} label="Follow-up notes" value={form.followUpNotes}
+            onChange={(event) => setForm((current) => ({ ...current, followUpNotes: event.target.value }))}
+          />
+          <TextField
+            fullWidth select label="Completion" value={form.complete ? "COMPLETED" : "SAVE"}
+            onChange={(event) => setForm((current) => ({ ...current, complete: event.target.value === "COMPLETED" }))}
+            helperText="Completion advances the linked visit and appointment using the server workflow."
+          >
+            <MenuItem value="SAVE">Save without completing</MenuItem>
+            <MenuItem value="COMPLETED">Complete consultation</MenuItem>
+          </TextField>
+          <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, pt: 1 }}>
+            <Button onClick={closeForm} disabled={createConsultationMutation.isPending}>Cancel</Button>
+            <Button
+              type="submit" variant="contained"
+              disabled={createConsultationMutation.isPending || visitsLoading || !form.visitId}
+            >
+              {createConsultationMutation.isPending
+                ? <CircularProgress size={22} color="inherit" />
+                : form.visitId && visits.some((visit: any) => visit.id === form.visitId && visit.consultationId)
+                  ? "Save changes"
+                  : "Save consultation"}
+            </Button>
+          </Box>
+        </Box>
       </Drawer>
     </Box>
   );

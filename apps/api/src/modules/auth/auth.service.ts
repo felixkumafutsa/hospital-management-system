@@ -5,6 +5,7 @@ import { ApiError } from '../../middlewares/errorHandler';
 import * as authRepository from './auth.repository';
 import { User } from '@prisma/client';
 import { getJwtPrivateKey } from '../../config/security';
+import logger from '../../config/logger';
 
 // JWT configuration
 const ACCESS_TOKEN_EXPIRY = process.env.JWT_ACCESS_TOKEN_EXPIRY || '15m';
@@ -52,94 +53,122 @@ const getRefreshTokenExpiry = (): Date => {
 
 // Login service
 export const login = async (email: string, password: string) => {
-  // Find user by email
-  const user = await authRepository.findUserByEmail(email);
-  
-  if (!user) {
-    throw new ApiError(401, 'INVALID_CREDENTIALS', 'Invalid email or password');
+  try {
+    // Find user by email
+    const user = await authRepository.findUserByEmail(email);
+    
+    if (!user) {
+      throw new ApiError(401, 'INVALID_CREDENTIALS', 'Invalid email or password');
+    }
+
+    // Check if user is active
+    if (!user.isActive) {
+      throw new ApiError(401, 'ACCOUNT_INACTIVE', 'Your account is inactive. Please contact an administrator.');
+    }
+
+    // Verify password
+    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+    if (!isPasswordValid) {
+      throw new ApiError(401, 'INVALID_CREDENTIALS', 'Invalid email or password');
+    }
+
+    // Generate tokens
+    const accessToken = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user);
+
+    // Save refresh token to database
+    const expiresAt = getRefreshTokenExpiry();
+    await authRepository.createRefreshToken(refreshToken, user.id, expiresAt);
+
+    // Update last login
+    await authRepository.updateLastLogin(user.id);
+
+    // Return user data and tokens (exclude sensitive information)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { passwordHash, ...userWithoutPassword } = user;
+    
+    return {
+      user: userWithoutPassword,
+      accessToken,
+      refreshToken,
+      expiresIn: 15 * 60, // 15 minutes in seconds
+    };
+  } catch (error: unknown) {
+    const err = error as Error;
+    logger.error(`Service error during login: ${err.message}`);
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    throw {
+      statusCode: 500,
+      message: err.message || 'Failed to login',
+    };
   }
-
-  // Check if user is active
-  if (!user.isActive) {
-    throw new ApiError(401, 'ACCOUNT_INACTIVE', 'Your account is inactive. Please contact an administrator.');
-  }
-
-  // Verify password
-  const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-  if (!isPasswordValid) {
-    throw new ApiError(401, 'INVALID_CREDENTIALS', 'Invalid email or password');
-  }
-
-  // Generate tokens
-  const accessToken = generateAccessToken(user);
-  const refreshToken = generateRefreshToken(user);
-
-  // Save refresh token to database
-  const expiresAt = getRefreshTokenExpiry();
-  await authRepository.createRefreshToken(refreshToken, user.id, expiresAt);
-
-  // Update last login
-  await authRepository.updateLastLogin(user.id);
-
-  // Return user data and tokens (exclude sensitive information)
-  const { passwordHash, ...userWithoutPassword } = user;
-  
-  return {
-    user: userWithoutPassword,
-    accessToken,
-    refreshToken,
-    expiresIn: 15 * 60, // 15 minutes in seconds
-  };
 };
 
 // Refresh token service
 export const refreshToken = async (token: string) => {
-  // Find refresh token in database
-  const storedToken = await authRepository.findRefreshToken(token);
-  
-  if (!storedToken) {
-    throw new ApiError(401, 'INVALID_TOKEN', 'Invalid refresh token');
-  }
-
-  // Check if token is revoked
-  if (storedToken.revoked) {
-    throw new ApiError(401, 'TOKEN_REVOKED', 'Refresh token has been revoked');
-  }
-
-  // Check if token is expired
-  if (new Date() > storedToken.expiresAt) {
-    throw new ApiError(401, 'TOKEN_EXPIRED', 'Refresh token has expired');
-  }
-
-  // Verify JWT
   try {
-    jwt.verify(token, getJwtPrivateKey(), { algorithms: ['HS256'] });
-  } catch (error) {
-    throw new ApiError(401, 'INVALID_TOKEN', 'Invalid refresh token');
+    // Find refresh token in database
+    const storedToken = await authRepository.findRefreshToken(token);
+    
+    if (!storedToken) {
+      throw new ApiError(401, 'INVALID_TOKEN', 'Invalid refresh token');
+    }
+
+    // Check if token is revoked
+    if (storedToken.revoked) {
+      throw new ApiError(401, 'TOKEN_REVOKED', 'Refresh token has been revoked');
+    }
+
+    // Check if token is expired
+    if (new Date() > storedToken.expiresAt) {
+      throw new ApiError(401, 'TOKEN_EXPIRED', 'Refresh token has expired');
+    }
+
+    // Verify JWT
+    try {
+      jwt.verify(token, getJwtPrivateKey(), { algorithms: ['HS256'] });
+    } catch (error) {
+      throw new ApiError(401, 'INVALID_TOKEN', 'Invalid refresh token');
+    }
+
+    // Get the user from the database
+    const user = await authRepository.findUserById(storedToken.userId);
+    if (!user) {
+      throw new ApiError(401, 'USER_NOT_FOUND', 'User not found');
+    }
+    if (!user.isActive) {
+      throw new ApiError(401, 'ACCOUNT_INACTIVE', 'Your account is inactive. Please contact an administrator.');
+    }
+    
+    // Generate new tokens (rotating refresh token)
+    const newAccessToken = generateAccessToken(user);
+    const newRefreshToken = generateRefreshToken(user);
+
+    // Revoke old refresh token
+    await authRepository.revokeRefreshToken(token);
+
+    // Save new refresh token
+    const expiresAt = getRefreshTokenExpiry();
+    await authRepository.createRefreshToken(newRefreshToken, user.id, expiresAt);
+
+    return {
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+      expiresIn: 15 * 60,
+    };
+  } catch (error: unknown) {
+    const err = error as Error;
+    logger.error(`Service error refreshing token: ${err.message}`);
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    throw {
+      statusCode: 500,
+      message: err.message || 'Failed to refresh token',
+    };
   }
-
-  // Get the user from the database
-  const user = await authRepository.findUserById(storedToken.userId);
-  if (!user) {
-    throw new ApiError(401, 'USER_NOT_FOUND', 'User not found');
-  }
-  
-  // Generate new tokens (rotating refresh token)
-  const newAccessToken = generateAccessToken(user);
-  const newRefreshToken = generateRefreshToken(user);
-
-  // Revoke old refresh token
-  await authRepository.revokeRefreshToken(token);
-
-  // Save new refresh token
-  const expiresAt = getRefreshTokenExpiry();
-  await authRepository.createRefreshToken(newRefreshToken, user.id, expiresAt);
-
-  return {
-    accessToken: newAccessToken,
-    refreshToken: newRefreshToken,
-    expiresIn: 15 * 60,
-  };
 };
 
 // Logout service
@@ -147,8 +176,16 @@ export const logout = async (refreshToken: string) => {
   try {
     await authRepository.revokeRefreshToken(refreshToken);
     return { success: true };
-  } catch (error) {
-    throw new ApiError(500, 'LOGOUT_FAILED', 'Failed to logout');
+  } catch (error: unknown) {
+    const err = error as Error;
+    logger.error(`Service error during logout: ${err.message}`);
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    throw {
+      statusCode: 500,
+      message: err.message || 'Failed to logout',
+    };
   }
 };
 
@@ -158,40 +195,64 @@ export const changePassword = async (
   currentPassword: string,
   newPassword: string
 ) => {
-  // Find user
-  const user = await authRepository.findUserById(userId);
-  
-  if (!user) {
-    throw new ApiError(404, 'USER_NOT_FOUND', 'User not found');
+  try {
+    // Find user
+    const user = await authRepository.findUserById(userId);
+    
+    if (!user) {
+      throw new ApiError(404, 'USER_NOT_FOUND', 'User not found');
+    }
+
+    // Verify current password
+    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isCurrentPasswordValid) {
+      throw new ApiError(401, 'INVALID_PASSWORD', 'Current password is incorrect');
+    }
+
+    // Hash new password
+    const saltRounds = 12;
+    const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
+
+    // Update password
+    await authRepository.updateUserPassword(userId, newPasswordHash);
+
+    // Revoke all existing refresh tokens for security
+    await authRepository.revokeAllUserRefreshTokens(userId);
+
+    return { success: true, message: 'Password changed successfully' };
+  } catch (error: unknown) {
+    const err = error as Error;
+    logger.error(`Service error changing password: ${err.message}`);
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    throw {
+      statusCode: 500,
+      message: err.message || 'Failed to change password',
+    };
   }
-
-  // Verify current password
-  const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
-  if (!isCurrentPasswordValid) {
-    throw new ApiError(401, 'INVALID_PASSWORD', 'Current password is incorrect');
-  }
-
-  // Hash new password
-  const saltRounds = 12;
-  const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
-
-  // Update password
-  await authRepository.updateUserPassword(userId, newPasswordHash);
-
-  // Revoke all existing refresh tokens for security
-  await authRepository.revokeAllUserRefreshTokens(userId);
-
-  return { success: true, message: 'Password changed successfully' };
 };
 
 // Get current user service
 export const getCurrentUser = async (userId: string) => {
-  const user = await authRepository.findUserById(userId);
-  
-  if (!user) {
-    throw new ApiError(404, 'USER_NOT_FOUND', 'User not found');
+  try {
+    const user = await authRepository.findUserById(userId);
+    
+    if (!user) {
+      throw new ApiError(404, 'USER_NOT_FOUND', 'User not found');
+    }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { passwordHash, ...userWithoutPassword } = user;
+    return userWithoutPassword;
+  } catch (error: unknown) {
+    const err = error as Error;
+    logger.error(`Service error fetching current user: ${err.message}`);
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    throw {
+      statusCode: 500,
+      message: err.message || 'Failed to fetch current user',
+    };
   }
-
-  const { passwordHash, ...userWithoutPassword } = user;
-  return userWithoutPassword;
 };

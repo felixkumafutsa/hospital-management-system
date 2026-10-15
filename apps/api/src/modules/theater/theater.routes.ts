@@ -9,7 +9,7 @@ const router = Router();
 
 router.use(authenticate);
 
-router.get('/catalog', theaterController.getProcedureCatalog);
+router.get('/catalog', authorize(['RECEPTION_CASHIER', 'RECEPTIONIST', 'DOCTOR', 'NURSE', 'ANESTHETIST', 'ADMINISTRATOR']), theaterController.getProcedureCatalog);
 router.post(
   '/catalog',
   authorize(['ADMINISTRATOR']),
@@ -34,7 +34,15 @@ router.put(
   validate(theaterValidator.updateTheater),
   theaterController.updateTheater
 );
-router.get('/resources', theaterController.getTheaterResources);
+router.get('/rooms', authorize(['RECEPTION_CASHIER', 'RECEPTIONIST', 'DOCTOR', 'NURSE', 'ANESTHETIST', 'ADMINISTRATOR']), theaterController.getTheaters);
+router.get('/rooms/:id', authorize(['RECEPTION_CASHIER', 'RECEPTIONIST', 'DOCTOR', 'NURSE', 'ANESTHETIST', 'ADMINISTRATOR']), theaterController.getTheaterById);
+router.delete(
+  '/rooms/:id',
+  authorize(['ADMINISTRATOR']),
+  theaterController.deleteTheater
+);
+
+router.get('/resources', authorize(['RECEPTION_CASHIER', 'RECEPTIONIST', 'DOCTOR', 'NURSE', 'ANESTHETIST', 'ADMINISTRATOR']), theaterController.getTheaterResources);
 router.post(
   '/requests/maternity',
   authorize(['ADMINISTRATOR', 'DOCTOR', 'NURSE']),
@@ -45,19 +53,21 @@ router.post(
 // Route to create a new surgical procedure
 router.post(
   '/requests',
+  authorize(['DOCTOR', 'NURSE', 'ANESTHETIST', 'ADMINISTRATOR']),
   validate(theaterValidator.createSurgicalProcedure),
   theaterController.createSurgicalProcedure
 );
 
 // Route to get all surgical procedures
-router.get('/', theaterController.getAllSurgicalProcedures);
+router.get('/', authorize(['RECEPTION_CASHIER', 'RECEPTIONIST', 'DOCTOR', 'NURSE', 'ANESTHETIST', 'ADMINISTRATOR']), theaterController.getAllSurgicalProcedures);
 
 // Route to get a surgical procedure by ID
-router.get('/:id', theaterController.getSurgicalProcedureById);
+router.get('/:id', authorize(['RECEPTION_CASHIER', 'RECEPTIONIST', 'DOCTOR', 'NURSE', 'ANESTHETIST', 'ADMINISTRATOR']), theaterController.getSurgicalProcedureById);
 
 // Route to update a surgical procedure
 router.put(
   '/:id',
+  authorize(['DOCTOR', 'NURSE', 'ANESTHETIST', 'ADMINISTRATOR']),
   validate(theaterValidator.updateSurgicalProcedure),
   theaterController.updateSurgicalProcedure
 );

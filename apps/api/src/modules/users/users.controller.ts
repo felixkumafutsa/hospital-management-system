@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import {
   createNewUser,
+  listRoles,
   getUser,
   listAllUsers,
   searchUsersService,
@@ -9,6 +10,19 @@ import {
   getUserByRoleService,
 } from './users.service';
 import { CreateUserInput, UpdateUserInput } from './users.validator';
+
+export const getRolesController = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const result = await listRoles();
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
 
 export const createUserController = async (
   req: Request<{}, {}, CreateUserInput>,

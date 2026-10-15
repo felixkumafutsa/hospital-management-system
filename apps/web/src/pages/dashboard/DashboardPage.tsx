@@ -1,5 +1,6 @@
 import React from "react";
 import {
+  Alert,
   Box,
   Grid,
   Paper,
@@ -10,9 +11,9 @@ import {
   Chip,
   useMediaQuery,
   useTheme,
+  CircularProgress,
 } from "@mui/material";
 import {
-  TrendingUp,
   People,
   CalendarToday,
   MedicalServices,
@@ -59,14 +60,12 @@ const MetricCard = ({
   value,
   icon: Icon,
   color,
-  trend,
   trendValue,
 }: {
   title: string;
   value: number | string;
   icon: React.ElementType;
   color: string;
-  trend: "up" | "down" | "neutral";
   trendValue: string;
 }) => (
   <Card
@@ -118,30 +117,13 @@ const MetricCard = ({
       <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
         <Chip
           size="small"
-          icon={<TrendingUp sx={{ fontSize: 14 }} />}
           label={trendValue}
           sx={{
-            backgroundColor:
-              trend === "up"
-                ? `${PRIMARY_COLOR}15`
-                : trend === "down"
-                  ? "#EF444415"
-                  : "#F59E0B15",
-            color:
-              trend === "up"
-                ? PRIMARY_COLOR
-                : trend === "down"
-                  ? "#EF4444"
-                  : "#F59E0B",
+            backgroundColor: `${color}15`,
+            color,
             fontWeight: 600,
-            "& .MuiChip-icon": {
-              color: "inherit",
-            },
           }}
         />
-        <Typography variant="caption" sx={{ color: TEXT_MUTED }}>
-          vs last month
-        </Typography>
       </Box>
     </CardContent>
   </Card>
@@ -154,123 +136,163 @@ const DashboardPage = () => {
   useConsultationDrawerStore();
 
   // Fetch dashboard stats from real API endpoints
-  const { data: stats, isLoading } = useQuery({
+  const { data: stats, isLoading, isError: statsError } = useQuery({
     queryKey: ["dashboardStats"],
     queryFn: async () => {
-      // Fetch patients and visits from existing APIs
-      const [patientsRes, visitsRes, financeStatsRes] = await Promise.all([
-        api.get("/patients"),
-        api.get("/visits"),
-        api.get("/finance/stats").catch(() => ({ data: {} })), // Fallback if finance endpoint fails
+      const now = new Date();
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const startOfTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      const dateRange = {
+        fromDate: startOfToday.toISOString(),
+        toDate: startOfTomorrow.toISOString(),
+      };
+      const [patientsRes, visitsRes, todayVisitsRes, awaitingPaymentRes, completedVisitsRes, todayAppointmentsRes, financeStatsRes] = await Promise.all([
+        api.get("/patients", { params: { limit: 1 } }),
+        api.get("/visits", { params: { limit: 1 } }),
+        api.get("/visits", { params: { ...dateRange, limit: 1 } }),
+        api.get("/visits", { params: { ...dateRange, status: "AWAITING_PAYMENT", limit: 1 } }),
+        api.get("/visits", { params: { ...dateRange, status: "COMPLETED", limit: 1 } }),
+        api.get("/appointments", { params: { ...dateRange, limit: 100 } }),
+        api.get("/finance/stats"),
       ]);
-
-      const patients = patientsRes.data.patients || [];
-      const visits = visitsRes.data.visits || [];
-      const financeStats = financeStatsRes.data || {};
-
-      // Calculate basic stats
-      const totalPatients = patients.length;
-      const totalVisits = visits.length;
-      const pendingVisits = visits.filter(
-        (v: any) => v.status === "PENDING",
-      ).length;
-      const completedVisits = visits.filter(
-        (v: any) => v.status === "COMPLETED",
-      ).length;
-
-      const todayVisitCount = visits.filter((v: any) => {
-        const visitDate = new Date(v.visitDate);
-        const today = new Date();
-        return visitDate.toDateString() === today.toDateString();
-      }).length;
+      const financeStats = financeStatsRes.data;
 
       return {
-        totalPatients,
-        totalVisits,
-        pendingVisits,
-        completedVisits,
-        todayVisits: todayVisitCount,
-        patientsToday: todayVisitCount,
-        appointmentsToday: todayVisitCount,
-        consultationsToday: completedVisits,
-        totalRevenue: financeStats.totalRevenue || 0,
-        pendingBills: financeStats.totalOutstanding || 0,
+        totalPatients: patientsRes.data.total ?? patientsRes.data.patients?.length ?? 0,
+        totalVisits: visitsRes.data.total ?? visitsRes.data.visits?.length ?? 0,
+        todayVisits: todayVisitsRes.data.total ?? 0,
+        patientsToday: todayVisitsRes.data.total ?? 0,
+        appointmentsToday: todayAppointmentsRes.data.total ?? todayAppointmentsRes.data.appointments?.length ?? 0,
+        consultationsToday:
+          Number(awaitingPaymentRes.data.total ?? 0) +
+          Number(completedVisitsRes.data.total ?? 0),
+        totalRevenue: Number(financeStats.totalRevenue ?? 0),
+        pendingBills: Number(financeStats.totalOutstanding ?? 0),
       };
     },
   });
 
+  // Fetch department revenue breakdown
+  const { data: departmentRevenueData = [], isLoading: revenueLoading, isError: departmentRevenueError } = useQuery({
+    queryKey: ["department-revenue"],
+    queryFn: async () => {
+      const res = await api.get("/finance/department-revenue");
+      const data = res.data?.data ?? res.data;
+      if (!Array.isArray(data)) throw new Error("Department revenue response was invalid");
+      return data;
+    },
+  });
+
+  const departmentColors: { [key: string]: string } = {
+    CONSULTATION: "#8884d8",
+    PHARMACY: "#82ca9d",
+    LABORATORY: "#ffc658",
+    PROCEDURE: "#ff8042",
+    'OTHER_SERVICES': "#00C49F",
+  };
+
+  const transformedData = departmentRevenueData.reduce((acc: any, monthData: any) => {
+    const month = monthData.month;
+    let monthEntry = acc.find((entry: any) => entry.month === month);
+    if (!monthEntry) {
+      monthEntry = { month };
+      acc.push(monthEntry);
+    }
+    monthData.departments.forEach((dept: any) => {
+      monthEntry[dept.name] = dept.revenue;
+    });
+    return acc;
+  }, []);
+
+  const departmentNames = Array.from(
+    new Set(
+      departmentRevenueData.flatMap((monthData: any) =>
+        monthData.departments.map((dept: any) => dept.name)
+      )
+    )
+  );
+
   // Fetch real chart data from APIs
-  const { data: revenueData = [] } = useQuery({
+  const { data: revenueData = [], isLoading: revenueChartLoading, isError: revenueChartError } = useQuery({
     queryKey: ["dashboardRevenueData"],
     queryFn: async () => {
-      try {
-        const res = await api.get("/finance/revenue");
-        return res.data.data || [];
-      } catch {
-        return [];
-      }
+      const res = await api.get("/finance/revenue");
+      const data = res.data?.data ?? res.data;
+      if (!Array.isArray(data)) throw new Error("Revenue response was invalid");
+      return data;
     },
   });
 
   // Fetch visits data to calculate appointments trend
-  const { data: appointmentsData = [] } = useQuery({
+  const { data: appointmentsData = [], isError: appointmentsError } = useQuery({
     queryKey: ["dashboardAppointmentsTrend"],
     queryFn: async () => {
-      try {
-        const res = await api.get("/visits");
-        const visits = res.data.visits || [];
-
-        // Group visits by day of week
-        const dayMap = new Map<
-          string,
-          { appointments: number; consultations: number }
-        >();
-        const daysOfWeek = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-        daysOfWeek.forEach((day) => {
-          dayMap.set(day, { appointments: 0, consultations: 0 });
-        });
-
-        visits.forEach((visit: any) => {
-          const visitDate = new Date(visit.visitDate);
-          const dayIndex = visitDate.getDay();
-          const dayName = daysOfWeek[(dayIndex + 6) % 7]; // Convert JS day (0=Sun) to our format (0=Mon)
-
-          const dayData = dayMap.get(dayName) || {
-            appointments: 0,
-            consultations: 0,
-          };
-          dayData.appointments++;
-          if (visit.status === "COMPLETED") {
-            dayData.consultations++;
-          }
-          dayMap.set(dayName, dayData);
-        });
-
-        return daysOfWeek.map((day) => ({
-          day,
-          appointments: dayMap.get(day)?.appointments || 0,
-          consultations: dayMap.get(day)?.consultations || 0,
-        }));
-      } catch {
-        return daysOfWeek.map((day) => ({
-          day,
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      start.setDate(start.getDate() - 6);
+      const end = new Date();
+      end.setHours(23, 59, 59, 999);
+      const params = { fromDate: start.toISOString(), toDate: end.toISOString(), limit: 100 };
+      const fetchAll = async (path: string, key: "appointments" | "visits") => {
+        const firstPage = await api.get(path, { params: { ...params, offset: 0 } });
+        const records = [...(firstPage.data[key] ?? [])];
+        const total = Number(firstPage.data.total ?? records.length);
+        for (let offset = records.length; offset < total; offset += params.limit) {
+          const page = await api.get(path, { params: { ...params, offset } });
+          const pageRecords = page.data[key] ?? [];
+          if (pageRecords.length === 0) break;
+          records.push(...pageRecords);
+        }
+        return records;
+      };
+      const [appointments, visits] = await Promise.all([
+        fetchAll("/appointments", "appointments"),
+        fetchAll("/visits", "visits"),
+      ]);
+      const days = Array.from({ length: 7 }, (_, index) => {
+        const date = new Date(start);
+        date.setDate(start.getDate() + index);
+        return {
+          date,
+          day: date.toLocaleDateString(undefined, { weekday: "short" }),
           appointments: 0,
           consultations: 0,
-        }));
-      }
+        };
+      });
+      appointments.forEach((appointment: { appointmentDate: string }) => {
+        const date = new Date(appointment.appointmentDate);
+        const day = days.find((item) => item.date.toDateString() === date.toDateString());
+        if (day) day.appointments += 1;
+      });
+      visits.forEach((visit: { visitDate: string; status: string }) => {
+        const date = new Date(visit.visitDate);
+        const day = days.find((item) => item.date.toDateString() === date.toDateString());
+        if (day && ["AWAITING_PAYMENT", "COMPLETED"].includes(visit.status)) {
+          day.consultations += 1;
+        }
+      });
+      return days.map(({ day, appointments: appointmentCount, consultations }) => ({
+        day,
+        appointments: appointmentCount,
+        consultations,
+      }));
     },
   });
 
-  const daysOfWeek = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
   // Fetch patient growth data (monthly)
-  const { data: patientGrowthData = [] } = useQuery({
+  const { data: patientGrowthData = [], isError: patientGrowthError } = useQuery({
     queryKey: ["dashboardPatientGrowth"],
     queryFn: async () => {
-      try {
-        const res = await api.get("/patients");
-        const patients = res.data.patients || [];
+      const pageSize = 100;
+      const firstPage = await api.get("/patients", { params: { limit: pageSize, offset: 0 } });
+      const patients = [...(firstPage.data.patients ?? [])];
+      const total = Number(firstPage.data.total ?? patients.length);
+      for (let offset = patients.length; offset < total; offset += pageSize) {
+        const page = await api.get("/patients", { params: { limit: pageSize, offset } });
+        const pagePatients = page.data.patients ?? [];
+        if (pagePatients.length === 0) break;
+        patients.push(...pagePatients);
+      }
 
         // Group patients by month
         const monthMap = new Map<string, { patients: number; new: number }>();
@@ -289,20 +311,24 @@ const DashboardPage = () => {
           "Dec",
         ];
 
-        // Initialize last 6 months
+        // Initialize last six months with current system totals and registrations.
         const now = new Date();
+        const firstMonth = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+        const olderPatients = patients.filter((patient: any) => {
+          const registeredAt = new Date(patient.registrationDate || patient.createdAt);
+          return registeredAt < firstMonth;
+        }).length;
         for (let i = 5; i >= 0; i--) {
           const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-          const monthKey = monthNames[date.getMonth()];
+          const monthKey = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
           monthMap.set(monthKey, { patients: 0, new: 0 });
         }
 
-        // Count patients registered in each month
         patients.forEach((patient: any) => {
           const registrationDate = new Date(
             patient.registrationDate || patient.createdAt,
           );
-          const monthKey = monthNames[registrationDate.getMonth()];
+          const monthKey = `${monthNames[registrationDate.getMonth()]} ${registrationDate.getFullYear()}`;
           if (monthMap.has(monthKey)) {
             const data = monthMap.get(monthKey)!;
             data.new++;
@@ -311,7 +337,7 @@ const DashboardPage = () => {
         });
 
         // Calculate cumulative patient count
-        let cumulativePatients = 0;
+        let cumulativePatients = olderPatients;
         return Array.from(monthMap.entries()).map(([month, data]) => {
           cumulativePatients += data.new;
           return {
@@ -320,63 +346,16 @@ const DashboardPage = () => {
             new: data.new,
           };
         });
-      } catch {
-        return [];
-      }
     },
   });
 
-  // Fetch visit data to calculate department stats
-  const { data: departmentData = [] } = useQuery({
-    queryKey: ["dashboardDepartmentStats"],
-    queryFn: async () => {
-      try {
-        const res = await api.get("/visits");
-        const visits = res.data.visits || [];
-
-        // Group visits by visit type (if available) or use generic department names
-        const departmentMap = new Map<string, number>();
-
-        visits.forEach((visit: any) => {
-          const dept = visit.visitType || "General";
-          departmentMap.set(dept, (departmentMap.get(dept) || 0) + 1);
-        });
-
-        const departmentArray = Array.from(departmentMap.entries())
-          .map(([name, value]) => ({ name, value }))
-          .sort((a, b) => b.value - a.value)
-          .slice(0, 5); // Top 5 departments
-
-        // Ensure we have at least 5 entries for the pie chart
-        const defaultDepts = [
-          { name: "General Medicine", value: 0 },
-          { name: "Cardiology", value: 0 },
-          { name: "Laboratory", value: 0 },
-          { name: "Pediatrics", value: 0 },
-          { name: "Others", value: 0 },
-        ];
-
-        departmentArray.forEach((dept) => {
-          const index = defaultDepts.findIndex(
-            (d) => d.name.toLowerCase() === dept.name.toLowerCase(),
-          );
-          if (index >= 0) {
-            defaultDepts[index].value = dept.value;
-          }
-        });
-
-        return defaultDepts;
-      } catch {
-        return [
-          { name: "General Medicine", value: 0 },
-          { name: "Cardiology", value: 0 },
-          { name: "Laboratory", value: 0 },
-          { name: "Pediatrics", value: 0 },
-          { name: "Others", value: 0 },
-        ];
-      }
-    },
-  });
+  const latestDepartmentRevenue = departmentRevenueData[departmentRevenueData.length - 1];
+  const departmentData: { name: string; value: number }[] = latestDepartmentRevenue?.departments.map(
+    (department: { name: string; revenue: number }) => ({
+      name: department.name,
+      value: Number(department.revenue),
+    }),
+  ) ?? [];
 
   const metrics = [
     {
@@ -384,48 +363,42 @@ const DashboardPage = () => {
       value: stats?.totalPatients ?? 0,
       icon: People,
       color: PRIMARY_COLOR,
-      trend: "up" as const,
-      trendValue: "+12.5%",
+      trendValue: "All registrations",
     },
     {
-      title: "Patients Today",
+      title: "Patients Seen Today",
       value: stats?.patientsToday ?? 0,
       icon: People,
       color: "#3B82F6",
-      trend: "up" as const,
-      trendValue: "+8.2%",
+      trendValue: "Visits today",
     },
     {
       title: "Appointments Today",
       value: stats?.appointmentsToday ?? 0,
       icon: CalendarToday,
       color: "#14B8A6",
-      trend: "up" as const,
-      trendValue: "+15.3%",
+      trendValue: "Scheduled today",
     },
     {
-      title: "Consultations",
+      title: "Completed Consultations Today",
       value: stats?.consultationsToday ?? 0,
       icon: MedicalServices,
       color: "#8B5CF6",
-      trend: "neutral" as const,
-      trendValue: "+2.1%",
+      trendValue: "Completed visits today",
     },
     {
       title: "Total Revenue",
       value: formatCurrency(stats?.totalRevenue ?? 0),
       icon: AttachMoney,
       color: "#10B981",
-      trend: "up" as const,
-      trendValue: "+22.4%",
+      trendValue: "Collected to date",
     },
     {
       title: "Pending Bills",
       value: stats?.pendingBills ?? 0,
       icon: PendingActions,
       color: "#F59E0B",
-      trend: "down" as const,
-      trendValue: "-5.8%",
+      trendValue: "Outstanding balance",
     },
   ];
 
@@ -444,6 +417,12 @@ const DashboardPage = () => {
           Here's what's happening with your clinic today.
         </Typography>
       </Box>
+
+      {(statsError || departmentRevenueError || revenueChartError || appointmentsError || patientGrowthError) && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          Some dashboard data could not be loaded. Charts will not show placeholder values; check your connection and refresh.
+        </Alert>
+      )}
 
       {/* Metric Cards Grid */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
@@ -548,7 +527,8 @@ const DashboardPage = () => {
               >
                 Revenue Analytics
               </Typography>
-              <ResponsiveContainer width="100%" height={300}>
+              {revenueChartLoading ? <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}><CircularProgress /></Box> : revenueData.length ? (
+                <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={revenueData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis dataKey="month" stroke={TEXT_MUTED} />
@@ -566,13 +546,9 @@ const DashboardPage = () => {
                     fill={PRIMARY_COLOR}
                     radius={[8, 8, 0, 0]}
                   />
-                  <Bar
-                    dataKey="expenses"
-                    fill="#94A3B8"
-                    radius={[8, 8, 0, 0]}
-                  />
                 </BarChart>
-              </ResponsiveContainer>
+                </ResponsiveContainer>
+              ) : <Typography color="text.secondary">No payment revenue has been recorded in the displayed period.</Typography>}
             </Box>
           </Paper>
         </Grid>
@@ -594,7 +570,7 @@ const DashboardPage = () => {
               >
                 Appointments Trend
               </Typography>
-              <ResponsiveContainer width="100%" height={300}>
+              {appointmentsData.length ? <ResponsiveContainer width="100%" height={300}>
                 <AreaChart data={appointmentsData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis dataKey="day" stroke={TEXT_MUTED} />
@@ -622,7 +598,7 @@ const DashboardPage = () => {
                     fill={`${SECONDARY_COLOR}40`}
                   />
                 </AreaChart>
-              </ResponsiveContainer>
+              </ResponsiveContainer> : <Typography color="text.secondary">No appointment or completed consultation data is available for the past week.</Typography>}
             </Box>
           </Paper>
         </Grid>
@@ -642,9 +618,9 @@ const DashboardPage = () => {
                 variant="h6"
                 sx={{ color: TEXT_PRIMARY, fontWeight: 600, mb: 3 }}
               >
-                Department Statistics
+                Department Revenue · {latestDepartmentRevenue?.month ?? "latest month"}
               </Typography>
-              <ResponsiveContainer width="100%" height={300}>
+              {departmentData.length ? <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <Pie
                     data={departmentData}
@@ -655,7 +631,7 @@ const DashboardPage = () => {
                     paddingAngle={5}
                     dataKey="value"
                   >
-                    {departmentData.map((_entry, index) => (
+                    {departmentData.map((_entry: { name: string; value: number }, index: number) => (
                       <Cell
                         key={`cell-${index}`}
                         fill={CHART_COLORS[index % CHART_COLORS.length]}
@@ -671,11 +647,48 @@ const DashboardPage = () => {
                   />
                   <Legend />
                 </PieChart>
-              </ResponsiveContainer>
+              </ResponsiveContainer> : <Typography color="text.secondary">No department revenue has been recorded for the latest month.</Typography>}
             </Box>
           </Paper>
         </Grid>
       </Grid>
+
+      {user?.role?.name === "ADMINISTRATOR" && (
+        <Grid item xs={12} sx={{ mt: 4 }}>
+          <Paper elevation={2} sx={{ p: 3 }}>
+            <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
+              Revenue by Department
+            </Typography>
+            {revenueLoading ? (
+              <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
+                <CircularProgress />
+              </Box>
+            ) : departmentRevenueError ? (
+              <Alert severity="error">Department revenue data could not be loaded.</Alert>
+            ) : transformedData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={transformedData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip />
+                  {departmentNames.map((dept: any) => (
+                    <Line
+                      key={dept}
+                      type="monotone"
+                      dataKey={dept}
+                      stroke={departmentColors[dept] || "#000000"}
+                      strokeWidth={2}
+                      name={dept}
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            ) : <Typography color="text.secondary">No department revenue has been recorded in the displayed period.</Typography>}
+          </Paper>
+        </Grid>
+      )}
+
       <Grid item xs={12} sx={{ mt: 4 }}>
         <DutyRoster />
       </Grid>

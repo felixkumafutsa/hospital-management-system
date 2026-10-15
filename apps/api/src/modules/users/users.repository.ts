@@ -4,6 +4,34 @@ import logger from '../../config/logger';
 
 const prisma = new PrismaClient();
 
+const fallbackRoles = [
+  { name: 'ADMINISTRATOR', displayName: 'Administrator' },
+  { name: 'RECEPTION_CASHIER', displayName: 'Reception & Cashier' },
+  { name: 'NURSE', displayName: 'Nurse' },
+  { name: 'DOCTOR', displayName: 'Doctor' },
+  { name: 'ANESTHETIST', displayName: 'Anesthetist' },
+  { name: 'LAB_TECH', displayName: 'Laboratory Technician' },
+  { name: 'PHARMACIST', displayName: 'Pharmacist' },
+  { name: 'MD', displayName: 'Medical Director' },
+] as const;
+
+export const getRoles = async () => {
+  await prisma.$transaction(
+    fallbackRoles.map((role) =>
+      prisma.role.upsert({
+        where: { name: role.name },
+        update: {},
+        create: { name: role.name, displayName: role.displayName },
+      })
+    )
+  );
+
+  return prisma.role.findMany({
+    select: { id: true, name: true, displayName: true },
+    orderBy: { displayName: 'asc' },
+  });
+};
+
 export const createUser = async (data: any) => {
   try {
     // Check if email already exists
@@ -33,6 +61,7 @@ export const createUser = async (data: any) => {
         phone: data.phone,
         passwordHash: hashedPassword,
         roleId: data.roleId,
+        isActive: data.isActive ?? true,
       },
       include: {
         role: true,
@@ -239,20 +268,25 @@ export const updateUser = async (id: string, data: any) => {
 
 export const deactivateUser = async (id: string) => {
   try {
-    const user = await prisma.user.update({
-      where: { id },
-      data: {
-        isActive: false,
-      },
+    const user = await prisma.$transaction(async (transaction) => {
+      const archivedUser = await transaction.user.update({
+        where: { id },
+        data: { isActive: false },
+      });
+      await transaction.refreshToken.updateMany({
+        where: { userId: id, revoked: false },
+        data: { revoked: true },
+      });
+      return archivedUser;
     });
 
-    logger.info(`User deactivated: ${user.id}`);
+    logger.info(`User archived: ${user.id}`);
     return {
       success: true,
-      message: 'User deactivated',
+      message: 'User archived',
     };
   } catch (error: any) {
-    logger.error(`Error deactivating user: ${error.message}`);
+    logger.error(`Error archiving user: ${error.message}`);
     throw error;
   }
 };

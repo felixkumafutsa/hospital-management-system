@@ -27,15 +27,13 @@ import {
   MenuItem,
   FormControl,
 } from "@mui/material";
-import {
-  Add,
-  Visibility,
-  AttachMoney,
-  Close,
-} from "@mui/icons-material";
+import { Add, Visibility, AttachMoney, Close } from "@mui/icons-material";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "../../services/api";
 import { formatCurrency } from "../../utils/currency";
+import { printThermalReceipt, type ThermalReceiptData } from "../../utils/thermalReceipt";
+import { useAuth } from "../../contexts/AuthContext";
+
 
 interface InvoiceItem {
   description: string;
@@ -131,6 +129,8 @@ const InvoicesPage = () => {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [receiptForPrint, setReceiptForPrint] = useState<ThermalReceiptData | null>(null);
+  const [receiptPrintError, setReceiptPrintError] = useState("");
   const [paymentForm, setPaymentForm] = useState({
     amount: "",
     method: "CASH",
@@ -138,6 +138,8 @@ const InvoicesPage = () => {
     notes: "",
   });
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const canCreateInvoice = user?.role.name === "ADMINISTRATOR";
 
   const getPaymentBreakdown = (invoice: Invoice) => {
     const serviceSubtotal = invoice.items
@@ -157,7 +159,7 @@ const InvoicesPage = () => {
     };
   };
 
-  const { data: invoices = [], isLoading } = useQuery<Invoice[]>({
+  const { data: invoices = [], isLoading, isError: invoicesError } = useQuery<Invoice[]>({
     queryKey: ["invoices"],
     queryFn: async () => {
       const res = await api.get("/finance/invoices", { params: { limit: 100 } });
@@ -172,6 +174,7 @@ const InvoicesPage = () => {
       const res = await api.get("/patients");
       return res.data.patients;
     },
+    enabled: canCreateInvoice,
   });
 
   const { data: visits = [] } = useQuery({
@@ -180,6 +183,14 @@ const InvoicesPage = () => {
       const res = await api.get("/visits");
       return res.data.visits;
     },
+    enabled: canCreateInvoice,
+  });
+
+  const [newInvoice, setNewInvoice] = useState<NewInvoice>({
+    patientId: "",
+    visitId: "",
+    items: [{ description: "", category: "CONSULTATION", quantity: 1, unitPrice: 0 }],
+    discount: 0,
   });
 
   const { data: pricingSettings } = useQuery({
@@ -188,15 +199,67 @@ const InvoicesPage = () => {
       const response = await api.get("/settings/pricing");
       return response.data?.settings;
     },
+    enabled: canCreateInvoice,
   });
   const consultationFee = Number(pricingSettings?.consultationFee || 0);
 
-  const [newInvoice, setNewInvoice] = useState<NewInvoice>({
-    patientId: "",
-    visitId: "",
-    items: [{ description: "", category: "CONSULTATION", quantity: 1, unitPrice: 0 }],
-    discount: 0,
+  const { data: visitDetails } = useQuery({
+    queryKey: ["visit-details", newInvoice.visitId],
+    queryFn: async () => {
+      if (!newInvoice.visitId) return null;
+      
+      const visitResponse = await api.get(`/visits/${newInvoice.visitId}`);
+      const visit = visitResponse.data?.visit ?? visitResponse.data?.data;
+  
+      const labTestsResponse = await api.get(`/lab/requests/visit/${newInvoice.visitId}`).catch(() => null);
+      const labItems = (Array.isArray(labTestsResponse?.data?.items) ? labTestsResponse.data.items : (Array.isArray(labTestsResponse?.data?.data) ? labTestsResponse.data.data : [])).filter((item: any) => item.status !== 'CANCELLED');
+  
+      const prescriptionsResponse = await api.get(`/prescriptions/visit/${newInvoice.visitId}`).catch(() => null);
+      const prescriptionRecords = (Array.isArray(prescriptionsResponse?.data?.items) ? prescriptionsResponse.data.items : (Array.isArray(prescriptionsResponse?.data?.data) ? prescriptionsResponse.data.data : [])).filter((item: any) => item.status !== 'CANCELLED');
+  
+      return { visit, labItems, prescriptionRecords };
+    },
+    enabled: !!newInvoice.visitId,
   });
+
+  useEffect(() => {
+    if (!visitDetails) return;
+
+    const { visit, labItems, prescriptionRecords } = visitDetails;
+
+    const consultationItem = {
+      description: "Consultation",
+      category: "CONSULTATION",
+      quantity: 1,
+      unitPrice: Number(visit.consultation?.consultationFee ?? consultationFee ?? 0),
+      referenceId: visit.consultation?.id,
+    };
+
+    const labTestItems = labItems.map((item: any) => ({
+      description: item.test?.name || "Lab Test",
+      category: "LAB_TEST",
+      quantity: 1,
+      unitPrice: Number(item.test?.price ?? 0),
+      referenceId: item.id,
+    }));
+
+    const prescriptionItems = prescriptionRecords.flatMap((prescription: any) =>
+      (prescription.items || []).map((item: any) => ({
+        description: item.medicine?.name || "Medication",
+        category: "MEDICATION",
+        quantity: Number(item.quantity || 0),
+        unitPrice: Number(item.medicine?.price ?? 0),
+        referenceId: item.id,
+      }))
+    );
+
+    const allItems = [consultationItem, ...labTestItems, ...prescriptionItems].filter(item => item.unitPrice > 0);
+
+    setNewInvoice(current => ({
+      ...current,
+      items: allItems.length > 0 ? allItems : [{ description: "Consultation", category: "CONSULTATION", quantity: 1, unitPrice: consultationFee, referenceId: visit.consultation?.id }],
+    }));
+  }, [visitDetails, consultationFee]);
 
   useEffect(() => {
     if (consultationFee <= 0) return;
@@ -261,13 +324,23 @@ const InvoicesPage = () => {
   });
 
   const recordPaymentMutation = useMutation({
-    mutationFn: async ({ invoiceId, paymentData }: { invoiceId: string; paymentData: any }) => {
-      await api.post(`/finance/invoices/${invoiceId}/payments`, paymentData);
+    mutationFn: async ({ invoice, paymentData }: { invoice: Invoice; paymentData: any }) => {
+      const paymentResponse = await api.post(`/finance/invoices/${invoice.id}/payments`, paymentData);
+      return {
+        ...invoice,
+        payment: paymentResponse.data,
+      } as ThermalReceiptData;
     },
-    onSuccess: () => {
+    onSuccess: (receiptData) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["pharmacyPrescriptions"] });
       queryClient.invalidateQueries({ queryKey: ["pharmacyDashboardStats"] });
+      setReceiptForPrint(receiptData);
+      setReceiptPrintError("");
+      void printThermalReceipt(receiptData).catch((error: unknown) => {
+        console.error("Could not open the payment receipt for printing.", error);
+        setReceiptPrintError("Payment was recorded, but the receipt could not be printed. Use Print receipt to try again.");
+      });
       setIsPaymentDialogOpen(false);
       setPaymentForm({ amount: "", method: "CASH", reference: "", notes: "" });
       setSelectedInvoice(null);
@@ -281,7 +354,7 @@ const InvoicesPage = () => {
   const handleRecordPayment = () => {
     if (!selectedInvoice) return;
     recordPaymentMutation.mutate({
-      invoiceId: selectedInvoice.id,
+      invoice: selectedInvoice,
       paymentData: {
         amount: parseFloat(paymentForm.amount),
         method: paymentForm.method,
@@ -315,15 +388,46 @@ const InvoicesPage = () => {
         <Typography variant="h4" sx={{ fontWeight: 600 }}>
           Invoices
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          sx={{ bgcolor: "#0EA5A4", "&:hover": { bgcolor: "#0c8c8b" } }}
-          onClick={() => setIsCreateDialogOpen(true)}
-        >
-          Create Invoice
-        </Button>
+        {canCreateInvoice && (
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            sx={{ bgcolor: "#0EA5A4", "&:hover": { bgcolor: "#0c8c8b" } }}
+            onClick={() => setIsCreateDialogOpen(true)}
+          >
+            Create Invoice
+          </Button>
+        )}
       </Box>
+
+      {invoicesError && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          Invoices could not be loaded. Refresh the page or contact an administrator if the issue continues.
+        </Alert>
+      )}
+
+      {receiptPrintError && receiptForPrint && (
+        <Alert
+          severity="warning"
+          sx={{ mb: 2 }}
+          action={
+            <Button
+              color="inherit"
+              size="small"
+              onClick={() =>
+                void printThermalReceipt(receiptForPrint).catch((error: unknown) => {
+                  console.error("Could not print the payment receipt.", error);
+                  setReceiptPrintError("Receipt printing failed. Check the printer and retry.");
+                })
+              }
+            >
+              Print receipt
+            </Button>
+          }
+        >
+          {receiptPrintError}
+        </Alert>
+      )}
 
       <Paper sx={{ p: 2, mb: 3 }}>
         <TextField
@@ -527,6 +631,11 @@ const InvoicesPage = () => {
         <DialogContent>
           {selectedInvoice && (
             <Box sx={{ pt: 2 }}>
+              {recordPaymentMutation.isError && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  Payment could not be recorded. Refresh the invoice and verify the amount before retrying.
+                </Alert>
+              )}
               <Typography variant="subtitle2" sx={{ mb: 2, display: "flex", alignItems: "center", gap: 0.5 }}>
                 <AttachMoney fontSize="small" />
                 Remaining Balance: {formatCurrency(selectedInvoice.balance)}

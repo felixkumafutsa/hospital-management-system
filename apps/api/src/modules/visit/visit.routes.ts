@@ -1,10 +1,14 @@
 import { Router } from 'express';
+import { RequestHandler } from 'express';
 import { validate } from '../../middlewares/validate';
-import { authenticate, authorize } from '../../middlewares/auth';
+import { authenticate, authorize, authorizeExactRole } from '../../middlewares/auth';
+import { prisma } from '../../config/database';
+import { ApiError } from '../../middlewares/errorHandler';
 import {
   createVisitSchema,
   updateVisitStatusSchema,
-  getVisitsSchema
+  getVisitsSchema,
+  admitPatientSchema
 } from './visit.validator';
 import {
   createVisitController,
@@ -13,6 +17,7 @@ import {
   getAllVisitsController,
   updateVisitStatusController,
   getVisitQueueController,
+  getAvailableAdmissionWardsController,
   admitPatientController,
   dischargePatientController,
   setPatientEmergencyController,
@@ -23,8 +28,36 @@ import {
   completeVisitController,
   getDashboardStatsController
 } from './visit.controller';
+import {
+  addBedsController,
+  createWardController,
+  listManagedWardsController,
+} from './ward-management.controller';
+import {
+  addWardBedsSchema,
+  createWardSchema,
+  getManagedWardsSchema,
+} from './ward-management.validator';
 
 const router = Router();
+
+const restrictReceptionVisits: RequestHandler = async (req, _res, next) => {
+  try {
+    if (!req.user) {
+      return next(new ApiError(401, 'UNAUTHORIZED', 'User not authenticated'));
+    }
+    const role = await prisma.role.findUnique({
+      where: { id: req.user.roleId },
+      select: { name: true },
+    });
+    if (role && ['RECEPTIONIST', 'RECEPTION_CASHIER', 'CASHIER'].includes(role.name) && req.query.status !== 'ADMITTED') {
+      return next(new ApiError(403, 'FORBIDDEN', 'Reception can only view admitted patient records'));
+    }
+    return next();
+  } catch (error) {
+    return next(error);
+  }
+};
 
 // All routes require authentication
 router.use(authenticate);
@@ -32,7 +65,7 @@ router.use(authenticate);
 // Create visit
 router.post(
   '/',
-  authorize(['RECEPTION_CASHIER', 'RECEPTIONIST', 'ADMINISTRATOR', 'NURSE', 'DOCTOR']),
+  authorize(['ADMINISTRATOR', 'NURSE', 'DOCTOR']),
   validate(createVisitSchema),
   createVisitController
 );
@@ -40,6 +73,7 @@ router.post(
 // Get visit queue (for reception dashboard)
 router.get(
   '/queue',
+  authorize(['ADMINISTRATOR', 'NURSE', 'DOCTOR']),
   getVisitQueueController
 );
 
@@ -52,25 +86,54 @@ router.get(
 // Get all visits
 router.get(
   '/',
+  restrictReceptionVisits,
   validate(getVisitsSchema),
   getAllVisitsController
+);
+
+router.get(
+  '/wards/manage',
+  authorizeExactRole('ADMINISTRATOR'),
+  validate(getManagedWardsSchema),
+  listManagedWardsController
+);
+
+router.post(
+  '/wards/manage',
+  authorizeExactRole('ADMINISTRATOR'),
+  validate(createWardSchema),
+  createWardController
+);
+
+router.post(
+  '/wards/:wardId/beds',
+  authorizeExactRole('ADMINISTRATOR'),
+  validate(addWardBedsSchema),
+  addBedsController
+);
+
+router.get(
+  '/wards/available',
+  getAvailableAdmissionWardsController
 );
 
 // Get patient's visit history
 router.get(
   '/patient/:patientId',
+  authorize(['ADMINISTRATOR', 'DOCTOR', 'NURSE']),
   getPatientVisitsController
 );
 
 // Get visit by ID, update status
 router.get(
   '/:id',
+  authorize(['ADMINISTRATOR', 'DOCTOR', 'NURSE']),
   getVisitByIdController
 );
 
 router.put(
   '/:id/status',
-  authorize(['NURSE', 'DOCTOR', 'ADMINISTRATOR', 'RECEPTION_CASHIER', 'RECEPTIONIST']),
+  authorize(['NURSE', 'DOCTOR', 'ADMINISTRATOR']),
   validate(updateVisitStatusSchema),
   updateVisitStatusController
 );
@@ -79,6 +142,7 @@ router.put(
 router.put(
   '/:id/admit',
   authorize(['DOCTOR', 'ADMINISTRATOR']),
+  validate(admitPatientSchema),
   admitPatientController
 );
 
@@ -92,7 +156,7 @@ router.put(
 // Mark as emergency
 router.put(
   '/:id/emergency',
-  authorize(['NURSE', 'DOCTOR', 'ADMINISTRATOR', 'RECEPTION_CASHIER', 'RECEPTIONIST']),
+  authorize(['NURSE', 'DOCTOR', 'ADMINISTRATOR']),
   setPatientEmergencyController
 );
 

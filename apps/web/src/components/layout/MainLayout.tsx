@@ -17,7 +17,6 @@ import {
   useMediaQuery,
   useTheme,
   InputBase,
-  Badge,
   Fade,
   Paper,
 } from "@mui/material";
@@ -36,13 +35,17 @@ import {
   Settings,
   Logout,
   Search,
-  Notifications,
-  Mail,
   Home,
+  Brightness4,
+  Brightness7,
 } from "@mui/icons-material";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
+import { useTheme as useAppTheme } from "../../contexts/ThemeContext";
 import { alpha } from "@mui/material/styles";
+import { Badge } from "@mui/material";
+import { useQuery } from "@tanstack/react-query";
+import api from "../../services/api";
 
 interface MenuItemType {
   text: string;
@@ -59,6 +62,7 @@ const TEXT_MUTED = "#64748B";
 
 const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
   const { user, logout } = useAuth();
+  const { toggleTheme, mode } = useAppTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
@@ -70,6 +74,72 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
     null,
   );
   const [searchQuery, setSearchQuery] = useState("");
+  const roleName = user?.role?.name ?? "";
+  const canViewAppointments = ["ADMINISTRATOR", "DOCTOR", "NURSE"].includes(roleName);
+  const canViewTheater = ["ADMINISTRATOR", "DOCTOR", "NURSE", "ANESTHETIST", "RECEPTIONIST", "RECEPTION_CASHIER"].includes(roleName);
+  const canViewInventory = ["ADMINISTRATOR", "PHARMACIST"].includes(roleName);
+
+  const {
+    data: attentionCounts = {},
+    isError: attentionCountsError,
+  } = useQuery<Record<string, number>>({
+    queryKey: ["sidebar-attention-counts", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const [workflowResponse, unpaidInvoicesResponse, partialInvoicesResponse] = await Promise.all([
+        api.get("/visits/dashboard/stats"),
+        api.get("/finance/invoices", { params: { status: "UNPAID", limit: 1 } }),
+        api.get("/finance/invoices", { params: { status: "PARTIAL", limit: 1 } }),
+      ]);
+      const workflowStats = workflowResponse.data.stats;
+      const counts: Record<string, number> = {
+        "/patients/admissions": workflowStats.currentAdmissions,
+        "/consultations": workflowStats.waitingForConsultation,
+        "/lab-tests": workflowStats.pendingLabTests,
+        "/prescriptions": workflowStats.pendingPrescriptions,
+        "/finance/invoices":
+          Number(unpaidInvoicesResponse.data.total ?? 0) +
+          Number(partialInvoicesResponse.data.total ?? 0),
+      };
+
+      if (canViewAppointments) {
+        const today = new Date();
+        const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+        const response = await api.get("/appointments", {
+          params: {
+            fromDate: start.toISOString(),
+            toDate: end.toISOString(),
+            limit: 1,
+          },
+        });
+        counts["/appointments"] = Number(response.data.total ?? 0);
+      }
+
+      if (canViewTheater) {
+        const response = await api.get("/theater");
+        const procedures = response.data;
+        if (!Array.isArray(procedures)) {
+          throw new Error("Theater attention count response was invalid");
+        }
+        counts["/theater"] = procedures.filter(
+          (procedure: { status: string }) => procedure.status === "REQUESTED",
+        ).length;
+      }
+
+      if (canViewInventory) {
+        const response = await api.get("/pharmacy/low-stock");
+        const lowStockItems = response.data.data;
+        if (!Array.isArray(lowStockItems)) {
+          throw new Error("Pharmacy attention count response was invalid");
+        }
+        counts["/pharmacy/inventory"] = lowStockItems.length;
+      }
+
+      return counts;
+    },
+    refetchInterval: 60_000,
+  });
 
   const allMenuItems: MenuItemType[] = [
     {
@@ -107,7 +177,7 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
       text: "Medicine Shop",
       icon: <Storefront />,
       path: "/pharmacy/shop",
-      allowedRoles: ["pharmacist", "reception", "admin"],
+      allowedRoles: ["pharmacist", "admin"],
     },
     {
       text: "Laboratory Dashboard",
@@ -125,7 +195,7 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
       text: "Theater",
       icon: <Theaters />,
       path: "/theater",
-      allowedRoles: ["admin", "doctor", "nurse", "anesthetist"],
+      allowedRoles: ["admin", "doctor", "nurse", "anesthetist", "reception"],
     },
     {
       text: "Accounts Dashboard",
@@ -137,13 +207,19 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
       text: "Patients",
       icon: <Person />,
       path: "/patients",
+      allowedRoles: ["admin", "doctor", "nurse"],
+    },
+    {
+      text: "Patient Admissions",
+      icon: <Person />,
+      path: "/patients/admissions",
       allowedRoles: ["admin", "reception", "doctor", "nurse"],
     },
     {
       text: "Appointments",
       icon: <CalendarToday />,
       path: "/appointments",
-      allowedRoles: ["admin", "reception", "doctor"],
+      allowedRoles: ["admin", "doctor"],
     },
     {
       text: "Consultations",
@@ -182,10 +258,16 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
       allowedRoles: ["admin", "ADMINISTRATOR"],
     },
     {
+      text: "Wards & Beds",
+      icon: <MedicalServices />,
+      path: "/wards",
+      allowedRoles: ["admin", "ADMINISTRATOR"],
+    },
+    {
       text: "Finance Dashboard",
       icon: <BarChart />,
       path: "/finance",
-      allowedRoles: ["admin", "accountant", "cashier", "reception"],
+      allowedRoles: ["admin", "accountant", "cashier"],
     },
     {
       text: "Invoices",
@@ -271,7 +353,7 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
       "/lab": () => import("../../pages/lab/LabDashboardPage"),
       "/maternity": () =>
         import("../../pages/maternity/MaternityDashboardPage"),
-      "/theater": () => import("../../pages/theater/TheaterPage"),
+      "/theater": () => import("../../pages/theater/TheaterDashboardPage"),
       "/accounts": () => import("../../pages/accounts/AccountsDashboardPage"),
       "/patients": () => import("../../pages/patients/PatientListPage"),
       "/appointments": () =>
@@ -419,11 +501,27 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
                   color: "inherit",
                 }}
               >
-                {item.icon}
+                {desktopCollapsed && !isMobile && attentionCounts[item.path] > 0 ? (
+                  <Badge badgeContent={attentionCounts[item.path]} color="error" max={99}>
+                    {item.icon}
+                  </Badge>
+                ) : item.icon}
               </ListItemIcon>
               {!(desktopCollapsed && !isMobile) && (
                 <ListItemText
-                  primary={item.text}
+                    primary={
+                      attentionCounts[item.path] > 0 ? (
+                        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+                          <span>{item.text}</span>
+                          <Badge
+                            badgeContent={attentionCounts[item.path]}
+                            color="error"
+                            max={99}
+                            sx={{ "& .MuiBadge-badge": { position: "static", transform: "none", fontWeight: 700 } }}
+                          />
+                        </Box>
+                      ) : item.text
+                    }
                   sx={{
                     margin: 0,
                     "& .MuiListItemText-primary": {
@@ -437,6 +535,11 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
           );
         })}
       </List>
+      {attentionCountsError && (
+        <Typography role="alert" variant="caption" color="error" sx={{ px: 2, pb: 1 }}>
+          Attention counts could not be loaded.
+        </Typography>
+      )}
       {!(desktopCollapsed && !isMobile) && (
         <Box
           sx={{
@@ -536,6 +639,10 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
 
           <Box sx={{ flexGrow: 1 }} />
 
+          <IconButton sx={{ mr: 1 }} onClick={toggleTheme} color="inherit">
+            {mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
+          </IconButton>
+
           {/* Patient Search Bar */}
           <Paper
             component="form"
@@ -562,30 +669,6 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
               <Search sx={{ fontSize: 20, color: TEXT_MUTED }} />
             </IconButton>
           </Paper>
-
-          {/* Notifications */}
-          <IconButton
-            size="large"
-            aria-label="show 4 new notifications"
-            color="inherit"
-            sx={{ mr: 1 }}
-          >
-            <Badge badgeContent={4} color="error">
-              <Notifications sx={{ color: TEXT_MUTED }} />
-            </Badge>
-          </IconButton>
-
-          {/* Messages */}
-          <IconButton
-            size="large"
-            aria-label="show 3 new messages"
-            color="inherit"
-            sx={{ mr: 1 }}
-          >
-            <Badge badgeContent={3} color="primary">
-              <Mail sx={{ color: TEXT_MUTED }} />
-            </Badge>
-          </IconButton>
 
           {/* Profile Menu */}
           <IconButton
@@ -632,19 +715,7 @@ const MainLayout = React.memo(({ children }: { children: React.ReactNode }) => {
               },
             }}
           >
-            <MenuItem
-              onClick={() => {
-                navigate("/profile");
-                setUserMenuAnchor(null);
-              }}
-              sx={{ borderRadius: "8px", m: 0.5 }}
-            >
-              <ListItemIcon>
-                <Person fontSize="small" />
-              </ListItemIcon>
-              My Account
-            </MenuItem>
-            <MenuItem
+                        <MenuItem
               onClick={() => {
                 navigate("/profile");
                 setUserMenuAnchor(null);

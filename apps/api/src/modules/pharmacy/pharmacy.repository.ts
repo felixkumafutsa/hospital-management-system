@@ -5,9 +5,9 @@ const prisma = new PrismaClient();
 
 interface MedicineData {
   name: string;
-  genericName: string;
+  genericName?: string;
   form: DrugForm;
-  strength: string;
+  strength?: string;
   unit: string;
   reorderLevel?: number;
 }
@@ -588,4 +588,88 @@ export const getPharmacyDashboardStats = async () => {
       expiresAt: batch.expiresAt,
     })),
   };
+};
+
+export const getInventory = async () => {
+  try {
+    const inventory = await prisma.medicine.findMany({
+      where: { isActive: true },
+      include: {
+        batches: {
+          include: { supplier: true },
+          orderBy: { expiresAt: 'asc' },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    return inventory;
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      logger.error(`Error fetching inventory: ${error.message}`);
+    }
+    throw error;
+  }
+};
+
+export const getArchivedMedicines = async () => {
+  try {
+    return await prisma.medicine.findMany({
+      where: { isActive: false },
+      include: {
+        batches: {
+          include: { supplier: true },
+          orderBy: { expiresAt: 'asc' },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      logger.error(`Error fetching archived medicines: ${error.message}`);
+    }
+    throw error;
+  }
+};
+
+export const archiveMedicine = async (id: string) => {
+  try {
+    const medicine = await prisma.medicine.findUnique({ where: { id } });
+    if (!medicine) {
+      const error = new Error('Medicine not found');
+      (error as Error & { statusCode: number }).statusCode = 404;
+      throw error;
+    }
+
+    const archivedMedicine = medicine.isActive
+      ? await prisma.medicine.update({
+          where: { id },
+          data: { isActive: false },
+        })
+      : medicine;
+
+    logger.info(`Medicine archived: ${archivedMedicine.id}`);
+    return archivedMedicine;
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      logger.error(`Error archiving medicine: ${error.message}`);
+    }
+    throw error;
+  }
+};
+
+export const updateInventoryItem = async (id: string, data: any) => {
+  try {
+    const updatedItem = await prisma.medicine.update({
+      where: { id },
+      data,
+    });
+
+    return updatedItem;
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      logger.error(`Error updating inventory item: ${error.message}`);
+    }
+    throw error;
+  }
 };

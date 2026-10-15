@@ -46,12 +46,15 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Alert,
 } from "@mui/material";
 import {
   Add as AddIcon,
   Visibility,
   Search,
   Close,
+  Send,
+  Assignment,
 } from "@mui/icons-material";
 // @ts-ignore - react-big-calendar has React 19 compatibility issues
 import { Calendar, dateFnsLocalizer } from "react-big-calendar";
@@ -82,6 +85,7 @@ interface Appointment {
   start: Date;
   end: Date;
   patient: {
+    id: string;
     firstName: string;
     lastName: string;
   };
@@ -95,11 +99,18 @@ interface Appointment {
   doctorId?: string;
 }
 
+import { useNavigate } from "react-router-dom";
+import TriageDrawer from "../../components/TriageDrawer"; // Import the TriageDrawer
+
 const AppointmentsPage = () => {
+  const navigate = useNavigate(); // Add the useNavigate hook
+  const [triageDrawerOpen, setTriageDrawerOpen] = useState(false);
+  const [selectedAppointmentForTriage, setSelectedAppointmentForTriage] = useState<Appointment | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [appointmentStatusError, setAppointmentStatusError] = useState("");
   const [newAppointment, setNewAppointment] = useState({
     patientId: "",
     patientName: "",
@@ -214,11 +225,55 @@ const AppointmentsPage = () => {
 
   const createAppointmentMutation = useMutation({
     mutationFn: async (data: any) => {
-      await createAppointment(data);
+      return createAppointment(data);
     },
-    onSuccess: () => {
+    onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
       handleCloseDrawer();
+      if (newAppointment.status === "DIRECT_CONSULTATION") {
+        const newAppointmentData = response?.data?.appointment;
+        if (newAppointmentData?.id && newAppointmentData?.patientId) {
+          createVisitForAppointmentMutation.mutate({
+            patientId: newAppointmentData.patientId,
+            appointmentId: newAppointmentData.id,
+          });
+        }
+      }
+    },
+  });
+
+  const createVisitForAppointmentMutation = useMutation({
+    mutationFn: async (data: { patientId: string; appointmentId: string }) => {
+      const response = await api.post("/visits", {
+        patientId: data.patientId,
+        appointmentId: data.appointmentId,
+        visitType: "OUTPATIENT",
+        reasonForVisit: "Direct consultation from appointment",
+      });
+      return response.data;
+    },
+    onSuccess: (data) => {
+      const patientId = data?.visit?.patientId;
+      if (patientId) {
+        navigate(`/patients/${patientId}`);
+      }
+    },
+  });
+
+  const updateAppointmentStatusMutation = useMutation({
+    mutationFn: async ({ appointmentId, status }: { appointmentId: string; status: string }) => {
+      await api.put(`/appointments/${appointmentId}/status`, { status });
+    },
+    onSuccess: () => {
+      setAppointmentStatusError("");
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+    },
+    onError: (error: any) => {
+      setAppointmentStatusError(
+        error?.response?.data?.error?.message ||
+        error?.response?.data?.message ||
+        "Unable to update the appointment status. Please try again.",
+      );
     },
   });
 
@@ -251,6 +306,13 @@ const AppointmentsPage = () => {
   return (
     <Box sx={{ width: "100%", mt: 2 }}>
       <AppointmentDrawer />
+      {selectedAppointmentForTriage && (
+        <TriageDrawer
+          open={triageDrawerOpen}
+          onClose={() => setTriageDrawerOpen(false)}
+          appointment={selectedAppointmentForTriage}
+        />
+      )}
       <Box
         sx={{
           display: "flex",
@@ -260,14 +322,26 @@ const AppointmentsPage = () => {
         }}
       >
         <Typography variant="h4">Appointments</Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => setDrawerOpen(true)}
-          sx={{ bgcolor: "#0EA5A4", "&:hover": { bgcolor: "#0c8c8b" } }}
-        >
-          Schedule New Appointment
-        </Button>
+        <Box sx={{ display: "flex", gap: 2 }}>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => setDrawerOpen(true)}
+            sx={{ bgcolor: "#0EA5A4", "&:hover": { bgcolor: "#0c8c8b" } }}
+          >
+            Schedule New Appointment
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<Send />}
+            onClick={() => {
+              setNewAppointment({ ...newAppointment, status: "DIRECT_CONSULTATION" });
+              setDrawerOpen(true);
+            }}
+          >
+            Direct Consultation
+          </Button>
+        </Box>
       </Box>
 
       <Paper sx={{ p: 3, mb: 3 }}>
@@ -282,6 +356,16 @@ const AppointmentsPage = () => {
           }}
         />
       </Paper>
+
+      {appointmentStatusError && (
+        <Alert
+          severity="error"
+          onClose={() => setAppointmentStatusError("")}
+          sx={{ mb: 2 }}
+        >
+          {appointmentStatusError}
+        </Alert>
+      )}
 
       <TableContainer component={Paper}>
         <Table>
@@ -368,6 +452,55 @@ const AppointmentsPage = () => {
                           <Visibility />
                         </IconButton>
                       </Tooltip>
+                      {appointment.status === "SCHEDULED" && (
+                        <React.Fragment>
+                          <Tooltip title="Triage Patient">
+                            <IconButton
+                              size="small"
+                              onClick={() => {
+                                setSelectedAppointmentForTriage(appointment);
+                                setTriageDrawerOpen(true);
+                              }}
+                            >
+                              <Assignment />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Start Consultation">
+                            <IconButton
+                              size="small"
+                              onClick={() => {
+                                updateAppointmentStatusMutation.mutate({
+                                  appointmentId: appointment.id,
+                                  status: "IN_PROGRESS",
+                                });
+                                navigate(`/patients/${appointment.patient.id}`);
+                              }}
+                            >
+                              <Send />
+                            </IconButton>
+                          </Tooltip>
+                        </React.Fragment>
+                      )}
+                      {appointment.status === "IN_PROGRESS" && (
+                        <Tooltip title="Mark appointment completed">
+                          <span>
+                            <Button
+                              size="small"
+                              color="success"
+                              disabled={updateAppointmentStatusMutation.isPending}
+                              onClick={() => {
+                                setAppointmentStatusError("");
+                                updateAppointmentStatusMutation.mutate({
+                                  appointmentId: appointment.id,
+                                  status: "COMPLETED",
+                                });
+                              }}
+                            >
+                              Complete
+                            </Button>
+                          </span>
+                        </Tooltip>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))
@@ -613,5 +746,4 @@ const AppointmentsPage = () => {
     </Box>
   );
 };
-
 export default AppointmentsPage;

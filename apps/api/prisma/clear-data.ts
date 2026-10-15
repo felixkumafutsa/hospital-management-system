@@ -25,7 +25,6 @@ async function main() {
   await prisma.labResult.deleteMany({});
   await prisma.labRequestItem.deleteMany({});
   await prisma.labRequest.deleteMany({});
-  await prisma.labTest.deleteMany({});
 
   // Pharmacy
   await prisma.inventoryTransaction.deleteMany({});
@@ -33,7 +32,6 @@ async function main() {
   await prisma.prescription.deleteMany({});
   await prisma.medicineBatch.deleteMany({});
   await prisma.supplier.deleteMany({});
-  await prisma.medicine.deleteMany({});
 
   // Billing
   await prisma.payment.deleteMany({});

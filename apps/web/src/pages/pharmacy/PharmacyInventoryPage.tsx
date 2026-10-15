@@ -16,6 +16,7 @@ import {
   IconButton,
   Tooltip,
   CircularProgress,
+  Alert,
   Drawer,
   Stepper,
   Step,
@@ -27,16 +28,18 @@ import {
 } from "@mui/material";
 import {
   Add,
-  Edit,
   Delete,
   Visibility,
   Search,
   LocalPharmacy,
 } from "@mui/icons-material";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import Swal from "sweetalert2";
 import api from "../../services/api";
 import { formatCurrency } from "../../utils/currency";
+import { useAuth } from "../../contexts/AuthContext";
+
+import PharmacyInventoryItemDetails from "./PharmacyInventoryItemDetails";
 
 interface InventoryItem {
   id: string;
@@ -50,6 +53,7 @@ interface InventoryItem {
   supplier: string;
   expiryDate: string;
   status: string;
+  isArchived?: boolean;
   isOtc: boolean;
   location: string;
   createdAt: string;
@@ -61,8 +65,21 @@ const PharmacyInventoryPage = () => {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
-  const navigate = useNavigate();
+  const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const [archiveError, setArchiveError] = useState("");
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isAdministrator = user?.role.name === "ADMINISTRATOR";
+
+  const handleViewDetails = (item: InventoryItem) => {
+    setSelectedItem(item);
+  };
+
+  const handleCloseDetails = () => {
+    setSelectedItem(null);
+  };
+
 
   // New inventory item form state
   const steps = [
@@ -190,16 +207,51 @@ const PharmacyInventoryPage = () => {
     },
   });
 
+  const archiveMedicineMutation = useMutation({
+    mutationFn: async (medicineId: string) => api.delete(`/pharmacy/medicines/${medicineId}`),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      await queryClient.invalidateQueries({ queryKey: ["archived-inventory"] });
+    },
+    onError: (error: any) => {
+      setArchiveError(
+        error?.response?.data?.error?.message ||
+        error?.response?.data?.message ||
+        "Unable to archive this medicine. Please try again.",
+      );
+    },
+  });
+
+  const confirmArchiveMedicine = async (item: InventoryItem) => {
+    setArchiveError("");
+    const result = await Swal.fire({
+      title: "Archive this medicine?",
+      text: `${item.name} will be removed from active pharmacy inventory.`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Archive medicine",
+      confirmButtonColor: "#c62828",
+    });
+    if (result.isConfirmed) archiveMedicineMutation.mutate(item.id);
+  };
+
   const handleSubmit = () => {
     addItemMutation.mutate(formData);
   };
 
   // Fetch inventory items from API
-  const { data: inventoryItems, isLoading } = useQuery({
-    queryKey: ["inventory"],
+  const { data: inventoryItems, isLoading, isError } = useQuery({
+    queryKey: showArchived ? ["archived-inventory"] : ["inventory"],
     queryFn: async () => {
-      const res = await api.get("/pharmacy/medicines");
-      return (res.data.data || []).map((medicine: any) => {
+      const res = await api.get(showArchived ? "/pharmacy/medicines/archived" : "/pharmacy/medicines");
+      const medicineRows = Array.isArray(res.data)
+        ? res.data
+        : Array.isArray(res.data.data)
+          ? res.data.data
+          : Array.isArray(res.data.medicines)
+            ? res.data.medicines
+            : [];
+      return medicineRows.map((medicine: any) => {
         const batches = medicine.batches || [];
         const now = new Date();
         const usableBatches = batches.filter((batch: any) => new Date(batch.expiresAt) > now);
@@ -219,6 +271,7 @@ const PharmacyInventoryPage = () => {
           supplier: currentBatch?.supplier?.name || "No active stock",
           expiryDate: currentBatch?.expiresAt || "",
           status: "IN_STOCK",
+          isArchived: showArchived || medicine.isActive === false,
           location: "",
           createdAt: medicine.createdAt,
         } as InventoryItem;
@@ -525,12 +578,39 @@ const PharmacyInventoryPage = () => {
             Manage medications, supplies, and stock levels
           </Typography>
         </Box>
-        <Button variant="contained" startIcon={<Add />} onClick={handleOpenAdd}>
-          Add Inventory Item
-        </Button>
+        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+          {isAdministrator && (
+            <Button
+              variant="outlined"
+              onClick={() => {
+                setShowArchived((current) => !current);
+                setPage(0);
+              }}
+            >
+              {showArchived ? "View active inventory" : "View archived items"}
+            </Button>
+          )}
+          {!showArchived && (
+            <Button variant="contained" startIcon={<Add />} onClick={handleOpenAdd}>
+              Add Inventory Item
+            </Button>
+          )}
+        </Box>
       </Box>
 
+      {archiveError && (
+        <Alert severity="error" onClose={() => setArchiveError("")} sx={{ mb: 2 }}>
+          {archiveError}
+        </Alert>
+      )}
+      {showArchived && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Archived medicines are read-only and unavailable for dispensing.
+        </Alert>
+      )}
+
       {/* Statistics Cards */}
+      {!showArchived && (
       <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid item xs={12} sm={6} md={3}>
           <Paper elevation={2} sx={{ p: 3 }}>
@@ -623,6 +703,7 @@ const PharmacyInventoryPage = () => {
           </Paper>
         </Grid>
       </Grid>
+      )}
 
       {/* Search Bar */}
       <Paper elevation={2} sx={{ p: 2, mb: 3 }}>
@@ -645,6 +726,10 @@ const PharmacyInventoryPage = () => {
           <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
             <CircularProgress />
           </Box>
+        ) : isError ? (
+          <Alert severity="error" sx={{ m: 2 }}>
+            {showArchived ? "Archived medicines could not be loaded." : "Pharmacy inventory could not be loaded."}
+          </Alert>
         ) : (
           <>
             <TableContainer>
@@ -676,6 +761,7 @@ const PharmacyInventoryPage = () => {
                           <Typography variant="body2" color="text.secondary">
                             {item.supplier}
                           </Typography>
+                          {item.isArchived && <Chip label="Archived" size="small" sx={{ mt: 0.5 }} />}
                           {item.isOtc && <Chip label="OTC" size="small" color="success" sx={{ mt: 0.5 }} />}
                         </TableCell>
                         <TableCell>
@@ -713,21 +799,26 @@ const PharmacyInventoryPage = () => {
                           <Tooltip title="View Details">
                             <IconButton
                               size="small"
-                              onClick={() => navigate(`/inventory/${item.id}`)}
+                              onClick={() => handleViewDetails(item)}
                             >
                               <Visibility />
                             </IconButton>
                           </Tooltip>
-                          <Tooltip title="Edit">
-                            <IconButton size="small">
-                              <Edit />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Delete">
-                            <IconButton size="small" color="error">
-                              <Delete />
-                            </IconButton>
-                          </Tooltip>
+                          {!showArchived && isAdministrator && (
+                            <Tooltip title="Archive medicine">
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  disabled={archiveMedicineMutation.isPending}
+                                  onClick={() => confirmArchiveMedicine(item)}
+                                  aria-label={`Archive ${item.name}`}
+                                >
+                                  <Delete />
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -816,6 +907,20 @@ const PharmacyInventoryPage = () => {
             </Button>
           )}
         </Box>
+      </Drawer>
+
+      {/* Details Drawer */}
+      <Drawer
+        anchor="right"
+        open={!!selectedItem}
+        onClose={handleCloseDetails}
+        PaperProps={{
+          sx: { width: { xs: "100%", md: "500px" }, p: 2 },
+        }}
+      >
+        {selectedItem && (
+          <PharmacyInventoryItemDetails itemId={selectedItem.id} />
+        )}
       </Drawer>
     </Box>
   );

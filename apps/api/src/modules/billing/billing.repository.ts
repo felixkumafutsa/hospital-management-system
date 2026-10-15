@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { prisma } from '../../lib/prisma';
 import logger from '../../config/logger';
 import { CreatePaymentInput } from './billing.validator';
+import { ApiError } from '../../middlewares/errorHandler';
 
 type InvoiceStatus = Invoice['status'];
 
@@ -39,9 +40,7 @@ export const getInvoiceById = async (invoiceId: string) => {
     });
 
     if (!invoice) {
-      const error = new Error('Invoice not found') as Error & { statusCode: number };
-      error.statusCode = 404;
-      throw error;
+      throw new ApiError(404, 'INVOICE_NOT_FOUND', 'Invoice not found');
     }
 
     return invoice;
@@ -64,9 +63,7 @@ export const getInvoiceByVisitId = async (visitId: string) => {
     });
 
     if (!invoice) {
-      const error = new Error('Invoice not found for visit') as Error & { statusCode: number };
-      error.statusCode = 404;
-      throw error;
+      throw new ApiError(404, 'INVOICE_NOT_FOUND', 'Invoice not found for visit');
     }
 
     return invoice;
@@ -224,7 +221,7 @@ export const recordPayment = async (invoiceId: string, data: CreatePaymentInput)
         if (invoice.visitId) {
           await tx.visit.update({
             where: { id: invoice.visitId },
-            data: { status: VisitStatus.AWAITING_PHARMACY },
+            data: { status: VisitStatus.COMPLETED },
           });
         }
       }
@@ -321,6 +318,49 @@ export const getRevenueData = async () => {
     throw error;
   }
 };
+
+export const getDepartmentRevenueData = async () => {
+  try {
+    const last12Months = [];
+    const now = new Date();
+    for (let i = 11; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const month = date.toLocaleString('default', { month: 'short', year: '2-digit' });
+
+      const startOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+      const startOfNextMonth = new Date(date.getFullYear(), date.getMonth() + 1, 1);
+
+      const result = await prisma.invoiceItem.groupBy({
+        by: ['category'],
+        where: {
+          invoice: {
+            createdAt: {
+              gte: startOfMonth,
+              lt: startOfNextMonth,
+            },
+          },
+        },
+        _sum: {
+          subtotal: true,
+        },
+      });
+
+      last12Months.push({
+        month,
+        departments: result.map((item) => ({
+          name: item.category,
+          revenue: item._sum.subtotal?.toNumber() || 0,
+        })),
+      });
+    }
+
+    return last12Months;
+  } catch (error: unknown) {
+    logger.error(`Error fetching department revenue data: ${(error as Error).message}`);
+    throw error;
+  }
+};
+
 
 export const getRecentInvoices = async (limit: number = 10) => {
   try {

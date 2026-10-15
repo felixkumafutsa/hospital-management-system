@@ -48,8 +48,8 @@ services:
       PORT: 4000
       LOG_LEVEL: ${LOG_LEVEL:-info}
       CORS_ORIGIN: ${CORS_ORIGIN:-}
-    expose:
-      - "4000"
+    ports:
+      - "4000:4000"
     depends_on:
       db:
         condition: service_healthy

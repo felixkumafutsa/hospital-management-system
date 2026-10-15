@@ -16,6 +16,7 @@ import {
   completeVisit,
   getDashboardStats,
   getWardsWithOccupancy,
+  getAvailableAdmissionWards,
   getAdmissionsList,
 } from './visit.service';
 import { CreateVisitInput, UpdateVisitStatusInput, AdmitPatientInput } from './visit.validator';
@@ -268,6 +269,19 @@ export const getWardsWithOccupancyController = async (
 ) => {
   try {
     const result = await getWardsWithOccupancy();
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getAvailableAdmissionWardsController = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const result = await getAvailableAdmissionWards();
     res.status(200).json(result);
   } catch (error) {
     next(error);

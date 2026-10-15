@@ -7,35 +7,43 @@ export const upsertConsultation = async (
   data: CreateConsultationInput,
   consultationFee?: number
 ) => {
-  const { diagnoses = [], ...consultationData } = data;
+  const { diagnoses = [], visitId, ...consultationData } = data;
+  delete (consultationData as Record<string, unknown>).status;
 
   const existing = await prisma.consultation.findUnique({
-    where: { visitId: data.visitId },
+    where: { visitId },
   });
 
   if (existing) {
-    // Delete existing diagnoses if updating with new ones
     if (diagnoses.length > 0) {
       await prisma.diagnosis.deleteMany({
         where: { consultationId: existing.id },
       });
     }
 
+    const updateData = {
+      ...consultationData,
+      doctorId,
+      consultationFee:
+        existing.consultationFee ??
+        (consultationFee == null ? undefined : new Prisma.Decimal(consultationFee)),
+      ...(diagnoses.length > 0
+        ? {
+            diagnoses: {
+              create: diagnoses.map((d) => ({
+                icd10Code: d.icd10Code || 'N/A',
+                icd10Desc: d.icd10Desc,
+                diagnosisType: d.diagnosisType,
+                notes: d.notes,
+              })),
+            },
+          }
+        : {}),
+    };
+
     return prisma.consultation.update({
       where: { id: existing.id },
-      data: {
-        ...consultationData,
-        doctorId,
-        consultationFee: existing.consultationFee ?? (consultationFee == null ? undefined : new Prisma.Decimal(consultationFee)),
-        diagnoses: diagnoses.length > 0 ? {
-          create: diagnoses.map((d) => ({
-            icd10Code: d.icd10Code || 'N/A',
-            icd10Desc: d.icd10Desc,
-            diagnosisType: d.diagnosisType,
-            notes: d.notes,
-          })),
-        } : undefined,
-      },
+      data: updateData,
       include: {
         diagnoses: true,
         doctor: {
@@ -57,6 +65,7 @@ export const upsertConsultation = async (
 
   return prisma.consultation.create({
     data: {
+      visitId,
       ...consultationData,
       doctorId,
       ...(consultationFee == null ? {} : { consultationFee: new Prisma.Decimal(consultationFee) }),

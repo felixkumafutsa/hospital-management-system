@@ -47,8 +47,16 @@ export const findScheduleById = async (id: string) => {
   });
 };
 
+interface ScheduleWhereClause {
+  userId: string;
+  shiftDate?: {
+    gte: string;
+    lte: string;
+  };
+}
+
 export const findSchedulesByUser = async (userId: string, startDate?: string, endDate?: string) => {
-  const whereClause: any = { userId };
+  const whereClause: ScheduleWhereClause = { userId };
   
   if (startDate && endDate) {
     whereClause.shiftDate = {
@@ -97,8 +105,22 @@ export const findSchedulesByDepartment = async (department: string, date: string
   });
 };
 
-export const getAllSchedules = async (skip: number, take: number, filters?: any) => {
-  const whereClause: any = {};
+interface ScheduleFilters {
+  startDate?: string;
+  endDate?: string;
+  department?: string;
+}
+
+interface AllSchedulesWhereClause {
+  shiftDate?: {
+    gte: string;
+    lte: string;
+  };
+  department?: string;
+}
+
+export const getAllSchedules = async (skip: number, take: number, filters?: ScheduleFilters) => {
+  const whereClause: AllSchedulesWhereClause = {};
   
   if (filters?.startDate && filters?.endDate) {
     whereClause.shiftDate = {
@@ -137,13 +159,14 @@ export const getAllSchedules = async (skip: number, take: number, filters?: any)
 };
 
 export const updateSchedule = async (id: string, data: Omit<Partial<CreateScheduleInput>, 'userId'>) => {
-  const updateData: any = {};
-  if (data.shiftDate) updateData.shiftDate = new Date(data.shiftDate);
-  if (data.shiftType) updateData.shiftType = data.shiftType;
-  if (data.startTime) updateData.startTime = data.startTime;
-  if (data.endTime) updateData.endTime = data.endTime;
-  if (data.department !== undefined) updateData.department = data.department || null;
-  if (data.notes !== undefined) updateData.notes = data.notes || null;
+  const updateData: Partial<CreateScheduleInput> = {
+    ...(data.shiftDate && { shiftDate: new Date(data.shiftDate).toISOString() }),
+    ...(data.shiftType && { shiftType: data.shiftType }),
+    ...(data.startTime && { startTime: data.startTime }),
+    ...(data.endTime && { endTime: data.endTime }),
+    ...(data.department !== undefined && { department: data.department || undefined }),
+    ...(data.notes !== undefined && { notes: data.notes || undefined }),
+  };
   
   return prisma.staffSchedule.update({
     where: { id },
@@ -158,6 +181,40 @@ export const deleteSchedule = async (id: string) => {
   return prisma.staffSchedule.delete({
     where: { id }
   });
+};
+
+interface ScheduleConflictWhereClause {
+  userId: string;
+  shiftDate: string;
+  shiftType: ShiftType;
+  id?: {
+    not: string;
+  };
+}
+
+export const checkScheduleConflict = async (
+  userId: string,
+  shiftDate: string,
+  shiftType: ShiftType,
+  excludeScheduleId?: string
+) => {
+  const where: ScheduleConflictWhereClause = {
+    userId,
+    shiftDate,
+    shiftType,
+  };
+
+  if (excludeScheduleId) {
+    where.id = { not: excludeScheduleId };
+  }
+
+  const existing = await prisma.staffSchedule.findFirst({
+    where: {
+      ...where,
+      shiftDate: new Date(shiftDate),
+    },
+  });
+  return !!existing;
 };
 
 // Time Off Request operations
@@ -249,41 +306,52 @@ export const rejectTimeOffRequest = async (id: string, approverId: string) => {
 
 // Get scheduling statistics
 export const getSchedulingStats = async () => {
-  const today = new Date().toISOString().split('T')[0];
-  const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
-  
-  const [todaysSchedules, pendingRequests, thisMonthSchedules] = await Promise.all([
-    prisma.staffSchedule.count({
-      where: { shiftDate: today }
-    }),
-    prisma.timeOffRequest.count({
-      where: { status: 'PENDING' }
-    }),
-    prisma.staffSchedule.count({
-      where: {
-        shiftDate: {
-          gte: startOfMonth
-        }
-      }
-    })
-  ]);
+  const today = new Date();
+  const startOfWeek = new Date(today);
+  startOfWeek.setDate(today.getDate() - today.getDay());
+  startOfWeek.setHours(0, 0, 0, 0);
 
-  return {
-    staffOnDutyToday: todaysSchedules,
-    pendingTimeOffRequests: pendingRequests,
-    totalSchedulesThisMonth: thisMonthSchedules
-  };
-};
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(startOfWeek.getDate() + 6);
+  endOfWeek.setHours(23, 59, 59, 999);
 
-// Check for schedule conflicts
-export const checkScheduleConflict = async (userId: string, shiftDate: string, shiftType: ShiftType) => {
-  const existing = await prisma.staffSchedule.findFirst({
+  const onLeave = await prisma.timeOffRequest.count({
     where: {
-      userId,
-      shiftDate: new Date(shiftDate),
-      shiftType
-    }
+      status: 'APPROVED',
+      startDate: { lte: today },
+      endDate: { gte: today },
+    },
   });
   
-  return !!existing;
+  // This is a placeholder. You need to map shift types to hours.
+  const hours = await prisma.staffSchedule.findMany({
+    where: {
+      shiftDate: {
+        gte: startOfWeek,
+        lte: endOfWeek,
+      },
+    },
+  });
+  
+  const totalHours = hours.reduce((acc, s) => {
+    if (s.shiftType === ShiftType.DAY) return acc + 8;
+    if (s.shiftType === ShiftType.MORNING || s.shiftType === ShiftType.AFTERNOON) return acc + 4;
+    if (s.shiftType === ShiftType.NIGHT) return acc + 12;
+    return acc;
+  }, 0);
+
+
+  const upcomingShifts = await prisma.staffSchedule.count({
+    where: {
+      shiftDate: {
+        gte: today,
+      },
+    },
+  });
+
+  return {
+    onLeave,
+    weeklyHours: totalHours,
+    upcomingShifts,
+  };
 };

@@ -49,9 +49,10 @@ export const getDoctorQueueLoads = async (doctorIds: string[], from: Date, to: D
     _count: { _all: true },
   });
 
-  return new Map(
-    appointments.map((appointment) => [appointment.doctorId as string, appointment._count._all])
-  );
+  const queueLoads = new Map<string, number>();
+  doctorIds.forEach(id => queueLoads.set(id, 0));
+  appointments.forEach(appointment => queueLoads.set(appointment.doctorId as string, appointment._count._all));
+  return queueLoads;
 };
 
 export const update = async (id: string, data: Partial<DutyRoster>): Promise<DutyRoster | null> => {

@@ -167,8 +167,7 @@ export const addLabResultController = async (
   next: NextFunction
 ) => {
   try {
-    const { testId, ...results } = req.body;
-    const result = await addLabResultService(req.params.requestId, testId, results);
+    const result = await addLabResultService(req.params.requestId, req.body);
     return res.status(201).json(result);
   } catch (error) {
     return next(error);

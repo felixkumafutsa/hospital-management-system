@@ -561,9 +561,10 @@ export const dispensePrescriptionAndDeductStock = async (
       }),
     ]);
     if (openPrescriptions === 0 && openLabRequests === 0) {
+      const isPaid = invoice && invoice.status === 'PAID';
       await tx.visit.update({
         where: { id: prescription.visitId },
-        data: { status: VisitStatus.COMPLETED },
+        data: { status: isPaid ? VisitStatus.COMPLETED : VisitStatus.BILLING },
       });
     }
 

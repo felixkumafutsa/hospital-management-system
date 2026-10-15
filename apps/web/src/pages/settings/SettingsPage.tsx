@@ -21,9 +21,10 @@ import {
 import { useAuth } from "../../contexts/AuthContext";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api, { getLabTests } from "../../services/api";
+import merge from "lodash.merge";
 
 const SettingsPage = () => {
-  const { user } = useAuth();
+  const { user, setUser } = useAuth();
   const queryClient = useQueryClient();
   const rawRole = typeof user?.role === "object" ? user.role?.name : user?.role;
   const isAdmin = rawRole?.toUpperCase() === "ADMINISTRATOR";
@@ -76,6 +77,22 @@ const SettingsPage = () => {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["settings-lab-tests"] }),
   });
 
+  const updateUserMutation = useMutation({
+    mutationFn: async (updatedProfile: typeof profile) => {
+      if (!user?.id) {
+        throw new Error("User ID not found");
+      }
+      return api.put(`/users/${user.id}`, updatedProfile);
+    },
+    onSuccess: (data) => {
+      setSaveSuccess(true);
+      setHasChanges(false);
+      setUser((prevUser) => merge({}, prevUser, data.data));
+      setTimeout(() => setSaveSuccess(false), 3000);
+      queryClient.invalidateQueries({ queryKey: ["user"] });
+    },
+  });
+
   const handleProfileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setProfile({
       ...profile,
@@ -93,12 +110,7 @@ const SettingsPage = () => {
   };
 
   const handleSave = () => {
-    // In a real app, this would send profile and settings to an API
-    console.log("Saving profile:", profile);
-    console.log("Saving settings:", settings);
-    setSaveSuccess(true);
-    setHasChanges(false);
-    setTimeout(() => setSaveSuccess(false), 3000);
+    updateUserMutation.mutate(profile);
   };
 
   const handleCancel = () => {

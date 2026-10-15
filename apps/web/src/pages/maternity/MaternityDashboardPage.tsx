@@ -133,7 +133,7 @@ const MaternityDashboardPage = () => {
       const response = await api.get("/maternity/deliveries");
       const responseData = response.data.data;
       // Ensure the returned value is always an array
-      return Array.isArray(responseData) ? responseData : [];
+      return Array.isArray(responseData.records) ? responseData.records : [];
     },
   });
 
@@ -141,7 +141,8 @@ const MaternityDashboardPage = () => {
     queryKey: ["maternity-postnatal"],
     queryFn: async () => {
       const response = await api.get("/maternity/postnatal");
-      const records = response.data.data?.records || [];
+      const responseData = response.data.data;
+      const records = responseData?.records || [];
       return Array.isArray(records) ? records : [];
     },
   });
@@ -176,22 +177,33 @@ const MaternityDashboardPage = () => {
   });
 
   const deliveryDataForChart = useMemo(() => {
-    const monthlyDeliveries: { [key: string]: number } = {};
+    const monthlyData: {
+      [key: string]: { total: number; vaginal: number; caesarean: number };
+    } = {};
+
     deliveries.forEach((delivery: any) => {
       const month = new Date(delivery.deliveryDate).toLocaleString("default", {
         month: "short",
         year: "numeric",
       });
-      if (monthlyDeliveries[month]) {
-        monthlyDeliveries[month]++;
-      } else {
-        monthlyDeliveries[month] = 1;
+
+      if (!monthlyData[month]) {
+        monthlyData[month] = { total: 0, vaginal: 0, caesarean: 0 };
+      }
+
+      monthlyData[month].total++;
+      if (delivery.deliveryMethod === "VAGINAL") {
+        monthlyData[month].vaginal++;
+      } else if (delivery.deliveryMethod === "CAESAREAN") {
+        monthlyData[month].caesarean++;
       }
     });
 
-    return Object.keys(monthlyDeliveries).map((month) => ({
+    return Object.keys(monthlyData).map((month) => ({
       month,
-      deliveries: monthlyDeliveries[month],
+      total: monthlyData[month].total,
+      vaginal: monthlyData[month].vaginal,
+      caesarean: monthlyData[month].caesarean,
     }));
   }, [deliveries]);
 
@@ -334,6 +346,11 @@ const MaternityDashboardPage = () => {
     }
   };
 
+  const handleOpenTheaterRequest = () => {
+    setDeliveryMethod("CAESAREAN");
+    setTheaterRequestOpen(true);
+  };
+
   const handleOpenAdd = () => {
     setDrawerOpen(true);
   };
@@ -363,9 +380,22 @@ const MaternityDashboardPage = () => {
             <Legend />
             <Line
               type="monotone"
-              dataKey="deliveries"
+              dataKey="total"
               stroke="#8884d8"
+              name="Total Deliveries"
               activeDot={{ r: 8 }}
+            />
+            <Line
+              type="monotone"
+              dataKey="vaginal"
+              stroke="#82ca9d"
+              name="Vaginal"
+            />
+            <Line
+              type="monotone"
+              dataKey="caesarean"
+              stroke="#ffc658"
+              name="Caesarean"
             />
           </LineChart>
         </ResponsiveContainer>
@@ -380,7 +410,7 @@ const MaternityDashboardPage = () => {
           variant="fullWidth"
         >
           <Tab label="Pregnant Patients" />
-          <Tab label="Deliveries" />
+          <Tab label={`Deliveries (${deliveries.length})`} />
           <Tab label="Postnatal" />
         </Tabs>
         {activeTab === 0 && (
@@ -871,7 +901,7 @@ const MaternityDashboardPage = () => {
                   {deliveryMethod === "CAESAREAN" && (
                     <Button
                       variant="outlined"
-                      onClick={() => setTheaterRequestOpen(true)}
+                      onClick={handleOpenTheaterRequest}
                       disabled={!procedureCatalog.some((item: { isMaternityDelivery: boolean }) => item.isMaternityDelivery)}
                     >
                       Request C-section theater case

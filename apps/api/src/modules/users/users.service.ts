@@ -5,6 +5,21 @@ import {
   UpdateUserInput,
 } from './users.validator';
 
+export const listRoles = async () => {
+  try {
+    return {
+      success: true,
+      data: await userRepository.getRoles(),
+    };
+  } catch (error: any) {
+    logger.error(`Service error fetching roles: ${error.message}`);
+    throw {
+      statusCode: error.statusCode || 500,
+      message: error.message || 'Failed to fetch roles',
+    };
+  }
+};
+
 export const createNewUser = async (data: CreateUserInput) => {
   try {
     const user = await userRepository.createUser(data);
@@ -111,10 +126,10 @@ export const deactivateUserService = async (id: string) => {
 
     return {
       success: true,
-      message: 'User deactivated successfully',
+      message: 'User archived successfully',
     };
   } catch (error: any) {
-    logger.error(`Service error deactivating user: ${error.message}`);
+    logger.error(`Service error archiving user: ${error.message}`);
     throw {
       statusCode: error.statusCode || 500,
       message: error.message || 'Failed to deactivate user',

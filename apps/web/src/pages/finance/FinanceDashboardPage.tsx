@@ -30,8 +30,6 @@ import {
   CartesianGrid,
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
-  BarChart,
-  Bar,
 } from "recharts";
 import { useQuery } from "@tanstack/react-query";
 import api from "../../services/api";
@@ -54,19 +52,6 @@ import { formatCurrency } from "../../utils/currency";
 // }
 
 const FinanceDashboardPage = () => {
-  const { data: revenueData = [], isLoading: revenueLoading } = useQuery({
-    queryKey: ["revenue-data"],
-    queryFn: async () => {
-      try {
-        const res = await api.get("/finance/revenue");
-        const data = res.data?.data ?? res.data;
-        return Array.isArray(data) ? data : [];
-      } catch (error) {
-        console.error("Error fetching revenue data:", error);
-        return [];
-      }
-    },
-  });
 
   const { data: recentInvoices = [], isLoading: invoicesLoading } = useQuery({
     queryKey: ["recent-invoices"],
@@ -136,62 +121,49 @@ const FinanceDashboardPage = () => {
   });
 
   // Fetch department revenue breakdown
-  const { data: departmentRevenueData = [] } = useQuery({
+  const { data: departmentRevenueData = [], isLoading: revenueLoading } = useQuery({
     queryKey: ["department-revenue"],
     queryFn: async () => {
       try {
-        const invoicesRes = await api.get("/finance/invoices", { params: { limit: 100 } });
-
-        const invoices =
-          invoicesRes.data?.data?.invoices ??
-          invoicesRes.data?.data ??
-          invoicesRes.data?.invoices ??
-          [];
-
-        // Group invoices by category to get department revenue
-        const deptMap = new Map<string, number>();
-
-        invoices.forEach((invoice: any) => {
-          invoice.items?.forEach((item: any) => {
-            const category = item.category || "Other Services";
-            deptMap.set(
-              category,
-              (deptMap.get(category) || 0) + Number(item.unitPrice || 0) * Number(item.quantity || 0),
-            );
-          });
-        });
-
-        // Default departments
-        const defaultDepts = [
-          { name: "Consultation", value: 0 },
-          { name: "Pharmacy", value: 0 },
-          { name: "Lab", value: 0 },
-          { name: "Inpatient", value: 0 },
-        ];
-
-        // Populate with actual data
-        deptMap.forEach((value, key) => {
-          const dept = defaultDepts.find((d) =>
-            d.name.toLowerCase().includes(key.toLowerCase()),
-          );
-          if (dept) {
-            dept.value = Math.round(value);
-          }
-        });
-
-        return defaultDepts.filter((d) => d.value > 0).length > 0
-          ? defaultDepts.filter((d) => d.value > 0)
-          : defaultDepts;
-      } catch {
-        return [
-          { name: "Consultation", value: 0 },
-          { name: "Pharmacy", value: 0 },
-          { name: "Lab", value: 0 },
-          { name: "Inpatient", value: 0 },
-        ];
+        const res = await api.get("/finance/department-revenue");
+        const data = res.data?.data ?? res.data;
+        return Array.isArray(data) ? data : [];
+      } catch (error) {
+        console.error("Error fetching department revenue data:", error);
+        return [];
       }
     },
   });
+
+  const departmentColors: { [key: string]: string } = {
+    CONSULTATION: "#8884d8",
+    PHARMACY: "#82ca9d",
+    LABORATORY: "#ffc658",
+    PROCEDURE: "#ff8042",
+    'OTHER_SERVICES': "#00C49F",
+  };
+
+  const transformedData = departmentRevenueData.reduce((acc: any, monthData: any) => {
+    const month = monthData.month;
+    let monthEntry = acc.find((entry: any) => entry.month === month);
+    if (!monthEntry) {
+      monthEntry = { month };
+      acc.push(monthEntry);
+    }
+    monthData.departments.forEach((dept: any) => {
+      monthEntry[dept.name] = dept.revenue;
+    });
+    return acc;
+  }, []);
+
+  const departmentNames = Array.from(
+    new Set(
+      departmentRevenueData.flatMap((monthData: any) =>
+        monthData.departments.map((dept: any) => dept.name)
+      )
+    )
+  );
+
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -331,10 +303,10 @@ const FinanceDashboardPage = () => {
 
       {/* Charts */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} lg={8}>
+        <Grid item xs={12}>
           <Paper elevation={2} sx={{ p: 3 }}>
             <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-              Revenue Overview
+              Revenue by Department
             </Typography>
             {revenueLoading ? (
               <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
@@ -342,44 +314,24 @@ const FinanceDashboardPage = () => {
               </Box>
             ) : (
               <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={revenueData}>
+                <LineChart data={transformedData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="month" />
                   <YAxis />
                   <RechartsTooltip />
-                  <Line
-                    type="monotone"
-                    dataKey="revenue"
-                    stroke="#1976d2"
-                    strokeWidth={2}
-                    name="Revenue"
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="expenses"
-                    stroke="#f44336"
-                    strokeWidth={2}
-                    name="Expenses"
-                  />
+                  {departmentNames.map((dept: any) => (
+                    <Line
+                      key={dept}
+                      type="monotone"
+                      dataKey={dept}
+                      stroke={departmentColors[dept] || "#000000"}
+                      strokeWidth={2}
+                      name={dept}
+                    />
+                  ))}
                 </LineChart>
               </ResponsiveContainer>
             )}
-          </Paper>
-        </Grid>
-        <Grid item xs={12} lg={4}>
-          <Paper elevation={2} sx={{ p: 3, height: "100%" }}>
-            <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-              Revenue by Department
-            </Typography>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={departmentRevenueData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <RechartsTooltip />
-                <Bar dataKey="value" fill="#1976d2" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
           </Paper>
         </Grid>
       </Grid>

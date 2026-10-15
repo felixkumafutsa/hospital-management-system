@@ -7,6 +7,7 @@ export const createUserSchema = z.object({
   phone: z.string().optional(),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   roleId: z.string().uuid('Invalid role ID format'),
+  isActive: z.boolean().optional(),
 });
 
 export const updateUserSchema = z.object({

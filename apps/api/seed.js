@@ -12,51 +12,70 @@ async function main() {
   console.log('\n📋 Creating roles and permissions...');
   
   const roles = await Promise.all([
-    prisma.role.create({
-      data: {
-        name: 'ADMINISTRATOR',
-        displayName: 'Administrator',
-      }
+    prisma.role.upsert({
+      where: { name: 'ADMINISTRATOR' },
+      update: { displayName: 'Administrator' },
+      create: { name: 'ADMINISTRATOR', displayName: 'Administrator' },
     }),
-    prisma.role.create({
-      data: {
-        name: 'DOCTOR',
-        displayName: 'Doctor',
-      }
+    prisma.role.upsert({
+      where: { name: 'RECEPTION_CASHIER' },
+      update: { displayName: 'Reception & Cashier' },
+      create: { name: 'RECEPTION_CASHIER', displayName: 'Reception & Cashier' },
     }),
-    prisma.role.create({
-      data: {
-        name: 'NURSE',
-        displayName: 'Nurse',
-      }
+    prisma.role.upsert({
+      where: { name: 'DOCTOR' },
+      update: { displayName: 'Doctor' },
+      create: { name: 'DOCTOR', displayName: 'Doctor' },
     }),
-    prisma.role.create({
-      data: {
-        name: 'RECEPTIONIST',
-        displayName: 'Receptionist',
-      }
+    prisma.role.upsert({
+      where: { name: 'NURSE' },
+      update: { displayName: 'Nurse' },
+      create: { name: 'NURSE', displayName: 'Nurse' },
     }),
-    prisma.role.create({
-      data: {
-        name: 'LAB_TECH',
-        displayName: 'Laboratory Technician',
-      }
+    prisma.role.upsert({
+      where: { name: 'ANESTHETIST' },
+      update: { displayName: 'Anesthetist' },
+      create: { name: 'ANESTHETIST', displayName: 'Anesthetist' },
     }),
-    prisma.role.create({
-      data: {
-        name: 'PHARMACIST',
-        displayName: 'Pharmacist',
-      }
+    prisma.role.upsert({
+      where: { name: 'LAB_TECH' },
+      update: { displayName: 'Laboratory Technician' },
+      create: { name: 'LAB_TECH', displayName: 'Laboratory Technician' },
     }),
-    prisma.role.create({
-      data: {
-        name: 'CASHIER',
-        displayName: 'Cashier',
-      }
+    prisma.role.upsert({
+      where: { name: 'PHARMACIST' },
+      update: { displayName: 'Pharmacist' },
+      create: { name: 'PHARMACIST', displayName: 'Pharmacist' },
+    }),
+    prisma.role.upsert({
+      where: { name: 'MD' },
+      update: { displayName: 'Medical Director' },
+      create: { name: 'MD', displayName: 'Medical Director' },
+    }),
+    prisma.role.upsert({
+      where: { name: 'RECEPTIONIST' },
+      update: { displayName: 'Receptionist (legacy alias)' },
+      create: { name: 'RECEPTIONIST', displayName: 'Receptionist (legacy alias)' },
+    }),
+    prisma.role.upsert({
+      where: { name: 'CASHIER' },
+      update: { displayName: 'Cashier (legacy alias)' },
+      create: { name: 'CASHIER', displayName: 'Cashier (legacy alias)' },
     })
   ]);
 
-  const [adminRole, doctorRole, nurseRole, receptionistRole, labTechRole, pharmacistRole, cashierRole] = roles;
+  const [
+    adminRole,
+    receptionCashierRole,
+    doctorRole,
+    nurseRole,
+    anesthetistRole,
+    labTechRole,
+    pharmacistRole,
+    mdRole,
+    receptionistLegacyRole,
+    cashierLegacyRole,
+  ] = roles;
   console.log(`✅ Created ${roles.length} roles`);
 
   // ==========================================
@@ -133,7 +152,7 @@ async function main() {
       firstName: 'Tom',
       lastName: 'Chibowa',
       phone: '+265999123461',
-      roleId: cashierRole.id,
+      roleId: receptionCashierRole.id,
     }
   });
 

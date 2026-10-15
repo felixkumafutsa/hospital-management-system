@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import { ApiError } from '../../middlewares/errorHandler';
 import * as theaterValidator from './theater.validator';
+import * as theaterRepository from './theater.repository';
 
 const prisma = new PrismaClient();
 type SurgicalRequestInput = z.infer<typeof theaterValidator.createSurgicalProcedure>;
@@ -30,6 +31,21 @@ export const updateTheater = async (
   id: string,
   data: z.infer<typeof theaterValidator.updateTheater>,
 ) => prisma.theater.update({ where: { id }, data });
+
+export const getTheaters = async () => theaterRepository.findTheaters();
+
+export const getTheaterById = async (id: string) => {
+  const theater = await theaterRepository.findTheaterById(id);
+  if (!theater) {
+    throw new ApiError(404, 'Theater not found', 'NOT_FOUND');
+  }
+  return theater;
+};
+
+export const deleteTheater = async (id: string) => {
+  await getTheaterById(id);
+  return theaterRepository.deleteTheater(id);
+};
 
 export const getTheaterResources = async () => {
   const [theaters, surgeons, anesthetists] = await Promise.all([

@@ -15,6 +15,7 @@ import {
   getFinanceStatsController,
   getRevenueController,
   getRecentInvoicesController,
+  getDepartmentRevenueController,
 } from './billing.controller';
 
 const router = express.Router();
@@ -23,7 +24,7 @@ const router = express.Router();
 router.post(
   '/invoices',
   authenticate,
-  authorize(['RECEPTION_CASHIER', 'CASHIER', 'RECEPTIONIST', 'ADMINISTRATOR']),
+  authorize(['ADMINISTRATOR']),
   validate(createInvoiceSchema),
   createInvoiceController
 );
@@ -87,6 +88,12 @@ router.get(
   '/revenue',
   authenticate,
   getRevenueController
+);
+
+router.get(
+  '/department-revenue',
+  authenticate,
+  getDepartmentRevenueController
 );
 
 export default router;

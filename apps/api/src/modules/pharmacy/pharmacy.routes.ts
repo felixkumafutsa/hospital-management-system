@@ -20,6 +20,8 @@ import {
   getTransactionsController,
   recordTransactionController,
   getPharmacyDashboardController,
+  getArchivedMedicinesController,
+  archiveMedicineController,
 } from './pharmacy.controller';
 
 const router = express.Router();
@@ -34,7 +36,7 @@ router.get(
 router.post(
   '/sales/otc',
   authenticate,
-  authorize(['PHARMACIST', 'RECEPTIONIST', 'RECEPTION_CASHIER', 'ADMINISTRATOR']),
+  authorize(['PHARMACIST', 'ADMINISTRATOR']),
   validate(otcSaleSchema),
   createOtcSaleController
 );
@@ -57,6 +59,19 @@ router.post(
 );
 
 router.get(
+  '/medicines/archived',
+  authenticate,
+  authorize(['ADMINISTRATOR']),
+  getArchivedMedicinesController
+);
+
+router.get(
+  '/medicines/search',
+  authenticate,
+  searchMedicinesController
+);
+
+router.get(
   '/medicines/:id',
   authenticate,
   getMedicineController
@@ -68,10 +83,11 @@ router.get(
   getAllMedicinesController
 );
 
-router.get(
-  '/medicines/search',
+router.delete(
+  '/medicines/:id',
   authenticate,
-  searchMedicinesController
+  authorize(['ADMINISTRATOR']),
+  archiveMedicineController
 );
 
 // Medicine Batches endpoints

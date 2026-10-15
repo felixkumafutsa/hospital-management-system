@@ -7,6 +7,7 @@ import {
 } from './users.validator';
 import {
   createUserController,
+  getRolesController,
   getUserController,
   getAllUsersController,
   searchUsersController,
@@ -32,6 +33,12 @@ router.post(
   authorize(['ADMINISTRATOR']),
   validate(createUserSchema),
   createUserController
+);
+
+router.get(
+  '/roles',
+  authorize(['ADMINISTRATOR']),
+  getRolesController
 );
 
 // Get all users

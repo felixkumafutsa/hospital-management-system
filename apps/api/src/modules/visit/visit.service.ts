@@ -13,6 +13,7 @@ import {
   setEmergencyStatus,
   setMaternityStatus,
   getWardOccupancy,
+  getActiveWardsWithAvailableBeds,
   getWaitingConsultationQueue,
   getPendingLabTests,
   getPendingPrescriptions,
@@ -350,6 +351,26 @@ export const admitExistingPatient = async (
   if (!visit) {
     throw new ApiError(404, 'VISIT_NOT_FOUND', 'Visit not found');
   }
+  if (visit.status === VisitStatus.ADMITTED || visit.admissionDate) {
+    throw new ApiError(409, 'PATIENT_ALREADY_ADMITTED', 'This visit is already admitted');
+  }
+
+  const attendingDoctor = await prisma.user.findUnique({
+    where: { id: attendingDoctorId },
+    select: {
+      isActive: true,
+      role: { select: { name: true } },
+    },
+  });
+  if (!attendingDoctor) {
+    throw new ApiError(404, 'ATTENDING_DOCTOR_NOT_FOUND', 'The selected attending doctor does not exist');
+  }
+  if (!attendingDoctor.isActive) {
+    throw new ApiError(409, 'ATTENDING_DOCTOR_INACTIVE', 'The selected attending doctor is inactive');
+  }
+  if (attendingDoctor.role.name !== 'DOCTOR') {
+    throw new ApiError(400, 'INVALID_ATTENDING_DOCTOR', 'The selected attending user must have the DOCTOR role');
+  }
 
   // Get patient details for notification
   const patient = await findPatientById(visit.patientId);
@@ -357,7 +378,16 @@ export const admitExistingPatient = async (
     throw new ApiError(404, 'PATIENT_NOT_FOUND', 'Patient not found');
   }
 
-  // Create audit log before update if request object is available
+  const updatedVisit = await admitPatient(
+    id,
+    ward,
+    bedNumber,
+    attendingDoctorId,
+    expectedDischargeDate,
+    dailyRate
+  );
+
+  // Record the admission only after both the bed and visit transaction succeeds.
   if (req) {
     await req.createAuditLog({
       action: 'ADMIT_PATIENT',
@@ -367,15 +397,6 @@ export const admitExistingPatient = async (
       after: { status: 'ADMITTED', ward, bedNumber, expectedDischargeDate }
     });
   }
-
-  const updatedVisit = await admitPatient(
-    id, 
-    ward, 
-    bedNumber, 
-    attendingDoctorId, 
-    expectedDischargeDate, 
-    dailyRate
-  );
   
   // Notify ward nurses and attending doctor
   const patientName = `${patient.firstName} ${patient.lastName}`;
@@ -408,7 +429,7 @@ export const dischargeExistingPatient = async (id: string, req?: Request) => {
       resource: 'VISIT',
       resourceId: visit.id,
       before: { status: visit.status, admissionDate: visit.admissionDate },
-      after: { status: 'DISCHARGED', dischargeDate: new Date() }
+      after: { status: 'COMPLETED', dischargeDate: new Date() }
     });
   }
 
@@ -489,6 +510,11 @@ export const dischargeExistingPatient = async (id: string, req?: Request) => {
 // Get ward occupancy list
 export const getWardsWithOccupancy = async () => {
   const wards = await getWardOccupancy();
+  return { success: true, wards };
+};
+
+export const getAvailableAdmissionWards = async () => {
+  const wards = await getActiveWardsWithAvailableBeds();
   return { success: true, wards };
 };
 

@@ -15,7 +15,7 @@ const router = Router();
 router.use(authenticate);
 
 // Legacy queue support
-router.get('/queue', getVisitQueueController);
+router.get('/queue', authorize(['DOCTOR', 'NURSE', 'ADMINISTRATOR']), getVisitQueueController);
 
 // Consultation endpoints
 router.post(

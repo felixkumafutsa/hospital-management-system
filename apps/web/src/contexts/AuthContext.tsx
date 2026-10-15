@@ -37,6 +37,7 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
+  setUser: React.Dispatch<React.SetStateAction<User | null>>;
   loading: boolean;
   login: (
     email: string,
@@ -122,6 +123,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       return newToken;
     } catch (error) {
       console.error("Failed to refresh token:", error);
+      if (
+        axios.isAxiosError(error) &&
+        (error.response?.status === 400 || error.response?.status === 401)
+      ) {
+        localStorage.removeItem("accessToken");
+        setAccessToken(null);
+        setUser(null);
+      }
       return null;
     }
   }, []);
@@ -192,6 +201,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const memoizedValue = useMemo(
     () => ({
       user,
+      setUser,
       loading,
       login,
       logout,

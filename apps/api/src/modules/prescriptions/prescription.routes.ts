@@ -48,6 +48,7 @@ router.post(
 router.get(
   '/',
   authenticate,
+  authorize(['ADMINISTRATOR', 'DOCTOR', 'NURSE', 'PHARMACIST', 'MD']),
   getAllPrescriptionsController
 );
 
@@ -55,6 +56,7 @@ router.get(
 router.get(
   '/visit/:visitId',
   authenticate,
+  authorize(['ADMINISTRATOR', 'DOCTOR', 'NURSE', 'PHARMACIST', 'MD']),
   getVisitPrescriptionsController
 );
 
@@ -62,6 +64,7 @@ router.get(
 router.get(
   '/:id',
   authenticate,
+  authorize(['ADMINISTRATOR', 'DOCTOR', 'NURSE', 'PHARMACIST', 'MD']),
   getPrescriptionController
 );
 
@@ -69,6 +72,7 @@ router.get(
 router.get(
   '/patient/:patientId',
   authenticate,
+  authorize(['ADMINISTRATOR', 'DOCTOR', 'NURSE', 'PHARMACIST', 'MD']),
   getPatientPrescriptionsController
 );
 

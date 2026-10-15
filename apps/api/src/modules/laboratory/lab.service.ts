@@ -66,10 +66,7 @@ export const updateLabRequestStatusService = async (
   return updateLabRequestStatusRepo(id, status, notes);
 };
 
-export const addLabResultService = async (
-  requestId: string,
-  testId: string,
-  results: Omit<AddLabResultInput, 'testId'>
-) => {
+export const addLabResultService = async (requestId: string, data: AddLabResultInput) => {
+  const { testId, ...results } = data;
   return addLabResultRepo(requestId, testId, results);
 };

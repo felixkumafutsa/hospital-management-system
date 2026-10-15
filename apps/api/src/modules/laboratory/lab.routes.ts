@@ -68,35 +68,35 @@ router.post(
 router.get(
   '/requests/visit/:visitId',
   authenticate,
-  authorize(['DOCTOR', 'NURSE', 'LAB_TECH', 'ADMINISTRATOR']),
+  authorize(['DOCTOR', 'NURSE', 'LAB_TECH', 'ADMINISTRATOR', 'MD']),
   getVisitLabRequestsController
 );
 
 router.get(
   '/requests/stats',
   authenticate,
-  authorize(['LAB_TECH', 'ADMINISTRATOR']),
+  authorize(['LAB_TECH', 'ADMINISTRATOR', 'MD']),
   getLabDashboardStatsController
 );
 
 router.get(
   '/requests/:id',
   authenticate,
-  authorize(['DOCTOR', 'NURSE', 'LAB_TECH', 'ADMINISTRATOR']),
+  authorize(['DOCTOR', 'NURSE', 'LAB_TECH', 'ADMINISTRATOR', 'MD']),
   getLabRequestController
 );
 
 router.get(
   '/requests',
   authenticate,
-  authorize(['LAB_TECH', 'ADMINISTRATOR']),
+  authorize(['LAB_TECH', 'ADMINISTRATOR', 'MD']),
   getAllLabRequestsController
 );
 
 router.get(
   '/patient/:patientId/requests',
   authenticate,
-  authorize(['DOCTOR', 'NURSE', 'LAB_TECH', 'ADMINISTRATOR']),
+  authorize(['DOCTOR', 'NURSE', 'LAB_TECH', 'ADMINISTRATOR', 'MD']),
   getPatientLabRequestsController
 );
 

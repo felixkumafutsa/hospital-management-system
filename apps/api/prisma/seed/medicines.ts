@@ -49,7 +49,6 @@ export async function seedSuppliersAndMedicines() {
     {
       name: 'Paracetamol 500mg',
       genericName: 'Paracetamol',
-      category: 'Analgesic',
       form: DrugForm.TABLET,
       strength: '500mg',
       unit: 'tablet',
@@ -59,7 +58,6 @@ export async function seedSuppliersAndMedicines() {
     {
       name: 'Amoxicillin 250mg',
       genericName: 'Amoxicillin',
-      category: 'Antibiotic',
       form: DrugForm.CAPSULE,
       strength: '250mg',
       unit: 'capsule',
@@ -69,7 +67,6 @@ export async function seedSuppliersAndMedicines() {
     {
       name: 'Artemether-Lumefantrine 20/120mg',
       genericName: 'Artemether-Lumefantrine',
-      category: 'Antimalarial',
       form: DrugForm.TABLET,
       strength: '20/120mg',
       unit: 'tablet',
@@ -79,7 +76,6 @@ export async function seedSuppliersAndMedicines() {
     {
       name: 'Cough Syrup',
       genericName: 'Dextromethorphan',
-      category: 'Cough Suppressant',
       form: DrugForm.SYRUP,
       strength: '15mg/5ml',
       unit: 'bottle',
@@ -89,7 +85,6 @@ export async function seedSuppliersAndMedicines() {
     {
       name: 'Metformin 500mg',
       genericName: 'Metformin',
-      category: 'Antidiabetic',
       form: DrugForm.TABLET,
       strength: '500mg',
       unit: 'tablet',
@@ -99,7 +94,6 @@ export async function seedSuppliersAndMedicines() {
     {
       name: 'Atenolol 50mg',
       genericName: 'Atenolol',
-      category: 'Antihypertensive',
       form: DrugForm.TABLET,
       strength: '50mg',
       unit: 'tablet',
@@ -109,7 +103,6 @@ export async function seedSuppliersAndMedicines() {
     {
       name: 'Cetirizine 10mg',
       genericName: 'Cetirizine',
-      category: 'Antihistamine',
       form: DrugForm.TABLET,
       strength: '10mg',
       unit: 'tablet',
@@ -119,7 +112,6 @@ export async function seedSuppliersAndMedicines() {
     {
       name: 'Omeprazole 20mg',
       genericName: 'Omeprazole',
-      category: 'Proton Pump Inhibitor',
       form: DrugForm.CAPSULE,
       strength: '20mg',
       unit: 'capsule',

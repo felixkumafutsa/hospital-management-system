@@ -42,7 +42,6 @@ import RecordVitalsDrawer from "../../components/RecordVitalsDrawer";
 import ClinicalConsultationDrawer from "../../components/ClinicalConsultationDrawer";
 import OrderLabTestDrawer from '../../components/OrderLabTestDrawer';
 import PrescribeMedicationDrawer from '../../components/PrescribeMedicationDrawer';
-import AdmitPatientModal from '../../components/AdmitPatientModal';
 import DischargePatientModal from '../../components/DischargePatientModal';
 import ConsultationDetails from '../../components/ConsultationDetails';
 
@@ -86,7 +85,10 @@ interface Visit {
   admissionDate?: string;
   dischargeDate?: string;
   stayDuration?: number;
-  roomNumber?: string;
+  expectedDischargeDate?: string;
+  ward?: string;
+  bedNumber?: string;
+  attendingDoctorId?: string;
   dailyRate?: number;
   reasonForVisit?: string;
   referralNote?: string;
@@ -131,7 +133,6 @@ const PatientDetailPage = () => {
   const [consultationDrawerOpen, setConsultationDrawerOpen] = React.useState(false);
   const [labTestDrawerOpen, setLabTestDrawerOpen] = React.useState(false);
   const [medicationDrawerOpen, setMedicationDrawerOpen] = React.useState(false);
-  const [admitModalOpen, setAdmitModalOpen] = React.useState(false);
   const [dischargeModalOpen, setDischargeModalOpen] = React.useState(false);
   const [selectedConsultationId, setSelectedConsultationId] = React.useState<string | null>(null);
   const [visitForm, setVisitForm] = React.useState({
@@ -147,6 +148,9 @@ const PatientDetailPage = () => {
   // Fetch core patient and visits data in parallel
   const roleName = typeof user?.role === "string" ? user.role : user?.role?.name;
   const isReceptionRole = ["RECEPTIONIST", "RECEPTION_CASHIER", "CASHIER"].includes(
+    roleName?.trim().toUpperCase() || "",
+  );
+  const canManageAdmissions = ["ADMINISTRATOR", "DOCTOR"].includes(
     roleName?.trim().toUpperCase() || "",
   );
 
@@ -208,11 +212,23 @@ const PatientDetailPage = () => {
           console.log("Invoice not found for visit - this is expected for new visits");
         }
 
-        const labItems = Array.isArray(labTestsResponse?.data?.items)
-          ? labTestsResponse.data.items
-          : Array.isArray(labTestsResponse?.data?.data)
+        const labItems = (
+          Array.isArray(labTestsResponse?.data?.items)
+            ? labTestsResponse.data.items
+            : Array.isArray(labTestsResponse?.data?.data)
             ? labTestsResponse.data.data
-            : [];
+            : []
+        ).map((item: any) => {
+          const invoiceItem = invoiceData?.items?.find(
+            (line: any) => line.reference === item.id && line.category === "LAB_TEST",
+          );
+          return {
+            id: item.id,
+            testName: item.test?.name || item.testName || "Lab Test",
+            price: Number(item.test?.price ?? invoiceItem?.unitPrice ?? 0),
+            status: item.status,
+          };
+        });
 
         const prescriptionRecords = Array.isArray(prescriptionsResponse?.data?.items)
           ? prescriptionsResponse.data.items
@@ -229,7 +245,7 @@ const PatientDetailPage = () => {
               id: item.id,
               medicineName: item.medicine?.name || item.medicineName || "Medication",
               quantity: Number(item.quantity || 0),
-              price: Number(invoiceItem?.unitPrice || 0),
+              price: Number(item.medicine?.price ?? invoiceItem?.unitPrice ?? 0),
               dispensed: prescription.status === "DISPENSED" || item.dispensed === true,
             };
           });
@@ -407,13 +423,15 @@ const PatientDetailPage = () => {
               New Visit
             </Button>
             {/* Admit/Discharge buttons - only show if there's an active inpatient visit */}
-            {currentVisit && currentVisit.visitType === "INPATIENT" && (
+            {canManageAdmissions && currentVisit && currentVisit.visitType === "INPATIENT" && (
               <>
                 {!currentVisit.admissionDate && (
                   <Button
                     variant="contained"
                     color="primary"
-                    onClick={() => setAdmitModalOpen(true)}
+                    onClick={() =>
+                      navigate(`/patients/admissions/new?visitId=${currentVisit.id}`)
+                    }
                   >
                     Admit Patient
                   </Button>
@@ -1096,13 +1114,6 @@ const PatientDetailPage = () => {
         <PrescribeMedicationDrawer
           open={medicationDrawerOpen}
           onClose={() => setMedicationDrawerOpen(false)}
-          visitId={currentVisit?.id || ''}
-          patientName={`${patientData.firstName} ${patientData.lastName}`}
-        />
-
-        <AdmitPatientModal
-          open={admitModalOpen}
-          onClose={() => setAdmitModalOpen(false)}
           visitId={currentVisit?.id || ''}
           patientName={`${patientData.firstName} ${patientData.lastName}`}
         />

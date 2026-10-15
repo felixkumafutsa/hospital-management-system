@@ -41,8 +41,9 @@ export const validate = (schema: ZodSchema) => {
       next();
     } catch (error: any) {
       console.warn("Request validation failed");
-      if (error.errors) {
-        const details = error.errors.map((err: any) => ({
+      const issues = error.issues ?? error.errors;
+      if (issues) {
+        const details = issues.map((err: any) => ({
           field: err.path.join('.'),
           message: err.message
         }));
